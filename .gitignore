@@ -1,0 +1,86 @@
+# ==============================================================================
+# Python Core & Bytecode
+# ==============================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ==============================================================================
+# Virtual Environments (Local setups)
+# ==============================================================================
+.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ==============================================================================
+# Testing, Coverage, Quality Tools
+# ==============================================================================
+# Inline type checking and linting caches
+.mypy_cache/
+.pyre_cache/
+.pytype_cache/
+.ruff_cache/
+.black_cache/
+
+# Test frameworks & coverage reporting
+.toast_cache/
+.pytest_cache/
+.cache/
+htmlcov/
+.top/
+.coverage
+.coverage.*
+.coverage-fixtures
+.coveragerc
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# ==============================================================================
+# Database / Application Data (Safe Defaults)
+# ==============================================================================
+# In case you have local testing database instances floating around
+*.db
+*.sqlite3
+
+# ==============================================================================
+# IDEs and System Clutter
+# ==============================================================================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+.DS_Store
+Thumbs.db

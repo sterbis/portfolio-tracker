@@ -1,0 +1,38 @@
+from abc import ABC, abstractmethod
+from types import TracebackType
+from typing import Self
+
+from .repositories import (
+    AccountRepository,
+    FxRatesRepository,
+    InstrumentRepository,
+    MarketDataRepository,
+    TransactionRepository,
+    UserRepository,
+)
+
+
+class UnitOfWork(ABC):
+    accounts: AccountRepository
+    fx_rates: FxRatesRepository
+    instruments: InstrumentRepository
+    market_data: MarketDataRepository
+    transactions: TransactionRepository
+    users: UserRepository
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.rollback()
+
+    @abstractmethod
+    def commit(self) -> None: ...
+
+    @abstractmethod
+    def rollback(self) -> None: ...

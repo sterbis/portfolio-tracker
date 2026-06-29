@@ -1,0 +1,408 @@
+from dataclasses import dataclass, field, fields
+from datetime import datetime
+from decimal import Decimal
+from typing import Any
+
+from portfolio_tracker.application.services.accounts import Credentials, Institution
+from portfolio_tracker.domain.accounts import AssetAccount, InstitutionAccount
+from portfolio_tracker.domain.analytics.cash_balance import (
+    CashBalance,
+    CashBalanceValuation,
+)
+from portfolio_tracker.domain.analytics.portfolio import (
+    ConsolidationScope,
+    Portfolio,
+    PortfolioValuation,
+)
+from portfolio_tracker.domain.analytics.position import Position, PositionValuation
+from portfolio_tracker.domain.instruments import AssetClass, Instrument, InstrumentType
+from portfolio_tracker.domain.ledger import Transaction, TransactionType
+from portfolio_tracker.domain.market_data import FxRates
+from portfolio_tracker.domain.shared import DualMoney, Money
+
+
+@dataclass(frozen=True)
+class MoneyDto:
+    amount: Decimal
+    currency: str
+
+    @classmethod
+    def from_domain(cls, money: Money) -> MoneyDto:
+        return cls(amount=money.amount, currency=money.currency)
+
+
+@dataclass(frozen=True)
+class DualMoneyDto:
+    native: MoneyDto
+    reporting: MoneyDto
+
+    @classmethod
+    def from_domain(cls, dual_money: DualMoney) -> DualMoneyDto:
+        return cls(
+            native=MoneyDto.from_domain(dual_money.native),
+            reporting=MoneyDto.from_domain(dual_money.reporting),
+        )
+
+
+@dataclass(frozen=True)
+class InstitutionDto:
+    id: str
+    name: str
+    log_in_url: str
+
+    @classmethod
+    def from_domain(cls, institution: Institution) -> InstitutionDto:
+        return cls(
+            id=institution.id,
+            name=institution.name,
+            log_in_url=institution.log_in_url,
+        )
+
+
+@dataclass(frozen=True)
+class InstitutionAccountDto:
+    id: str
+    institution: InstitutionDto
+    name: str
+    credentials: Credentials | None
+
+    @classmethod
+    def from_domain(
+        cls,
+        institution_account: InstitutionAccount,
+        institution_dto: InstitutionDto,
+        credentials: Credentials | None = None,
+    ) -> InstitutionAccountDto:
+        return cls(
+            id=institution_account.id,
+            institution=institution_dto,
+            name=institution_account.name,
+            credentials=credentials,
+        )
+
+
+@dataclass(frozen=True)
+class AssetAccountDto:
+    id: str
+    institution_account: InstitutionAccountDto
+    name: str
+
+    @classmethod
+    def from_domain(
+        cls,
+        asset_account: AssetAccount,
+        institution_account_dto: InstitutionAccountDto,
+    ) -> AssetAccountDto:
+        return cls(
+            id=asset_account.id,
+            institution_account=institution_account_dto,
+            name=asset_account.name,
+        )
+
+
+@dataclass(frozen=True)
+class InstrumentDto:
+    type: InstrumentType
+    asset_class: AssetClass
+    name: str
+    symbol: str
+    exchange: str | None
+    currency: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_domain(cls, instrument: Instrument) -> InstrumentDto:
+        base_fields = {field.name for field in fields(cls)} - {"details"}
+        base_data = {field: getattr(instrument, field) for field in base_fields}
+
+        instrument_fields = {field.name for field in fields(instrument)}
+        details_fields = instrument_fields - base_fields
+        details = {field: getattr(instrument, field) for field in details_fields}
+
+        return cls(
+            **base_data,
+            details=details,
+        )
+
+
+@dataclass(frozen=True)
+class TransactionDto:
+    id: str
+    executed_at: datetime
+    asset_account: AssetAccountDto
+    type: TransactionType
+    instrument: InstrumentDto | None
+    quantity: Decimal
+    price: DualMoneyDto
+    fee: DualMoneyDto
+    tax: DualMoneyDto
+    cash_impact: DualMoneyDto
+    correlation_id: str | None = None
+
+    @classmethod
+    def from_domain(
+        cls,
+        transaction: Transaction,
+        rates: FxRates,
+        reporting_currency: str,
+        asset_account_dto: AssetAccountDto,
+        instrument_dto: InstrumentDto | None = None,
+    ) -> TransactionDto:
+        transaction.price.convert(reporting_currency, rates)
+
+        return cls(
+            id=transaction.id,
+            executed_at=transaction.executed_at,
+            asset_account=asset_account_dto,
+            type=transaction.type,
+            instrument=instrument_dto,
+            quantity=transaction.quantity,
+            price=DualMoneyDto(
+                native=MoneyDto.from_domain(transaction.price),
+                reporting=MoneyDto.from_domain(
+                    transaction.price.convert(reporting_currency, rates)
+                ),
+            ),
+            fee=DualMoneyDto(
+                native=MoneyDto.from_domain(transaction.fee),
+                reporting=MoneyDto.from_domain(
+                    transaction.fee.convert(reporting_currency, rates)
+                ),
+            ),
+            tax=DualMoneyDto(
+                native=MoneyDto.from_domain(transaction.tax),
+                reporting=MoneyDto.from_domain(
+                    transaction.tax.convert(reporting_currency, rates)
+                ),
+            ),
+            cash_impact=DualMoneyDto(
+                native=MoneyDto.from_domain(transaction.cash_impact),
+                reporting=MoneyDto.from_domain(
+                    transaction.cash_impact.convert(reporting_currency, rates)
+                ),
+            ),
+            correlation_id=transaction.correlation_id,
+        )
+
+
+@dataclass(frozen=True)
+class PositionDto:
+    instrument: InstrumentDto
+
+    quantity: Decimal
+    cost_basis: DualMoneyDto
+    average_price: DualMoneyDto
+    fees: DualMoneyDto
+
+    opened_at: datetime
+    last_trade_at: datetime
+    last_trade_type: str
+    last_buy_at: datetime | None
+    closed_at: datetime | None
+
+    is_closed: bool
+    is_tax_free: bool
+
+    tax_free_position: PositionDto | None
+
+    @classmethod
+    def from_domain(
+        cls,
+        position: Position,
+        instrument_dto: InstrumentDto,
+    ) -> PositionDto:
+        return cls(
+            instrument=instrument_dto,
+            quantity=position.quantity,
+            cost_basis=DualMoneyDto.from_domain(position.cost_basis),
+            average_price=DualMoneyDto.from_domain(position.average_price),
+            fees=DualMoneyDto.from_domain(position.fees),
+            opened_at=position.opened_at,
+            last_trade_at=position.last_trade_at,
+            last_trade_type=position.last_trade_type,
+            last_buy_at=position.last_buy_at,
+            closed_at=position.closed_at,
+            is_closed=position.is_closed,
+            is_tax_free=position.is_tax_free,
+            tax_free_position=(
+                PositionDto.from_domain(position.tax_free_position, instrument_dto)
+                if position.tax_free_position
+                else None
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class PositionValuationDto:
+    market_price: DualMoneyDto
+    market_value: DualMoneyDto
+    unrealized_pnl: DualMoneyDto
+    native_unrealized_pnl_percent: Decimal | None
+    reporting_unrealized_pnl_percent: Decimal | None
+
+    tax_free_valuation: PositionValuationDto | None
+
+    @classmethod
+    def from_domain(
+        cls,
+        valuation: PositionValuation,
+    ) -> PositionValuationDto:
+        return cls(
+            market_price=DualMoneyDto.from_domain(valuation.market_price),
+            market_value=DualMoneyDto.from_domain(valuation.market_value),
+            unrealized_pnl=DualMoneyDto.from_domain(valuation.unrealized_pnl),
+            native_unrealized_pnl_percent=valuation.native_unrealized_pnl_percent,
+            reporting_unrealized_pnl_percent=valuation.reporting_unrealized_pnl_percent,
+            tax_free_valuation=(
+                PositionValuationDto.from_domain(valuation.tax_free_valuation)
+                if valuation.tax_free_valuation
+                else None
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class ValuedPositionDto:
+    position: PositionDto
+    valuation: PositionValuationDto | None
+
+
+@dataclass(frozen=True)
+class CashBalanceDto:
+    currencies: dict[str, MoneyDto]
+
+    @classmethod
+    def from_domain(cls, cash_balance: CashBalance) -> CashBalanceDto:
+        return cls(
+            currencies={
+                currency: MoneyDto.from_domain(balance)
+                for currency, balance in cash_balance.currencies.items()
+            }
+        )
+
+
+@dataclass(frozen=True)
+class CashBalanceValuationDto:
+    total_balance: MoneyDto
+
+    @classmethod
+    def from_domain(cls, valuation: CashBalanceValuation) -> CashBalanceValuationDto:
+        return cls(
+            total_balance=MoneyDto.from_domain(valuation.total_balance),
+        )
+
+
+@dataclass(frozen=True)
+class ValuedCashBalanceDto:
+    cash_balance: CashBalanceDto
+    valuation: CashBalanceValuationDto
+
+
+@dataclass(frozen=True)
+class PortfolioDto:
+    scope: ConsolidationScope
+    account: AssetAccountDto | InstitutionAccountDto | None
+    reporting_currency: str
+    positions: list[PositionDto]
+    cash_balance: CashBalanceDto
+
+    @classmethod
+    def from_domain(
+        cls,
+        portfolio: Portfolio,
+        account_dto: AssetAccountDto | InstitutionAccountDto | None,
+        instrument_dtos: dict[str, InstrumentDto],
+    ) -> PortfolioDto:
+        return cls(
+            scope=portfolio.scope,
+            account=account_dto,
+            reporting_currency=portfolio.reporting_currency,
+            positions=[
+                PositionDto.from_domain(
+                    position, instrument_dtos[position.instrument_id]
+                )
+                for position in portfolio.positions
+            ],
+            cash_balance=CashBalanceDto.from_domain(portfolio.cash_balance),
+        )
+
+
+@dataclass(frozen=True)
+class PortfolioValuationDto:
+    account_id: str | None
+
+    positions: dict[str, PositionValuationDto]
+    cash_balance: CashBalanceValuationDto
+
+    market_value: MoneyDto
+    unrealized_pnl: MoneyDto
+    asset_allocation: dict[AssetClass, tuple[MoneyDto, Decimal | None]]
+    instrument_type_allocation: dict[InstrumentType, tuple[MoneyDto, Decimal | None]]
+
+    is_partially_valued: bool = True
+
+    @classmethod
+    def from_domain(cls, valuation: PortfolioValuation) -> PortfolioValuationDto:
+        return cls(
+            account_id=valuation.account_id,
+            positions={
+                instrument_id: PositionValuationDto.from_domain(position_valuation)
+                for instrument_id, position_valuation in valuation.positions.items()
+            },
+            cash_balance=CashBalanceValuationDto.from_domain(valuation.cash_balance),
+            market_value=MoneyDto.from_domain(valuation.market_value),
+            unrealized_pnl=MoneyDto.from_domain(valuation.unrealized_pnl),
+            asset_allocation={
+                asset_class: (MoneyDto.from_domain(market_value), weight)
+                for asset_class, (
+                    market_value,
+                    weight,
+                ) in valuation.asset_allocation.items()
+            },
+            instrument_type_allocation={
+                instrument_type: (MoneyDto.from_domain(market_value), weight)
+                for instrument_type, (
+                    market_value,
+                    weight,
+                ) in valuation.instrument_type_allocation.items()
+            },
+            is_partially_valued=valuation.is_partially_valued,
+        )
+
+
+@dataclass(frozen=True)
+class ValuedPortfolioDto:
+    portfolio: PortfolioDto
+    valuation: PortfolioValuationDto | None
+
+
+@dataclass(frozen=True)
+class ReportInstrumentDto:
+    type: InstrumentType
+    name: str
+    symbol: str
+    currency: str
+    exchange: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ReportTransactionDto:
+    external_transaction_id: str
+    external_asset_account_id: str
+    executed_at: datetime
+    type: TransactionType
+    instrument: ReportInstrumentDto | None
+    quantity: Decimal
+    price: MoneyDto
+    fee: MoneyDto
+    tax: MoneyDto
+    cash_impact: MoneyDto
+    correlation_id: str | None = None
+
+
+@dataclass(frozen=True)
+class InstitutionReportDto:
+    institution_account_id: str
+    generated_at: datetime
+    transactions: list[ReportTransactionDto]
