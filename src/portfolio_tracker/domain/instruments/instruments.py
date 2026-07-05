@@ -3,10 +3,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
 from datetime import date
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 
-class AssetClass(Enum):
+class AssetClass(StrEnum):
     BOND = "BOND"
     CASH = "CASH"
     COMMODITY = "COMMODITY"
@@ -15,7 +15,7 @@ class AssetClass(Enum):
     REAL_ESTATE = "REAL_ESTATE"
 
 
-class InstrumentType(Enum):
+class InstrumentType(StrEnum):
     BOND = "BOND"
     CFD = "CFD"
     COMMODITY = "COMMODITY"
@@ -38,14 +38,14 @@ class InstrumentType(Enum):
         )
 
 
-class CouponFrequency(Enum):
+class CouponFrequency(StrEnum):
     ANNUAL = "ANNUAL"
     MONTHLY = "MONTHLY"
     QUARTERLY = "QUARTERLY"
     SEMI_ANNUAL = "SEMI_ANNUAL"
 
 
-class OptionType(Enum):
+class OptionType(StrEnum):
     CALL = "CALL"
     PUT = "PUT"
 

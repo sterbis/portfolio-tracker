@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from portfolio_tracker.application.services.accounts import Credentials, Institution
+from portfolio_tracker.domain.institution import Credentials, Institution
 from portfolio_tracker.domain.accounts import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.analytics.cash_balance import (
     CashBalance,

@@ -2,7 +2,7 @@ from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import List, Optional
+from typing import List
 
 from portfolio_tracker.domain.ledger import Transaction, TransactionType
 from portfolio_tracker.domain.market_data import FxRates
@@ -30,11 +30,11 @@ class PositionBuilder:
         self.accounting_method = accounting_method
         self._lots: List[TaxLot] = []
 
-        self._opened_at: Optional[datetime] = None
-        self._last_trade_at: Optional[datetime] = None
+        self._opened_at: datetime | None = None
+        self._last_trade_at: datetime | None = None
         self._last_trade_type: str = ""
-        self._last_buy_at: Optional[datetime] = None
-        self._closed_at: Optional[datetime] = None
+        self._last_buy_at: datetime | None = None
+        self._closed_at: datetime | None = None
 
     @property
     def quantity(self) -> Decimal:

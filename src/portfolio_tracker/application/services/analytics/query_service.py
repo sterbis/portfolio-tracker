@@ -22,6 +22,7 @@ from portfolio_tracker.application.contracts.queries import (
     GetPortfoliosQuery,
     OutputType,
 )
+from portfolio_tracker.domain.institution import InstitutionRegistry
 from portfolio_tracker.application.ports.repositories import (
     AccountRepository,
     FxRatesRepository,
@@ -30,7 +31,6 @@ from portfolio_tracker.application.ports.repositories import (
     TransactionRepository,
 )
 from portfolio_tracker.application.ports.unit_of_work import UnitOfWork
-from portfolio_tracker.application.services.accounts import SUPPORTED_INSTITUTIONS
 from portfolio_tracker.application.services.market_data import (
     FxService,
     MarketDataService,
@@ -40,6 +40,7 @@ from portfolio_tracker.application.services.market_data import (
 class PortfolioQueryService:
     def __init__(
         self,
+        institution_registry: InstitutionRegistry,
         uow: UnitOfWork,
         transaction_adjuster: TransactionAdjuster,
         portfolio_builder: PortfolioBuilder,
@@ -47,6 +48,7 @@ class PortfolioQueryService:
         fx_service: FxService,
         market_data_service: MarketDataService,
     ) -> None:
+        self._institution_registry = institution_registry
         self._uow = uow
         self._market_data_service = market_data_service
         self._fx_service = fx_service
@@ -68,16 +70,16 @@ class PortfolioQueryService:
             )
             transactions = self._adjust_transactions(
                 transactions,
-                query.filter,
                 uow.transactions,
                 uow.market_data,
+                query.filter,
             )
             portfolios = self._calculate_portfolios(
                 transactions,
-                query.filter,
                 query.reporting_currency,
                 uow.transactions,
                 uow.fx_rates,
+                query.filter,
             )
             account_id_map = self._get_account_id_map(portfolios, uow.accounts)
             if query.scope != ConsolidationScope.ASSET_ACCOUNT:
@@ -93,7 +95,7 @@ class PortfolioQueryService:
             instruments = self._get_portfolio_instruments(portfolios, uow.instruments)
 
         institutions = [
-            SUPPORTED_INSTITUTIONS[institution_account.institution_id]
+            self._institution_registry.get(institution_account.institution_id)
             for institution_account in institution_accounts
         ]
 
@@ -124,9 +126,9 @@ class PortfolioQueryService:
     def _adjust_transactions(
         self,
         transactions: Iterable[Transaction],
-        filter_: Filter,
         transaction_repository: TransactionRepository,
         market_data_repository: MarketDataRepository,
+        filter_: Filter | None = None,
     ) -> Iterable[Transaction]:
         instrument_ids = transaction_repository.get_distinct_instrument_ids(filter_)
         splits_list = market_data_repository.get_stock_splits_by_instrument_ids(
@@ -137,16 +139,18 @@ class PortfolioQueryService:
     def _calculate_portfolios(
         self,
         transactions: Iterable[Transaction],
-        filter_: Filter,
-        base_currency: str,
+        reporting_currency: str,
         transaction_repository: TransactionRepository,
         fx_rates_repository: FxRatesRepository,
+        filter_: Filter | None = None,
     ) -> list[Portfolio]:
         dates = transaction_repository.get_distinct_dates(filter_)
         rates_by_date = fx_rates_repository.get_required_rates_by_date_map(
             dates,
         )
-        return self._portfolio_builder.build(transactions, rates_by_date, base_currency)
+        return self._portfolio_builder.build(
+            transactions, rates_by_date, reporting_currency
+        )
 
     def _get_account_id_map(
         self,
@@ -174,9 +178,9 @@ class PortfolioQueryService:
         instrument_repository: InstrumentRepository,
     ) -> list[Instrument]:
         instrument_ids = {
-            instrumnet_id
+            instrument_id
             for portfolio in portfolios
-            for instrumnet_id in portfolio.instrument_ids
+            for instrument_id in portfolio.instrument_ids
         }
         return instrument_repository.get_by_ids(instrument_ids)
 

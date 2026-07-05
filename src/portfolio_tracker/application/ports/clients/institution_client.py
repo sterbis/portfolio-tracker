@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from portfolio_tracker.application.services.accounts import Credentials
+from portfolio_tracker.domain.institution import Credentials
 
 
 class InstitutionClient(ABC):

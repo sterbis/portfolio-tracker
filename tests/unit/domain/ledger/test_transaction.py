@@ -7,7 +7,6 @@ from portfolio_tracker.domain.shared.money import Money
 
 
 def test_valid_buy_transaction() -> None:
-    # A valid BUY transaction
     tx = Transaction(
         correlation_id="corr_123",
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
@@ -25,7 +24,6 @@ def test_valid_buy_transaction() -> None:
 
 
 def test_valid_deposit_without_instrument() -> None:
-    # A deposit does not require an instrument_id
     tx = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),

@@ -1,7 +1,5 @@
 import sqlite3
 from collections import defaultdict
-from datetime import date
-from decimal import Decimal
 from typing import Any, Literal
 
 from filterutils import Filter, FilterNode, Operator
@@ -44,7 +42,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         self._executor = executor
 
     def ensure(self, instrument: Instrument) -> None:
-        was_inserted = self._executor.insert_on_conflict(
+        inserted = self._executor.insert_if_not_exists(
             table="instrument",
             values={
                 "instrument_id": instrument.id,
@@ -58,7 +56,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
             conflict_columns=["instrument_id"],
         )
 
-        if not was_inserted:
+        if not inserted:
             return
 
         self._executor.insert(
@@ -69,7 +67,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
     def get(
         self,
         *,
-        filter_: Filter,
+        filter_: Filter | None = None,
         order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -114,6 +112,9 @@ class SqliteInstrumentRepository(InstrumentRepository):
         return instruments
 
     def get_by_ids(self, instrument_ids: set[str]) -> list[Instrument]:
+        if not instrument_ids:
+            return []
+
         return self.get(
             filter_=FilterNode("instrument_id", Operator.IN, instrument_ids)
         )
@@ -257,16 +258,16 @@ class SqliteInstrumentRepository(InstrumentRepository):
     def _row_to_bond_details(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "isin": row["isin"],
-            "face_value": Decimal(row["face_value"]),
-            "coupon_rate": Decimal(row["coupon_rate"]),
+            "face_value": row["face_value"],
+            "coupon_rate": row["coupon_rate"],
             "coupon_frequency": CouponFrequency(row["coupon_frequency"]),
-            "maturity_on": date.fromisoformat(row["maturity_on"]),
+            "maturity_on": row["maturity_on"],
         }
 
     def _row_to_cfd_details(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "institution_id": row["institution_id"],
-            "leverage": Decimal(row["leverage"]),
+            "leverage": row["leverage"],
         }
 
     def _row_to_commodity_details(self, row: sqlite3.Row) -> dict[str, Any]:
@@ -285,16 +286,16 @@ class SqliteInstrumentRepository(InstrumentRepository):
     def _row_to_future_details(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "isin": row["isin"],
-            "expiration_on": date.fromisoformat(row["expiration_on"]),
+            "expiration_on": row["expiration_on"],
             "multiplier": row["multiplier"],
         }
 
     def _row_to_option_details(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "isin": row["isin"],
-            "expiration_on": date.fromisoformat(row["expiration_on"]),
+            "expiration_on": row["expiration_on"],
             "option_type": OptionType(row["option_type"]),
-            "strike_price": Decimal(row["strike_price"]),
+            "strike_price": row["strike_price"],
             "multiplier": row["multiplier"],
         }
 

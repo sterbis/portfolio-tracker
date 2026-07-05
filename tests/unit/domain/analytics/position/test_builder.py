@@ -1,4 +1,5 @@
 # pylint: disable=redefined-outer-name
+
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -16,7 +17,7 @@ from portfolio_tracker.domain.shared import Money, DualMoney
 
 
 @pytest.fixture(scope="module")
-def mock_asset_account() -> AssetAccount:
+def asset_account() -> AssetAccount:
     return AssetAccount(
         institution_account_id="inst_acc_1234",
         external_id="222333444",
@@ -38,14 +39,14 @@ def apple_stock() -> Stock:
 
 @pytest.fixture
 def apple_transactions(
-    apple_stock: Stock, mock_asset_account: AssetAccount
+    apple_stock: Stock, asset_account: AssetAccount
 ) -> list[Transaction]:
     return [
         # Buy 10 AAPL shares @ 180
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-            asset_account_id=mock_asset_account.id,
+            asset_account_id=asset_account.id,
             instrument_id=apple_stock.id,
             type=TransactionType.BUY,
             quantity=Decimal("10"),
@@ -58,7 +59,7 @@ def apple_transactions(
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
-            asset_account_id=mock_asset_account.id,
+            asset_account_id=asset_account.id,
             instrument_id=apple_stock.id,
             type=TransactionType.BUY,
             quantity=Decimal("5"),
@@ -71,7 +72,7 @@ def apple_transactions(
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 3, 10, 0, tzinfo=timezone.utc),
-            asset_account_id=mock_asset_account.id,
+            asset_account_id=asset_account.id,
             instrument_id=apple_stock.id,
             type=TransactionType.BUY,
             quantity=Decimal("7"),
@@ -84,7 +85,7 @@ def apple_transactions(
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 4, 10, 0, tzinfo=timezone.utc),
-            asset_account_id=mock_asset_account.id,
+            asset_account_id=asset_account.id,
             instrument_id=apple_stock.id,
             type=TransactionType.SELL,
             quantity=Decimal("12"),
@@ -186,7 +187,7 @@ def test_execute_average_cost_sell(
 
 
 def test_position_builder_chronological_order_enforced(
-    apple_stock: Stock, mock_asset_account: AssetAccount
+    apple_stock: Stock, asset_account: AssetAccount
 ) -> None:
     builder = PositionBuilder(
         instrument_id=apple_stock.id,
@@ -199,7 +200,7 @@ def test_position_builder_chronological_order_enforced(
     tx1 = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("5"),
@@ -214,7 +215,7 @@ def test_position_builder_chronological_order_enforced(
     tx2 = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("5"),
@@ -230,7 +231,7 @@ def test_position_builder_chronological_order_enforced(
 
 
 def test_position_builder_instrument_mismatch_raises_error(
-    apple_stock: Stock, mock_asset_account: AssetAccount
+    apple_stock: Stock, asset_account: AssetAccount
 ) -> None:
     builder = PositionBuilder(
         instrument_id=apple_stock.id,
@@ -242,7 +243,7 @@ def test_position_builder_instrument_mismatch_raises_error(
     tx = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id="MSFT",  # Mismatched instrument
         type=TransactionType.BUY,
         quantity=Decimal("5"),
@@ -256,7 +257,7 @@ def test_position_builder_instrument_mismatch_raises_error(
 
 
 def test_position_builder_short_selling_protection(
-    apple_stock: Stock, mock_asset_account: AssetAccount
+    apple_stock: Stock, asset_account: AssetAccount
 ) -> None:
     builder = PositionBuilder(
         instrument_id=apple_stock.id,
@@ -269,7 +270,7 @@ def test_position_builder_short_selling_protection(
     tx_sell = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.SELL,
         quantity=Decimal("5"),
@@ -290,7 +291,7 @@ def test_position_builder_short_selling_protection(
     tx_buy = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 9, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("5"),
@@ -304,7 +305,7 @@ def test_position_builder_short_selling_protection(
     tx_sell_excess = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 11, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.SELL,
         quantity=Decimal("6"),
@@ -318,7 +319,7 @@ def test_position_builder_short_selling_protection(
 
 
 def test_position_builder_closure_and_reopening(
-    apple_stock: Stock, mock_asset_account: AssetAccount
+    apple_stock: Stock, asset_account: AssetAccount
 ) -> None:
     builder = PositionBuilder(
         instrument_id=apple_stock.id,
@@ -331,7 +332,7 @@ def test_position_builder_closure_and_reopening(
     tx_buy = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("5"),
@@ -346,7 +347,7 @@ def test_position_builder_closure_and_reopening(
     tx_sell = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 11, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.SELL,
         quantity=Decimal("5"),
@@ -365,7 +366,7 @@ def test_position_builder_closure_and_reopening(
     tx_buy2 = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("10"),
@@ -385,7 +386,7 @@ def test_position_builder_closure_and_reopening(
 
 
 def test_position_builder_unsupported_tx_type_raises_error(
-    apple_stock: Stock, mock_asset_account: AssetAccount
+    apple_stock: Stock, asset_account: AssetAccount
 ) -> None:
     builder = PositionBuilder(
         instrument_id=apple_stock.id,
@@ -397,7 +398,7 @@ def test_position_builder_unsupported_tx_type_raises_error(
     tx = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-        asset_account_id=mock_asset_account.id,
+        asset_account_id=asset_account.id,
         instrument_id=apple_stock.id,
         type=TransactionType.DEPOSIT,  # DEPOSIT is not BUY/SELL
         quantity=Decimal("0"),

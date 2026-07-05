@@ -5,25 +5,22 @@ from portfolio_tracker.application.contracts.commands import (
     ConnectInstitutionAccountCommand,
     UpdateInstitutionAccountCommand,
 )
-from portfolio_tracker.application.ports.encryptor import Encryptor
 from portfolio_tracker.application.ports.unit_of_work import UnitOfWork
 from portfolio_tracker.domain.accounts import InstitutionAccount
-
-from .institutions import SUPPORTED_INSTITUTIONS, Credentials
+from portfolio_tracker.domain.institution import Credentials, InstitutionRegistry
 
 
 class AccountService:
-    def __init__(self, uow: UnitOfWork, encryption_service: Encryptor):
+    def __init__(
+        self, institution_registry: InstitutionRegistry, uow: UnitOfWork
+    ) -> None:
+        self._institution_registry = institution_registry
         self._uow = uow
-        self._encryption_service = encryption_service
 
     def connect_institution_account(
         self, user_id: str, command: ConnectInstitutionAccountCommand
     ) -> str:
         self._validate_credentials_type(command.institution_id, command.credentials)
-        encrypted_credentials = self._encryption_service.encrypt(
-            command.credentials.to_json()
-        )
 
         with self._uow as uow:
             institution_account = InstitutionAccount(
@@ -31,7 +28,6 @@ class AccountService:
                 institution_id=command.institution_id,
                 name=command.name,
                 created_on=command.created_on,
-                encrypted_credentials=encrypted_credentials,
                 last_synced_at=datetime.combine(
                     command.created_on,
                     time.min,
@@ -39,6 +35,8 @@ class AccountService:
                 ),
             )
             uow.accounts.add_institution_account(institution_account)
+            uow.credentials.store(institution_account.id, command.credentials)
+
             uow.commit()
 
         return institution_account.id
@@ -57,17 +55,12 @@ class AccountService:
                 self._validate_credentials_type(
                     institution_account.institution_id, command.credentials
                 )
-                encrypted_credentials = self._encryption_service.encrypt(
-                    command.credentials.to_json()
-                )
-            else:
-                encrypted_credentials = institution_account.encrypted_credentials
+                uow.credentials.store(institution_account.id, command.credentials)
 
             institution_account = replace(
                 institution_account,
                 name=command.name,
                 created_on=command.created_on,
-                encrypted_credentials=encrypted_credentials,
             )
             uow.accounts.update_institution_account(institution_account)
             uow.commit()
@@ -80,12 +73,9 @@ class AccountService:
     def _validate_credentials_type(
         self, institution_id: str, credentials: Credentials
     ) -> None:
-        institution = SUPPORTED_INSTITUTIONS.get(institution_id)
-        if not institution:
-            raise ValueError(f"Unsupported institution {institution_id}.")
-
-        if not isinstance(credentials, institution.credentials):
+        institution = self._institution_registry.get(institution_id)
+        if not isinstance(credentials, institution.credentials_cls):
             raise ValueError(
                 f"Invalid {institution.name} credentials. "
-                f"Expected {institution.credentials.__name__}, got {type(credentials).__name__}."
+                f"Expected {institution.credentials_cls.__name__}, got {type(credentials).__name__}."
             )

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from portfolio_tracker.application.services.accounts import Credentials
+from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.domain.ledger import TransactionType
 
 from .dtos import MoneyDto

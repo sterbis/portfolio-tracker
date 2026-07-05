@@ -2,12 +2,12 @@ import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 from portfolio_tracker.domain.shared import Money
 
 
-class TransactionType(Enum):
+class TransactionType(StrEnum):
     BUY = "BUY"
     CURRENCY_EXCHANGE = "CURRENCY_EXCHANGE"
     DEPOSIT = "DEPOSIT"
@@ -24,7 +24,6 @@ class TransactionType(Enum):
 
 @dataclass(frozen=True)
 class Transaction:
-    correlation_id: str | None
     executed_at: datetime
     asset_account_id: str
     type: TransactionType
@@ -35,6 +34,7 @@ class Transaction:
     tax: Money
     cash_impact: Money
     _id: str | None = None
+    correlation_id: str | None = None
 
     @property
     def id(self) -> str:

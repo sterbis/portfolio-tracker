@@ -17,7 +17,7 @@ class SqliteMarketDataRepository(MarketDataRepository):
 
     def ensure_stock_splits(self, splits: StockSplits) -> None:
         for executed_at, ratio in splits.splits.items():
-            self._executor.insert_on_conflict(
+            self._executor.insert_if_not_exists(
                 table="stock_split",
                 values={
                     "instrument_id": splits.instrument_id,
@@ -30,7 +30,7 @@ class SqliteMarketDataRepository(MarketDataRepository):
     def get_stock_splits(
         self,
         *,
-        filter_: Filter,
+        filter_: Filter | None = None,
     ) -> Iterator[StockSplits]:
         rows = self._executor.select(
             table="stock_split",
@@ -42,6 +42,9 @@ class SqliteMarketDataRepository(MarketDataRepository):
     def get_stock_splits_by_instrument_ids(
         self, instrument_ids: set[str]
     ) -> list[StockSplits]:
+        if not instrument_ids:
+            return []
+
         return list(
             self.get_stock_splits(
                 filter_=FilterNode("instrument_id", Operator.IN, instrument_ids),
@@ -64,8 +67,8 @@ class SqliteMarketDataRepository(MarketDataRepository):
                 accumulated_splits = {}
 
             current_instrument_id = instrument_id
-            executed_at = datetime.fromisoformat(row["executed_at"])
-            accumulated_splits[executed_at] = Decimal(row["ratio"])
+            executed_at = row["executed_at"]
+            accumulated_splits[executed_at] = row["ratio"]
 
         if current_instrument_id:
             yield StockSplits(current_instrument_id, accumulated_splits)

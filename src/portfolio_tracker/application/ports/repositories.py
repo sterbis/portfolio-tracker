@@ -66,7 +66,7 @@ class InstrumentRepository(ABC):
     def get(
         self,
         *,
-        filter_: Filter,
+        filter_: Filter | None = None,
         order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -87,7 +87,7 @@ class TransactionRepository(ABC):
     def get(
         self,
         *,
-        filter_: Filter,
+        filter_: Filter | None = None,
         order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -97,10 +97,12 @@ class TransactionRepository(ABC):
     def get_by_id(self, transaction_id: str) -> Transaction | None: ...
 
     @abstractmethod
-    def get_distinct_dates(self, filter_: Filter) -> set[date]: ...
+    def get_distinct_dates(self, filter_: Filter | None = None) -> set[date]: ...
 
     @abstractmethod
-    def get_distinct_instrument_ids(self, filter_: Filter) -> set[str]: ...
+    def get_distinct_instrument_ids(
+        self, filter_: Filter | None = None
+    ) -> set[str]: ...
 
     @abstractmethod
     def update(self, transaction: Transaction) -> None: ...

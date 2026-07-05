@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import Self
 
+from portfolio_tracker.domain.institution import InstitutionRegistry
+
 from .repositories import (
     AccountRepository,
     FxRatesRepository,
@@ -10,6 +12,7 @@ from .repositories import (
     TransactionRepository,
     UserRepository,
 )
+from .credentials_store import CredentialsStore
 
 
 class UnitOfWork(ABC):
@@ -19,6 +22,13 @@ class UnitOfWork(ABC):
     market_data: MarketDataRepository
     transactions: TransactionRepository
     users: UserRepository
+    credentials: CredentialsStore
+
+    def __init__(
+        self,
+        institution_registry: InstitutionRegistry,
+    ) -> None:
+        self._institution_registry = institution_registry
 
     def __enter__(self) -> Self:
         return self
@@ -29,7 +39,8 @@ class UnitOfWork(ABC):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        self.rollback()
+        if exc_type is not None:
+            self.rollback()
 
     @abstractmethod
     def commit(self) -> None: ...

@@ -1,6 +1,6 @@
 import sqlite3
 from collections.abc import Iterator
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 from filterutils import Filter, FilterNode, Operator
@@ -17,7 +17,7 @@ class SqliteFxRatesRepository(FxRatesRepository):
 
     def ensure(self, rates: FxRates) -> None:
         for quote_currency, rate in rates.base_rates.items():
-            self._executor.insert_on_conflict(
+            self._executor.insert_if_not_exists(
                 table="fx_rate",
                 values={
                     "effective_on": rates.effective_on,
@@ -31,7 +31,7 @@ class SqliteFxRatesRepository(FxRatesRepository):
     def get(
         self,
         *,
-        filter_: Filter,
+        filter_: Filter | None = None,
     ) -> Iterator[FxRates]:
         rows = self._executor.select(
             table="fx_rate",
@@ -47,11 +47,14 @@ class SqliteFxRatesRepository(FxRatesRepository):
         )
 
     def get_by_dates(self, dates: set[date]) -> list[FxRates]:
+        if not dates:
+            return []
+
         return list(self.get(filter_=FilterNode("effective_on", Operator.IN, dates)))
 
     def get_latest(self) -> FxRates | None:
         row = self._executor.select_one(
-            table="fx_rates",
+            table="fx_rate",
             columns=["effective_on"],
             order_by=[("effective_on", "DESC")],
             limit=1,
@@ -63,11 +66,11 @@ class SqliteFxRatesRepository(FxRatesRepository):
 
     def get_distinct_dates(self) -> set[date]:
         rows = self._executor.select(
-            table="fx_rates",
+            table="fx_rate",
             columns=["effective_on"],
             distinct=True,
         )
-        return {datetime.fromisoformat(row["effective_on"]).date() for row in rows}
+        return {row["effective_on"].date() for row in rows}
 
     def _rows_to_rates(self, rows: list[sqlite3.Row]) -> Iterator[FxRates]:
         current_date = None
@@ -75,7 +78,7 @@ class SqliteFxRatesRepository(FxRatesRepository):
         accumulated_rates: dict[str, Decimal] = {}
 
         for row in rows:
-            effective_on = date.fromisoformat(row["effective_on"])
+            effective_on = row["effective_on"]
             base_currency = row["base_currency"]
 
             if current_date is not None and (
@@ -87,7 +90,7 @@ class SqliteFxRatesRepository(FxRatesRepository):
 
             current_date = effective_on
             current_base_currency = base_currency
-            accumulated_rates[row["quote_currency"]] = Decimal(row["rate"])
+            accumulated_rates[row["quote_currency"]] = row["rate"]
 
         if current_date and current_base_currency:
             yield FxRates(current_date, current_base_currency, accumulated_rates)

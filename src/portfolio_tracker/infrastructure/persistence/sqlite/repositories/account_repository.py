@@ -1,5 +1,4 @@
 import sqlite3
-from datetime import date, datetime
 from typing import Any, Literal
 
 from filterutils import Filter, FilterNode, FilterTree, Operator
@@ -23,7 +22,7 @@ class SqliteAccountRepository(AccountRepository):
     def get_institution_accounts(
         self,
         *,
-        filter_: Filter,
+        filter_: Filter | None = None,
         order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -49,6 +48,9 @@ class SqliteAccountRepository(AccountRepository):
     def get_institution_accounts_by_ids(
         self, account_ids: set[str]
     ) -> list[InstitutionAccount]:
+        if not account_ids:
+            return []
+
         return self.get_institution_accounts(
             filter_=FilterNode("institution_account_id", Operator.IN, account_ids)
         )
@@ -85,7 +87,7 @@ class SqliteAccountRepository(AccountRepository):
     def get_asset_accounts(
         self,
         *,
-        filter_: Filter,
+        filter_: Filter | None = None,
         order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -100,6 +102,9 @@ class SqliteAccountRepository(AccountRepository):
         return [self._row_to_asset_account(row) for row in rows]
 
     def get_asset_accounts_by_ids(self, account_ids: set[str]) -> list[AssetAccount]:
+        if not account_ids:
+            return []
+
         return self.get_asset_accounts(
             filter_=FilterNode("asset_account_id", Operator.IN, account_ids)
         )
@@ -124,8 +129,8 @@ class SqliteAccountRepository(AccountRepository):
         return {
             "institution_account_id": account.id,
             "institution_id": account.institution_id,
+            "user_id": account.user_id,
             "name": account.name,
-            "encrypted_credentials": account.encrypted_credentials,
             "created_on": account.created_on,
             "last_synced_at": account.last_synced_at,
         }
@@ -144,9 +149,8 @@ class SqliteAccountRepository(AccountRepository):
             user_id=row["user_id"],
             institution_id=row["institution_id"],
             name=row["name"],
-            encrypted_credentials=row["encrypted_credentials"],
-            created_on=date.fromisoformat(row["created_on"]),
-            last_synced_at=datetime.fromisoformat(row["last_synced_at"]),
+            created_on=row["created_on"],
+            last_synced_at=row["last_synced_at"],
         )
 
     def _row_to_asset_account(self, row: sqlite3.Row) -> AssetAccount:

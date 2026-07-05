@@ -1,12 +1,12 @@
 from datetime import date
 
-from portfolio_tracker.application.services.accounts import Institution
 from portfolio_tracker.domain.accounts import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.analytics.portfolio import (
     ConsolidationScope,
     Portfolio,
     PortfolioValuation,
 )
+from portfolio_tracker.domain.institution import Institution
 from portfolio_tracker.domain.instruments import Instrument
 from portfolio_tracker.domain.ledger import Transaction
 from portfolio_tracker.domain.market_data import FxRates

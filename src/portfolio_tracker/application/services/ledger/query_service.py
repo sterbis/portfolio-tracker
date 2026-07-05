@@ -4,16 +4,18 @@ from portfolio_tracker.domain.ledger import TransactionAdjuster
 from portfolio_tracker.application.contracts.dtos import TransactionDto
 from portfolio_tracker.application.contracts.dto_assembler import DtoAssembler
 from portfolio_tracker.application.contracts.queries import GetTransactionsQuery
+from portfolio_tracker.domain.institution import InstitutionRegistry
 from portfolio_tracker.application.ports.unit_of_work import UnitOfWork
-from portfolio_tracker.application.services.accounts import SUPPORTED_INSTITUTIONS
 
 
 class TransactionQueryService:
     def __init__(
         self,
+        institution_registry: InstitutionRegistry,
         uow: UnitOfWork,
         transaction_adjuster: TransactionAdjuster,
     ) -> None:
+        self._institution_registry = institution_registry
         self._uow = uow
         self._transaction_adjuster = transaction_adjuster
 
@@ -51,7 +53,7 @@ class TransactionQueryService:
                 }
             )
             institutions = [
-                SUPPORTED_INSTITUTIONS[institution_account.institution_id]
+                self._institution_registry.get(institution_account.institution_id)
                 for institution_account in institution_accounts
             ]
             instruments = uow.instruments.get_by_ids(instrument_ids)

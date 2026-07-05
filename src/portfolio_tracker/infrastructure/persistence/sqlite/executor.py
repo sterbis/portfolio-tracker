@@ -1,9 +1,6 @@
 import logging
 import sqlite3
 from collections.abc import Iterable
-from datetime import date, datetime
-from decimal import Decimal
-from enum import Enum
 from pprint import pformat
 from typing import Any, Literal
 
@@ -17,42 +14,26 @@ class SqliteExecutor:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
 
-    def _to_database_value(self, value: Any) -> Any:
-        if isinstance(value, Enum):
-            return value.name
-        if isinstance(value, Decimal):
-            return str(value)
-        if isinstance(value, (datetime, date)):
-            return value.isoformat()
-        return value
-
-    def _to_database_values(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        return {
-            name: self._to_database_value(value) for name, value in parameters.items()
-        }
-
-    def _log_sql(self, sql: str, parameters: dict[str, Any]) -> None:
+    def _log_sql(self, sql: str, parameters: dict[str, Any] | None) -> None:
         formatted_sql = sqlparse.format(
             sql, reindent=True, keyword_case="upper", indent_width=2
         )
-        logger.debug(
-            "Executing SQL:\n%s\n\nParameters:\n%s",
-            formatted_sql.strip(),
-            pformat(parameters, indent=2),
-        )
+        args = [formatted_sql]
+
+        message = "Executing SQL:\n%s\n"
+        if parameters:
+            message += "\nParameters:\n%s"
+            args.append(pformat(parameters, indent=2))
+
+        logger.debug(message, *args)
 
     def execute(
         self,
         sql: str,
         parameters: dict[str, Any] | None = None,
     ) -> sqlite3.Cursor:
-        if parameters:
-            parameters = self._to_database_values(parameters)
-        else:
-            parameters = {}
-
         self._log_sql(sql, parameters)
-        return self._connection.execute(sql, parameters)
+        return self._connection.execute(sql, parameters or ())
 
     def insert(self, table: str, values: dict[str, Any]) -> sqlite3.Cursor:
         return self.execute(
@@ -63,7 +44,7 @@ class SqliteExecutor:
             parameters=values,
         )
 
-    def insert_on_conflict(
+    def insert_if_not_exists(
         self,
         table: str,
         values: dict[str, Any],
@@ -72,7 +53,7 @@ class SqliteExecutor:
         cursor = self.execute(
             sql=f"""
                 INSERT INTO {table} ({", ".join(values)})
-                VALUES ({", ".join(f":{parameter}" for parameter in values)})
+                VALUES ({", ".join(f":{column}" for column in values)})
                 ON CONFLICT({", ".join(conflict_columns)}) DO NOTHING;
             """,
             parameters=values,
@@ -132,9 +113,12 @@ class SqliteExecutor:
             sql += f"""
                 ORDER BY {", ".join(f"{column} {direction}" for column, direction in order_by)}
             """
-        if limit:
+        if limit is not None:
             sql += f"LIMIT {limit} "
-        if order_by:
+        elif offset is not None:
+            sql += "LIMIT -1 "
+
+        if offset is not None:
             sql += f"OFFSET {offset} "
 
         sql += ";"

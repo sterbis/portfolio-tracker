@@ -1,12 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime, date
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 from decimal import Decimal
 
 
 # --- Enums ---
-class AssetClass(Enum):
+class AssetClass(StrEnum):
     EQUITY = "EQUITY"
     CASH = "CASH"
     CRYPTO = "CRYPTO"
@@ -15,7 +14,7 @@ class AssetClass(Enum):
     REAL_ESTATE = "REAL_ESTATE"
 
 
-class InstrumentType(Enum):
+class InstrumentType(StrEnum):
     STOCK = "STOCK"
     ETF = "ETF"
     CURRENCY = "CURRENCY"
@@ -31,7 +30,7 @@ class InstrumentType(Enum):
     PHYSICAL_COMMODITY = "PHYSICAL_COMMODITY"
 
 
-class TransactionType(Enum):
+class TransactionType(StrEnum):
     DEPOSIT = "DEPOSIT"
     WITHDRAWAL = "WITHDRAWAL"
     BUY = "BUY"
@@ -46,7 +45,7 @@ class TransactionType(Enum):
     TRANSFER_OUT = "TRANSFER_OUT"
 
 
-class CouponFrequency(Enum):
+class CouponFrequency(StrEnum):
     ANNUAL = "ANNUAL"
     SEMI_ANNUAL = "SEMI_ANNUAL"
     QUARTERLY = "QUARTERLY"
@@ -64,7 +63,7 @@ class InstitutionAccount:
     id: str
     institution_id: str
     name: str
-    credentials: Optional[dict[str, str]] = None
+    credentials: dict[str, str] | None = None
 
 
 @dataclass
@@ -84,7 +83,7 @@ class Instrument:
     name: str
     currency: str  # Base asset currency
     asset_class: AssetClass
-    exchange: Optional[str]
+    exchange: str | None
 
 
 @dataclass(frozen=True)
@@ -147,7 +146,7 @@ class Option(DerivativeInstrument):
 @dataclass
 class Transaction:
     id: str  # Idempotency Hash
-    correlation_id: Optional[str]
+    correlation_id: str | None
     asset_account_id: str
     timestamp: datetime
     type: TransactionType

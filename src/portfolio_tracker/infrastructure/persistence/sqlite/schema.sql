@@ -11,11 +11,22 @@ CREATE TABLE IF NOT EXISTS  institution_account (
     institution_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
-    encrypted_credentials TEXT,
-    created_on TEXT NOT NULL,
-    last_synced_at TEXT,
+    created_on DATE NOT NULL,
+    last_synced_at DATETIME,
 
     FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS credentials (
+    id INTEGER PRIMARY KEY,
+    institution_account_id TEXT NOT NULL UNIQUE,
+    encrypted_value TEXT NOT NULL,
+    key_id TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_on DATE NOT NULL,
+    rotated_on DATE,
+
+    FOREIGN KEY (institution_account_id) REFERENCES institution_account(institution_account_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS asset_account (
@@ -42,17 +53,17 @@ CREATE TABLE IF NOT EXISTS instrument (
 CREATE TABLE IF NOT EXISTS bond (
     instrument_id TEXT PRIMARY KEY REFERENCES instrument(instrument_id) ON DELETE CASCADE,
     isin TEXT NOT NULL,
-    face_value TEXT NOT NULL,
-    coupon_rate TEXT NOT NULL,
+    face_value DECIMAL_AS_TEXT NOT NULL,
+    coupon_rate DECIMAL_AS_TEXT NOT NULL,
     coupon_frequency TEXT NOT NULL,
-    maturity_on TEXT
+    maturity_on DATE
 );
 
 CREATE TABLE IF NOT EXISTS cfd (
     instrument_id TEXT PRIMARY KEY REFERENCES instrument(instrument_id) ON DELETE CASCADE,
     underlying_instrument_id TEXT NOT NULL,
     institution_id TEXT NOT NULL,
-    leverage TEXT NOT NULL,
+    leverage DECIMAL_AS_TEXT NOT NULL,
 
     FOREIGN KEY (underlying_instrument_id) REFERENCES instrument(instrument_id)
 );
@@ -75,7 +86,7 @@ CREATE TABLE IF NOT EXISTS future (
     instrument_id TEXT PRIMARY KEY REFERENCES instrument(instrument_id) ON DELETE CASCADE,
     underlying_instrument_id TEXT NOT NULL,
     isin TEXT,
-    expiration_on TEXT NOT NULL,
+    expiration_on DATE NOT NULL,
     multiplier INTEGER NOT NULL,
 
     FOREIGN KEY (underlying_instrument_id) REFERENCES instrument(instrument_id)
@@ -85,9 +96,9 @@ CREATE TABLE IF NOT EXISTS option (
     instrument_id TEXT PRIMARY KEY REFERENCES instrument(instrument_id) ON DELETE CASCADE,
     underlying_instrument_id TEXT NOT NULL,
     isin TEXT,
-    expiration_on TEXT NOT NULL,
+    expiration_on DATE NOT NULL,
     option_type TEXT NOT NULL,
-    strike_price TEXT NOT NULL,
+    strike_price DECIMAL_AS_TEXT NOT NULL,
     multiplier INTEGER NOT NULL,
 
     FOREIGN KEY (underlying_instrument_id) REFERENCES instrument(instrument_id)
@@ -98,41 +109,37 @@ CREATE TABLE IF NOT EXISTS stock (
     isin TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS transaction (
+CREATE TABLE IF NOT EXISTS ledger_entry (
     id INTEGER PRIMARY KEY,
     transaction_id TEXT NOT NULL UNIQUE,
     correlation_id TEXT,
-    executed_at TEXT NOT NULL,
+    executed_at DATETIME NOT NULL,
     asset_account_id TEXT NOT NULL,
     type TEXT NOT NULL,
     instrument_id TEXT,
-    quantity TEXT NOT NULL,
-    price_amount TEXT NOT NULL,
-    price_currency TEXT NOT NULL,
-    fee_amount TEXT NOT NULL,
-    fee_currency TEXT NOT NULL,
-    tax_amount TEXT NOT NULL,
-    tax_currency TEXT NOT NULL,
-    cash_impact_amount TEXT NOT NULL,
-    cash_impact_currency TEXT NOT NULL,
+    quantity DECIMAL_AS_TEXT NOT NULL,
+    price MONEY NOT NULL,
+    fee MONEY NOT NULL,
+    tax MONEY NOT NULL,
+    cash_impact MONEY NOT NULL,
 
     FOREIGN KEY (asset_account_id) REFERENCES asset_account(asset_account_id),
     FOREIGN KEY (instrument_id) REFERENCES instrument(instrument_id)
 );
 
 CREATE TABLE IF NOT EXISTS fx_rate (
-    effective_on TEXT NOT NULL,
+    effective_on DATE NOT NULL,
     base_currency TEXT NOT NULL,
     quote_currency TEXT NOT NULL,
-    rate TEXT NOT NULL,
+    rate DECIMAL_AS_TEXT NOT NULL,
 
     PRIMARY KEY (effective_on, base_currency, quote_currency)
 );
 
 CREATE TABLE IF NOT EXISTS stock_split (
     instrument_id TEXT NOT NULL,
-    executed_at TEXT NOT NULL,
-    ratio TEXT NOT NULL,
+    executed_at DATETIME NOT NULL,
+    ratio DECIMAL_AS_TEXT NOT NULL,
 
     PRIMARY KEY (instrument_id, executed_at),
     FOREIGN KEY (instrument_id) REFERENCES instrument(instrument_id)

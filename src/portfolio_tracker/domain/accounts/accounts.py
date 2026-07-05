@@ -8,7 +8,6 @@ class InstitutionAccount:
     user_id: str
     institution_id: str
     name: str
-    encrypted_credentials: str
     created_on: date
     last_synced_at: datetime
     id: str = field(default_factory=lambda: f"inst_acc_{uuid.uuid4().hex[:16]}")

@@ -17,16 +17,12 @@ from portfolio_tracker.application.contracts.dtos import (
     ReportInstrumentDto,
     ReportTransactionDto,
 )
+from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.application.ports.clients import (
     InstitutionClient,
     InstitutionReportParser,
 )
-from portfolio_tracker.application.ports.encryptor import Encryptor
 from portfolio_tracker.application.ports.unit_of_work import UnitOfWork
-from portfolio_tracker.application.services.accounts import (
-    SUPPORTED_INSTITUTIONS,
-    Credentials,
-)
 from portfolio_tracker.application.services.analytics import PortfolioQueryService
 from portfolio_tracker.application.services.market_data import (
     FxService,
@@ -41,7 +37,6 @@ class SyncService:
         portfolio_query_service: PortfolioQueryService,
         fx_service: FxService,
         market_data_service: MarketDataService,
-        encryption_service: Encryptor,
         client_factory: Callable[[str], InstitutionClient],
         parser_factory: Callable[[str], InstitutionReportParser],
     ):
@@ -49,14 +44,13 @@ class SyncService:
         self._portfolio_query_service = portfolio_query_service
         self._fx_service = fx_service
         self._market_data_service = market_data_service
-        self._encryption_service = encryption_service
         self._client_factory = client_factory
         self._parser_factory = parser_factory
 
     def sync_institution_account_from_api(self, institution_account_id: str) -> None:
-        institution_account = self._get_institution_account(institution_account_id)
-        credentials = self._get_credentials(institution_account)
-        updated_last_synced_at = datetime.now(timezone.utc)
+        institution_account, credentials = (
+            self._get_institution_account_and_credentials(institution_account_id)
+        )
 
         client = self._client_factory(institution_account.institution_id)
         report_bytes = client.fetch_report(
@@ -64,7 +58,7 @@ class SyncService:
         )
 
         updated_institution_account = institution_account.with_last_synced_at(
-            updated_last_synced_at
+            datetime.now(timezone.utc)
         )
 
         self._sync_institution_account_from_report_data(
@@ -244,9 +238,9 @@ class SyncService:
 
         return main_instrument, underlying_instruments
 
-    def _get_institution_account(
+    def _get_institution_account_and_credentials(
         self, institution_account_id: str
-    ) -> InstitutionAccount:
+    ) -> tuple[InstitutionAccount, Credentials]:
         with self._uow as uow:
             institution_account = uow.accounts.get_institution_account_by_id(
                 institution_account_id
@@ -256,10 +250,10 @@ class SyncService:
                     f"Institution account {institution_account_id} not found."
                 )
 
-            return institution_account
+            credentials = uow.credentials.retrieve(institution_account.id)
+            if not credentials:
+                raise ValueError(
+                    f"Credentials for institution account {institution_account.id} not found."
+                )
 
-    def _get_credentials(self, institution_account: InstitutionAccount) -> Credentials:
-        institution = SUPPORTED_INSTITUTIONS[institution_account.institution_id]
-        return institution.credentials.from_json(
-            self._encryption_service.decrypt(institution_account.encrypted_credentials)
-        )
+            return institution_account, credentials
