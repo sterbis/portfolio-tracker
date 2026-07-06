@@ -1,5 +1,6 @@
 import hashlib
-from dataclasses import dataclass
+import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
@@ -33,13 +34,14 @@ class Transaction:
     fee: Money
     tax: Money
     cash_impact: Money
-    _id: str | None = None
+    id: str = field(default_factory=lambda: f"tr_{uuid.uuid4().hex[:16]}")
     correlation_id: str | None = None
+    _checksum: str | None = None
 
     @property
-    def id(self) -> str:
-        assert self._id is not None
-        return self._id
+    def checksum(self) -> str:
+        assert self._checksum is not None
+        return self._checksum
 
     def __post_init__(self) -> None:
         if (
@@ -61,7 +63,7 @@ class Transaction:
         if self.price.amount < 0:
             raise ValueError("Transaction price cannot be negative.")
 
-        hash_string = (
+        checksum_string = (
             f"{self.asset_account_id}|"
             f"{self.executed_at.isoformat()}|"
             f"{self.type.value}|"
@@ -71,13 +73,12 @@ class Transaction:
             f"{self.fee}|"
             f"{self.tax}|"
         )
-        hash_digest = hashlib.sha256(hash_string.encode("utf-8")).hexdigest()[:16]
-        transaction_id = f"tr_{hash_digest}"
+        checksum = hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()[:16]
 
-        if self._id is None:
-            object.__setattr__(self, "_id", transaction_id)
+        if self._checksum is None:
+            object.__setattr__(self, "_checksum", checksum)
 
-        elif self._id != transaction_id:
+        elif self._checksum != checksum:
             raise ValueError(
-                f"Provided instrument id {self._id} does not match generated id {transaction_id}."
+                f"Provided transaction checksum '{self._checksum}' does not match computed checksum '{checksum}'."
             )

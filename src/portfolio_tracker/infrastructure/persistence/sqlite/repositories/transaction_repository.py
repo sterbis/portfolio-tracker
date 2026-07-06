@@ -24,7 +24,7 @@ class SqliteTransactionRepository(TransactionRepository):
         self._executor.insert_if_not_exists(
             table="ledger_entry",
             values=self._transaction_to_values(transaction),
-            conflict_columns=["transaction_id"],
+            conflict_columns=["checksum"],
         )
 
     def get(
@@ -82,19 +82,17 @@ class SqliteTransactionRepository(TransactionRepository):
             filter_=FilterNode("transaction_id", Operator.EQ, transaction_id),
         )
 
-    def exists_by_id(self, transaction_id: str) -> bool:
+    def exists_by_checksum(self, checksum: str) -> bool:
         row = self._executor.select_one(
             table="ledger_entry",
             columns=["1"],
-            filter_=FilterNode("transaction_id", Operator.EQ, transaction_id),
+            filter_=FilterNode("checksum", Operator.EQ, checksum),
             limit=1,
         )
         return row is not None
 
     def _transaction_to_values(self, transaction: Transaction) -> dict[str, Any]:
         return {
-            "transaction_id": transaction.id,
-            "correlation_id": transaction.correlation_id,
             "executed_at": transaction.executed_at,
             "asset_account_id": transaction.asset_account_id,
             "type": transaction.type,
@@ -104,12 +102,13 @@ class SqliteTransactionRepository(TransactionRepository):
             "fee": transaction.fee,
             "tax": transaction.tax,
             "cash_impact": transaction.cash_impact,
+            "transaction_id": transaction.id,
+            "correlation_id": transaction.correlation_id,
+            "checksum": transaction.checksum,
         }
 
     def _row_to_transaction(self, row: sqlite3.Row) -> Transaction:
         return Transaction(
-            _id=row["transaction_id"],
-            correlation_id=row["correlation_id"],
             executed_at=row["executed_at"],
             asset_account_id=row["asset_account_id"],
             type=TransactionType(row["type"]),
@@ -119,4 +118,7 @@ class SqliteTransactionRepository(TransactionRepository):
             fee=row["fee"],
             tax=row["tax"],
             cash_impact=row["cash_impact"],
+            id=row["transaction_id"],
+            correlation_id=row["correlation_id"],
+            _checksum=row["checksum"],
         )

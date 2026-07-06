@@ -7,8 +7,7 @@ from portfolio_tracker.domain.shared.money import Money
 
 
 def test_valid_buy_transaction() -> None:
-    tx = Transaction(
-        correlation_id="corr_123",
+    transaction = Transaction(
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
         asset_account_id="acc_abc",
         type=TransactionType.BUY,
@@ -19,12 +18,12 @@ def test_valid_buy_transaction() -> None:
         tax=Money(Decimal("0.5"), "USD"),
         cash_impact=Money(Decimal("-1576.5"), "USD"),
     )
-    assert tx.id.startswith("tr_")
-    assert tx.correlation_id == "corr_123"
+    assert transaction.id.startswith("tr_")
+    assert transaction.correlation_id is None
 
 
 def test_valid_deposit_without_instrument() -> None:
-    tx = Transaction(
+    transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
         asset_account_id="acc_abc",
@@ -36,8 +35,8 @@ def test_valid_deposit_without_instrument() -> None:
         tax=Money(Decimal("0.0"), "USD"),
         cash_impact=Money(Decimal("1000.0"), "USD"),
     )
-    assert tx.id.startswith("tr_")
-    assert tx.instrument_id is None
+    assert transaction.id.startswith("tr_")
+    assert transaction.instrument_id is None
 
 
 def test_naive_datetime_raises_value_error() -> None:

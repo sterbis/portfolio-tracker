@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS asset_account (
 CREATE TABLE IF NOT EXISTS instrument (
     id INTEGER PRIMARY KEY,
     instrument_id TEXT NOT NULL UNIQUE,
+    checksum TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL,
     asset_class TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS ledger_entry (
     id INTEGER PRIMARY KEY,
     transaction_id TEXT NOT NULL UNIQUE,
     correlation_id TEXT,
+    checksum TEXT NOT NULL UNIQUE,
     executed_at DATETIME NOT NULL,
     asset_account_id TEXT NOT NULL,
     type TEXT NOT NULL,

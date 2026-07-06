@@ -6,13 +6,16 @@ from portfolio_tracker.domain.accounts import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.institution import InstitutionRegistry
 from portfolio_tracker.domain.instruments import Stock
 from portfolio_tracker.domain.ledger import Transaction, TransactionType
+from portfolio_tracker.domain.market_data import FxRates, StockSplits
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.user import User
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
 from portfolio_tracker.infrastructure.persistence.sqlite.repositories import (
     SqliteAccountRepository,
     SqliteCredentialsRepository,
+    SqliteFxRatesRepository,
     SqliteInstrumentRepository,
+    SqliteMarketDataRepository,
     SqliteTransactionRepository,
     SqliteUserRepository,
 )
@@ -128,3 +131,30 @@ def test_instrument_repository_round_trips_stock_instrument(
     stored_instruments = repository.get()
     assert len(stored_instruments) == 1
     assert stored_instruments[0] == googl_stock
+
+
+def test_fx_rates_repository_round_trips_fx_rates(
+    initialized_shared_memory_db_connection: sqlite3.Connection,
+    sample_rates: FxRates,
+) -> None:
+    repository = SqliteFxRatesRepository(
+        SqliteExecutor(initialized_shared_memory_db_connection)
+    )
+    repository.ensure(sample_rates)
+    stored_rates = repository.get_by_date(sample_rates.effective_on)
+    assert stored_rates == sample_rates
+
+
+def test_market_data_repository_round_trips_stock_splits(
+    initialized_shared_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    sample_stock_splits: StockSplits,
+) -> None:
+    repository = SqliteMarketDataRepository(
+        SqliteExecutor(initialized_shared_memory_db_connection_foreign_keys_off)
+    )
+    repository.ensure_stock_splits(sample_stock_splits)
+    results = repository.get_stock_splits_by_instrument_ids(
+        {sample_stock_splits.instrument_id}
+    )
+    assert len(results) == 1
+    assert results[0] == sample_stock_splits

@@ -31,7 +31,7 @@ class TransactionService:
         )
 
         with self._uow as uow:
-            if uow.transactions.exists_by_id(transaction.id):
+            if uow.transactions.exists_by_checksum(transaction.checksum):
                 raise ValueError(f"Transaction already exists: {transaction.id}")
 
             uow.transactions.add(transaction)
@@ -64,14 +64,14 @@ class TransactionService:
                 correlation_id=payload.correlation_id,
             )
 
-            if updated_transaction.id == transaction.id:
+            if updated_transaction.checksum == transaction.checksum:
                 uow.transactions.update(updated_transaction)
                 uow.commit()
                 return
 
-            if uow.transactions.exists_by_id(updated_transaction.id):
+            if uow.transactions.exists_by_checksum(updated_transaction.checksum):
                 raise ValueError(
-                    f"Transaction already exists: {updated_transaction.id}"
+                    f"Transaction already exists: {updated_transaction.checksum}"
                 )
 
             uow.transactions.remove_by_id(transaction.id)

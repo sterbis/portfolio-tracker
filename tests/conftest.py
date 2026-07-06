@@ -1,3 +1,5 @@
+# pylint: disable=redefined-outer-name
+
 import pytest
 
 from dataclasses import dataclass
@@ -12,6 +14,7 @@ from portfolio_tracker.domain.institution import (
 )
 from portfolio_tracker.domain.instruments import Stock
 from portfolio_tracker.domain.ledger import Transaction, TransactionType
+from portfolio_tracker.domain.market_data import FxRates, StockSplits
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.user import User
 
@@ -89,55 +92,58 @@ def sample_asset_account() -> AssetAccount:
 @pytest.fixture(scope="session")
 def googl_stock() -> Stock:
     return Stock(
-        _id=None,
         name="Alphabet Inc.",
         symbol="GOOGL",
         exchange="NASDAQ",
         currency="USD",
         isin="US02079K3059",
+        _id=None,
+        _checksum=None,
     )
 
 
 @pytest.fixture(scope="session")
 def msft_stock() -> Stock:
     return Stock(
-        _id=None,
         name="Microsoft Corporation",
         symbol="MSFT",
         exchange="NASDAQ",
         currency="USD",
         isin="US5949181045",
+        _id=None,
+        _checksum=None,
     )
 
 
 @pytest.fixture(scope="session")
 def aapl_stock() -> Stock:
     return Stock(
-        _id=None,
         name="Apple Inc.",
         symbol="AAPL",
         exchange="NASDAQ",
         currency="USD",
         isin="US0378331005",
+        _id=None,
+        _checksum=None,
     )
 
 
 @pytest.fixture(scope="session")
 def nvda_stock() -> Stock:
     return Stock(
-        _id=None,
         name="NVIDIA Corporation",
         symbol="NVDA",
         exchange="NASDAQ",
         currency="USD",
         isin="US67066G1040",
+        _id=None,
+        _checksum=None,
     )
 
 
 @pytest.fixture(scope="session")
 def sample_buy_transaction() -> Transaction:
     return Transaction(
-        correlation_id=None,
         executed_at=datetime(2026, 6, 1, 9, 15, 0, tzinfo=timezone.utc),
         asset_account_id="ast_acc_001",
         type=TransactionType.BUY,
@@ -147,4 +153,27 @@ def sample_buy_transaction() -> Transaction:
         fee=Money(Decimal("5"), "USD"),
         tax=Money.zero("USD"),
         cash_impact=Money(Decimal("-1010.00"), "USD"),
+    )
+
+
+@pytest.fixture(scope="session")
+def sample_rates() -> FxRates:
+    return FxRates(
+        effective_on=date(2026, 6, 1),
+        base_currency="USD",
+        base_rates={
+            "EUR": Decimal("0.90"),
+            "CZK": Decimal("23.00"),
+        },
+    )
+
+
+@pytest.fixture(scope="session")
+def sample_stock_splits(aapl_stock: Stock) -> StockSplits:
+    return StockSplits(
+        instrument_id=aapl_stock.id,
+        splits={
+            datetime(2026, 6, 15, 0, 0, 0, tzinfo=timezone.utc): Decimal("2.0"),
+            datetime(2026, 6, 18, 0, 0, 0, tzinfo=timezone.utc): Decimal("3.0"),
+        },
     )

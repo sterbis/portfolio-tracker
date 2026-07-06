@@ -20,6 +20,7 @@ class InstrumentBaseData(TypedDict):
     exchange: str | None
     currency: str
     _id: str | None
+    _checksum: str | None
 
 
 def create_instrument(

@@ -11,7 +11,7 @@ def test_transaction_adjuster_split_boundaries() -> None:
 
     # Stock split on 2026-06-15 00:00:00 UTC (2-for-1 split, ratio = 2.0)
     split_date = datetime(2026, 6, 15, 0, 0, tzinfo=timezone.utc)
-    splits = [
+    splits_list = [
         StockSplits(
             instrument_id="inst_aapl",
             splits={split_date: Decimal("2.0")},
@@ -19,7 +19,7 @@ def test_transaction_adjuster_split_boundaries() -> None:
     ]
 
     # Tx 1: Executed before split (should be adjusted)
-    tx_before = Transaction(
+    transaction_before_split = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 6, 14, 10, 0, tzinfo=timezone.utc),
         asset_account_id="acc_1",
@@ -33,7 +33,7 @@ def test_transaction_adjuster_split_boundaries() -> None:
     )
 
     # Tx 2: Executed after split (should NOT be adjusted)
-    tx_after = Transaction(
+    transaction_after_split = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 6, 16, 10, 0, tzinfo=timezone.utc),
         asset_account_id="acc_1",
@@ -47,7 +47,7 @@ def test_transaction_adjuster_split_boundaries() -> None:
     )
 
     # Tx 3: Executed exactly on split date/time (should NOT be adjusted under current logic)
-    tx_exactly = Transaction(
+    transaction_exactly_at_split = Transaction(
         correlation_id=None,
         executed_at=split_date,
         asset_account_id="acc_1",
@@ -64,8 +64,8 @@ def test_transaction_adjuster_split_boundaries() -> None:
     snapshot_at = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)
     results = list(
         adjuster.adjust(
-            transactions=[tx_before, tx_after, tx_exactly],
-            splits_list=splits,
+            transactions=[transaction_before_split, transaction_after_split, transaction_exactly_at_split],
+            splits_list=splits_list,
             snapshot_at=snapshot_at,
         )
     )
@@ -89,7 +89,7 @@ def test_transaction_adjuster_multiple_cumulative_splits() -> None:
     # AAPL has two splits:
     # 1. 2026-06-15: 2-for-1 (ratio = 2.0)
     # 2. 2026-06-18: 3-for-1 (ratio = 3.0)
-    splits = [
+    splits_list = [
         StockSplits(
             instrument_id="inst_aapl",
             splits={
@@ -99,7 +99,7 @@ def test_transaction_adjuster_multiple_cumulative_splits() -> None:
         )
     ]
 
-    tx = Transaction(
+    transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 6, 14, 0, 0, tzinfo=timezone.utc),
         asset_account_id="acc_1",
@@ -113,7 +113,7 @@ def test_transaction_adjuster_multiple_cumulative_splits() -> None:
     )
 
     snapshot_at = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)
-    results = list(adjuster.adjust([tx], splits, snapshot_at))
+    results = list(adjuster.adjust([transaction], splits_list, snapshot_at))
 
     # Total multiplier should be 2.0 * 3.0 = 6.0
     assert results[0].quantity == Decimal("60")
@@ -123,14 +123,14 @@ def test_transaction_adjuster_multiple_cumulative_splits() -> None:
 def test_transaction_adjuster_ignores_non_trades() -> None:
     adjuster = TransactionAdjuster()
 
-    splits = [
+    splits_list = [
         StockSplits(
             instrument_id="inst_aapl",
             splits={datetime(2026, 6, 15, 0, 0, tzinfo=timezone.utc): Decimal("2.0")},
         )
     ]
 
-    tx_deposit = Transaction(
+    deposit_transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 6, 14, 0, 0, tzinfo=timezone.utc),
         asset_account_id="acc_1",
@@ -144,6 +144,6 @@ def test_transaction_adjuster_ignores_non_trades() -> None:
     )
 
     snapshot_at = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)
-    results = list(adjuster.adjust([tx_deposit], splits, snapshot_at))
+    results = list(adjuster.adjust([deposit_transaction], splits_list, snapshot_at))
 
-    assert results[0] == tx_deposit
+    assert results[0] == deposit_transaction

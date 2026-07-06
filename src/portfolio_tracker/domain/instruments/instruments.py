@@ -1,4 +1,5 @@
 import hashlib
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
 from datetime import date
@@ -53,6 +54,7 @@ class OptionType(StrEnum):
 @dataclass(frozen=True)
 class InstrumentMetadata:
     id: str
+    checksum: str
     type: InstrumentType
     asset_class: AssetClass
     name: str
@@ -68,11 +70,17 @@ class Instrument(ABC):
     exchange: str | None
     currency: str
     _id: str | None
+    _checksum: str | None
 
     @property
     def id(self) -> str:
         assert self._id is not None
         return self._id
+
+    @property
+    def checksum(self) -> str:
+        assert self._checksum is not None
+        return self._checksum
 
     @property
     @abstractmethod
@@ -92,16 +100,18 @@ class Instrument(ABC):
         )
 
     def __post_init__(self) -> None:
-        hash_string = f"{self.type.value}|{self._identifier}"
-        hash_digest = hashlib.sha256(hash_string.encode("utf-8")).hexdigest()[:16]
-        instrument_id = f"ins_{hash_digest}"
-
         if self._id is None:
-            object.__setattr__(self, "_id", instrument_id)
+            object.__setattr__(self, "_id", f"instr_{uuid.uuid4().hex[:16]}")
 
-        elif self._id != instrument_id:
+        checksum_string = f"{self.type.value}|{self._identifier}"
+        checksum = hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()[:16]
+
+        if self._checksum is None:
+            object.__setattr__(self, "_checksum", checksum)
+
+        elif self._checksum != checksum:
             raise ValueError(
-                f"Provided instrument id {self._id} does not match generated id {instrument_id}."
+                f"Provided instrument checksum {self._checksum} does not match computed checksum {checksum}."
             )
 
     @property

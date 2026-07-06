@@ -218,6 +218,7 @@ class SyncService:
             "exchange": report_instrument.exchange,
             "currency": report_instrument.currency,
             "_id": None,
+            "_checksum": None,
         }
         details = report_instrument.details
 

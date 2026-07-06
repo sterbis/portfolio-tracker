@@ -44,7 +44,7 @@ class TransactionAdjuster:
 
         return replace(
             transaction,
-            _id=None,
             quantity=transaction.quantity * multiplier,
             price=transaction.price / multiplier,
+            _checksum=None,
         )

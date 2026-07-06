@@ -46,6 +46,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
             table="instrument",
             values={
                 "instrument_id": instrument.id,
+                "checksum": instrument.checksum,
                 "type": instrument.type,
                 "asset_class": instrument.asset_class,
                 "name": instrument.name,
@@ -53,7 +54,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
                 "exchange": instrument.exchange,
                 "currency": instrument.currency,
             },
-            conflict_columns=["instrument_id"],
+            conflict_columns=["checksum"],
         )
 
         if not inserted:
@@ -216,6 +217,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
             exchange=row["exchange"],
             currency=row["currency"],
             _id=row["instrument_id"],
+            _checksum=row["checksum"],
         )
 
     def _row_to_instrument_details(
