@@ -4,8 +4,8 @@ from typing import Any, Literal
 
 from filterutils import Filter, FilterNode, Operator
 
-from portfolio_tracker.application.ports.repositories import TransactionRepository
-from portfolio_tracker.domain.ledger import Transaction, TransactionType
+from portfolio_tracker.application.persistence import TransactionRepository
+from portfolio_tracker.domain.transaction import Transaction, TransactionType
 
 from ..executor import SqliteExecutor
 

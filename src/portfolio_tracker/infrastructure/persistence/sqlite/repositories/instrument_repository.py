@@ -4,8 +4,8 @@ from typing import Any, Literal
 
 from filterutils import Filter, FilterNode, Operator
 
-from portfolio_tracker.application.ports.repositories import InstrumentRepository
-from portfolio_tracker.domain.instruments import (
+from portfolio_tracker.application.persistence import InstrumentRepository
+from portfolio_tracker.domain.instrument import (
     AssetClass,
     Bond,
     Cfd,

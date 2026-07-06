@@ -1,6 +1,6 @@
 from filterutils import FilterNode, Operator
 
-from portfolio_tracker.application.ports.repositories import UserRepository
+from portfolio_tracker.application.persistence import UserRepository
 from portfolio_tracker.domain.user import User
 
 from ..executor import SqliteExecutor

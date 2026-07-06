@@ -1,4 +1,4 @@
-from .money import DualMoney, Money
+from .models import DualMoney, Money
 
 __all__ = [
     "DualMoney",

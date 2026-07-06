@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from filterutils import Filter, FilterNode, Operator
 
-from portfolio_tracker.application.ports.repositories import MarketDataRepository
+from portfolio_tracker.application.persistence import MarketDataRepository
 from portfolio_tracker.domain.market_data import StockSplits
 
 from ..executor import SqliteExecutor

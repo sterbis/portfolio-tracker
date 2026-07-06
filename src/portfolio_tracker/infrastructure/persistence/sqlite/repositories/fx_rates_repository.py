@@ -5,8 +5,8 @@ from decimal import Decimal
 
 from filterutils import Filter, FilterNode, Operator
 
-from portfolio_tracker.application.ports.repositories import FxRatesRepository
-from portfolio_tracker.domain.market_data import FxRates
+from portfolio_tracker.application.persistence import FxRatesRepository
+from portfolio_tracker.domain.fx import FxRates
 
 from ..executor import SqliteExecutor
 

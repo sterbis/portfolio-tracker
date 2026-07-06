@@ -31,3 +31,8 @@ portfolio_tracker = ["py.typed"]
 python_version = "3.14"
 strict = true
 files = ["src", "tests"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+src_paths = ["src", "tests"]

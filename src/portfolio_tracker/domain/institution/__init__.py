@@ -1,4 +1,4 @@
-from .institution import Credentials, Institution, InstitutionRegistry
+from .models import Credentials, Institution, InstitutionRegistry
 
 __all__ = [
     "Credentials",

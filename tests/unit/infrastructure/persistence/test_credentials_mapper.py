@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from portfolio_tracker.domain.institution import InstitutionRegistry
-from portfolio_tracker.infrastructure.persistence.credentials_mapper import (
+from portfolio_tracker.infrastructure.persistence.credentials_serializer import (
     deserialize_credentials,
     serialize_credentials,
 )

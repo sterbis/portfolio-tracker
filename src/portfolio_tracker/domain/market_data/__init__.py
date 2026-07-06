@@ -1,7 +1,5 @@
-from .fx_rates import FxRates
-from .stock_splits import StockSplits
+from .models import StockSplits
 
 __all__ = [
-    "FxRates",
     "StockSplits",
 ]

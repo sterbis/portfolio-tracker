@@ -1,15 +1,15 @@
 from datetime import date
 
-from portfolio_tracker.domain.accounts import AssetAccount, InstitutionAccount
-from portfolio_tracker.domain.analytics.portfolio import (
+from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
+from portfolio_tracker.domain.fx import FxRates
+from portfolio_tracker.domain.institution import Institution
+from portfolio_tracker.domain.instrument import Instrument
+from portfolio_tracker.domain.portfolio import (
     ConsolidationScope,
     Portfolio,
     PortfolioValuation,
 )
-from portfolio_tracker.domain.institution import Institution
-from portfolio_tracker.domain.instruments import Instrument
-from portfolio_tracker.domain.ledger import Transaction
-from portfolio_tracker.domain.market_data import FxRates
+from portfolio_tracker.domain.transaction import Transaction
 
 from .dtos import (
     AssetAccountDto,

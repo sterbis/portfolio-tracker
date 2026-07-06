@@ -1,4 +1,4 @@
-from portfolio_tracker.application.ports.encryptor import Encryptor
+from portfolio_tracker.application.encryption import Encryptor
 
 
 class MockEncryptor(Encryptor):

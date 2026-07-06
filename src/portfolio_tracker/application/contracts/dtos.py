@@ -3,22 +3,22 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
+from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.institution import Credentials, Institution
-from portfolio_tracker.domain.accounts import AssetAccount, InstitutionAccount
-from portfolio_tracker.domain.analytics.cash_balance import (
-    CashBalance,
-    CashBalanceValuation,
-)
-from portfolio_tracker.domain.analytics.portfolio import (
+from portfolio_tracker.domain.instrument import AssetClass, Instrument, InstrumentType
+from portfolio_tracker.domain.portfolio import (
     ConsolidationScope,
     Portfolio,
     PortfolioValuation,
 )
-from portfolio_tracker.domain.analytics.position import Position, PositionValuation
-from portfolio_tracker.domain.instruments import AssetClass, Instrument, InstrumentType
-from portfolio_tracker.domain.ledger import Transaction, TransactionType
-from portfolio_tracker.domain.market_data import FxRates
+from portfolio_tracker.domain.portfolio.cash_balance import (
+    CashBalance,
+    CashBalanceValuation,
+)
+from portfolio_tracker.domain.portfolio.position import Position, PositionValuation
 from portfolio_tracker.domain.shared import DualMoney, Money
+from portfolio_tracker.domain.transaction import Transaction, TransactionType
 
 
 @dataclass(frozen=True)

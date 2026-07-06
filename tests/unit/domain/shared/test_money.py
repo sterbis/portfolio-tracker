@@ -1,7 +1,8 @@
 from decimal import Decimal
+
 import pytest
 
-from portfolio_tracker.domain.shared import Money, DualMoney
+from portfolio_tracker.domain.shared import DualMoney, Money
 
 
 def test_money_basic_arithmetic() -> None:

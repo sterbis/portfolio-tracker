@@ -4,7 +4,7 @@ from typing import Callable, Literal
 
 from filterutils import Filter
 
-from portfolio_tracker.domain.analytics.portfolio import ConsolidationScope
+from portfolio_tracker.domain.portfolio import ConsolidationScope
 
 from .dtos import PortfolioValuationDto
 

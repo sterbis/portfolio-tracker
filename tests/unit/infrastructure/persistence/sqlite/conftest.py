@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-
 from portfolio_tracker.infrastructure.persistence.sqlite import (
     initialize_database,
     open_connection,

@@ -3,8 +3,8 @@ from typing import Any, Literal
 
 from filterutils import Filter, FilterNode, FilterTree, Operator
 
-from portfolio_tracker.application.ports.repositories import AccountRepository
-from portfolio_tracker.domain.accounts import AssetAccount, InstitutionAccount
+from portfolio_tracker.application.persistence import AccountRepository
+from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 
 from ..executor import SqliteExecutor
 

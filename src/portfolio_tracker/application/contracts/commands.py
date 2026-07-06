@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from portfolio_tracker.domain.institution import Credentials
-from portfolio_tracker.domain.ledger import TransactionType
+from portfolio_tracker.domain.transaction import TransactionType
 
 from .dtos import MoneyDto
 
