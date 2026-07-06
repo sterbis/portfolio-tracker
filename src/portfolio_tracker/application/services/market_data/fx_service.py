@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from portfolio_tracker.application.ports.clients import FxClient, FxClientError
+from portfolio_tracker.application.ports.clients import FxRatesClient, FxRatesClientError
 from portfolio_tracker.application.ports.unit_of_work import UnitOfWork
 from portfolio_tracker.domain.market_data import FxRates
 
@@ -10,7 +10,7 @@ class FxService:
         self,
         app_base_currency: str,
         app_supported_currencies: set[str],
-        fx_client: FxClient,
+        fx_client: FxRatesClient,
     ):
         self._app_base_currency = app_base_currency
         self._app_supported_currencies = app_supported_currencies
@@ -34,7 +34,7 @@ class FxService:
                 self._app_supported_currencies,
             )
 
-        except FxClientError:
+        except FxRatesClientError:
             if not uow:
                 raise
 
@@ -44,7 +44,7 @@ class FxService:
         self._spot_rates_fetched_at = now
         return rates
 
-    def fetch_rates(self, dates: set[date]) -> list[FxRates]:
+    def get_historical_rates(self, dates: set[date]) -> list[FxRates]:
         fetched_rates: list[FxRates] = []
         not_fetched_dates: set[date] = set()
 
@@ -52,11 +52,11 @@ class FxService:
             try:
                 rates = self._fx_client.fetch_historical_rates(
                     self._app_base_currency,
-                    date_,
                     self._app_supported_currencies,
+                    date_,
                 )
                 fetched_rates.append(rates)
-            except FxClientError:
+            except FxRatesClientError:
                 not_fetched_dates.add(date_)
 
         if not_fetched_dates:

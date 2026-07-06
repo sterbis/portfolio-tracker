@@ -4,21 +4,21 @@ from datetime import date
 from portfolio_tracker.domain.market_data import FxRates
 
 
-class FxClient(ABC):
+class FxRatesClient(ABC):
     @abstractmethod
     def fetch_historical_rates(
         self,
         base_currency: str,
-        effective_on: date,
-        currencies: set[str] | None = None,
+        quote_currencies: set[str],
+        date_: date,
     ) -> FxRates: ...
 
     @abstractmethod
     def fetch_spot_rates(
         self,
         base_currency: str,
-        currencies: set[str] | None = None,
+        quote_currencies: set[str],
     ) -> FxRates: ...
 
 
-class FxClientError(Exception): ...
+class FxRatesClientError(Exception): ...

@@ -153,7 +153,7 @@ class SyncService:
         if not missing_dates:
             return
 
-        rates_list = self._fx_service.fetch_rates(missing_dates)
+        rates_list = self._fx_service.get_historical_rates(missing_dates)
 
         with self._uow as uow:
             for rates in rates_list:
