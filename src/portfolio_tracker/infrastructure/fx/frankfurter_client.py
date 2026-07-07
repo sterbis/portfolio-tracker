@@ -53,7 +53,7 @@ class FrankfurterClient(FxClient):
             raise FxClientError(
                 f"No or unexpected data returned for FX client request: '{response.request.url}'."
             )
-        
+
         for currency_pair_data in data:
             if currency_pair_data.base.upper() != base_currency.upper():
                 raise FxClientError(

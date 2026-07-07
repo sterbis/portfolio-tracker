@@ -121,6 +121,8 @@ class PortfolioQueryService:
                 portfolio_valuations,
             )
 
+        raise ValueError(f"Unexpected output type: {query.output_type}")
+
     def _adjust_transactions(
         self,
         transactions: Iterable[Transaction],
@@ -212,13 +214,13 @@ class PortfolioQueryService:
         native_market_prices = self._market_data_service.get_spot_prices(
             instruments_metadata
         )
-        rates = self._fx_service.get_spot_rates()
+        spot_rates = self._fx_service.get_spot_rates()
         return {
             portfolio.account_id: self._portfolio_evaluator.evaluate(
                 portfolio,
                 instruments_metadata,
                 native_market_prices,
-                rates,
+                spot_rates,
             )
             for portfolio in portfolios
         }

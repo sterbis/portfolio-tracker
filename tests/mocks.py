@@ -1,4 +1,7 @@
+from dataclasses import dataclass
+
 from portfolio_tracker.application.encryption import Encryptor
+from portfolio_tracker.domain.institution import Credentials
 
 
 class MockEncryptor(Encryptor):
@@ -7,3 +10,15 @@ class MockEncryptor(Encryptor):
 
     def decrypt(self, encrypted_text: str) -> str:
         return encrypted_text.replace("encrypted_", "")
+
+
+@dataclass(frozen=True)
+class Trading321Credentials(Credentials):
+    api_key: str
+    api_secret: str
+
+
+@dataclass(frozen=True)
+class HyperactiveBrokersCredentials(Credentials):
+    web_service_token: str
+    query_ids: list[str]

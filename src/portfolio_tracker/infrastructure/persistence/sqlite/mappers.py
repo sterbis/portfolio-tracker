@@ -18,7 +18,7 @@ def adapt_decimal(value: Decimal) -> str:
     return str(value.normalize())
 
 
-def adapt_enum(value: StrEnum) -> str:
+def adapt_str_enum(value: StrEnum) -> str:
     return value.value
 
 
@@ -55,6 +55,7 @@ def register_mappers() -> None:
         sqlite3.register_adapter(date, adapt_date)
         sqlite3.register_adapter(datetime, adapt_datetime)
         sqlite3.register_adapter(Decimal, adapt_decimal)
+        sqlite3.register_adapter(StrEnum, adapt_str_enum)
         sqlite3.register_adapter(Money, adapt_money)
 
         sqlite3.register_converter("date", convert_date)

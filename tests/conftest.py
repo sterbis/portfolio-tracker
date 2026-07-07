@@ -1,6 +1,5 @@
 # pylint: disable=redefined-outer-name
 
-from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -9,7 +8,6 @@ import pytest
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.institution import (
-    Credentials,
     Institution,
     InstitutionRegistry,
 )
@@ -19,19 +17,12 @@ from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction, TransactionType
 from portfolio_tracker.domain.user import User
 
+from .mocks import HyperactiveBrokersCredentials, Trading321Credentials
+
+
 
 @pytest.fixture(scope="session")
 def sample_institution_registry() -> InstitutionRegistry:
-    @dataclass(frozen=True)
-    class Trading321Credentials(Credentials):
-        api_key: str
-        api_secret: str
-
-    @dataclass(frozen=True)
-    class HyperactiveBrokerCredentials(Credentials):
-        web_service_token: str
-        query_ids: list[str]
-
     return InstitutionRegistry(
         institutions={
             "inst_001": Institution(
@@ -44,7 +35,7 @@ def sample_institution_registry() -> InstitutionRegistry:
                 id="inst_002",
                 name="Hyperactive Brokers",
                 log_in_url="https:\\hbkr.com",
-                credentials_cls=HyperactiveBrokerCredentials,
+                credentials_cls=HyperactiveBrokersCredentials,
             ),
         }
     )

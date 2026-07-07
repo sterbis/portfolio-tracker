@@ -16,7 +16,7 @@ class MarketDataService:
 
     def get_spot_prices(
         self, instruments_metadata: Iterable[InstrumentMetadata]
-    ) -> dict[str, Money]:
+    ) -> dict[str, Money | None]:
         instrument_metadata_by_symbol = self._get_instrument_metadata_by_symbol_map(
             instruments_metadata
         )
@@ -31,35 +31,34 @@ class MarketDataService:
         if missing_symbols:
             formatted_symbols = ", ".join(sorted(missing_symbols))
             raise MarketDataIntegrityError(
-                f"Missing spot prices for following symbols: {formatted_symbols}"
+                f"Missing spot price data for following symbols: {formatted_symbols}"
             )
 
-        prices_by_instrument_id: dict[str, Money] = {}
+        price_by_instrument_id: dict[str, Money | None] = {}
         for symbol, price in price_by_symbol.items():
             instrument_metadata = instrument_metadata_by_symbol[symbol]
-            prices_by_instrument_id[instrument_metadata.id] = Money(
-                amount=price, currency=instrument_metadata.currency
+            price_by_instrument_id[instrument_metadata.id] = (
+                Money(amount=price, currency=instrument_metadata.currency)
+                if price
+                else None
             )
 
-        return prices_by_instrument_id
+        return price_by_instrument_id
 
-    def fetch_stock_splits(
+    def get_stock_splits(
         self, instruments_metadata: Iterable[InstrumentMetadata]
     ) -> list[StockSplits]:
-        instrument_metadata_by_symbol = self._get_instrument_metadata_by_symbol_map(
-            instruments_metadata
-        )
-
-        try:
-            splits_data_by_symbol = self._market_data_client.fetch_stock_splits(
-                set(instrument_metadata_by_symbol.keys())
-            )
-        except MarketDataClientError:
-            pass
-
         splits_list: list[StockSplits] = []
-        for symbol, splits_data in splits_data_by_symbol.items():
-            if instrument_metadata := instrument_metadata_by_symbol.get(symbol):
+
+        for instrument_metadata in instruments_metadata:
+            try:
+                splits_data = self._market_data_client.fetch_stock_splits(
+                    instrument_metadata.symbol
+                )
+            except MarketDataClientError:
+                continue
+
+            if splits_data:
                 splits_list.append(
                     StockSplits(
                         instrument_id=instrument_metadata.id,

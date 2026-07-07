@@ -30,7 +30,7 @@ class PortfolioEvaluator:
         self,
         portfolio: Portfolio,
         instruments_metadata: list[InstrumentMetadata],
-        native_market_prices: dict[str, Money],
+        native_market_prices: dict[str, Money | None],
         rates: FxRates,
     ) -> PortfolioValuation:
         instrument_metadata_by_id = {

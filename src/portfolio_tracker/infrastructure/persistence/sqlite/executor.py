@@ -68,7 +68,7 @@ class SqliteExecutor:
         )
         return self.execute(
             sql=f"""
-                UPDATE {table} 
+                UPDATE {table}
                 SET {", ".join(f"{column} = :{column}" for column in values)}
                 WHERE {filter_sql};
             """,

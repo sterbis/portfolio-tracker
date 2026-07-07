@@ -15,7 +15,6 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Operating System :: Microsoft :: Windows :: Windows 11",
 ]
-
 dependencies = []
 
 [tool.setuptools.packages.find]
@@ -32,7 +31,29 @@ python_version = "3.14"
 strict = true
 files = ["src", "tests"]
 
+[[tool.mypy.overrides]]
+module = "yfinance"
+ignore_missing_imports = true
+
+[tool.pylint."messages control"]
+disable = [
+    "C0301", # Line too long (101/100) (line-too-long)
+    "C0114", # Missing module docstring (missing-module-docstring
+    "C0115", # Missing class docstring (missing-class-docstring)
+    "C0116", # Missing function or method docstring (missing-function-docstring)
+]
+
 [tool.isort]
 profile = "black"
 line_length = 88
 src_paths = ["src", "tests"]
+
+[tool.taskipy.tasks]
+format = "black src tests && isort ."
+lint = "mypy src tests && pylint src tests"
+vulture = "vulture src"
+secrets = "git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline"
+audit = "pip-audit"
+test = "pytest tests -v"
+
+all = "task format && task lint && task vulture && task secrets && task audit && task test"

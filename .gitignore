@@ -84,3 +84,10 @@ coverage.xml
 *.swp
 .DS_Store
 Thumbs.db
+
+# ==============================================================================
+# Dev scripts and logs
+# ==============================================================================
+print_dir_structure.py
+transaction_examples.py
+tryit.py

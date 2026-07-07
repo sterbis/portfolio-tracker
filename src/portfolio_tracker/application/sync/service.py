@@ -13,7 +13,6 @@ from portfolio_tracker.application.institution import (
 )
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.persistence import UnitOfWork
-from portfolio_tracker.application.portfolio import PortfolioQueryService
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.domain.instrument import (
@@ -31,14 +30,12 @@ class SyncService:
     def __init__(
         self,
         uow: UnitOfWork,
-        portfolio_query_service: PortfolioQueryService,
         fx_service: FxService,
         market_data_service: MarketDataService,
         client_factory: Callable[[str], InstitutionClient],
         parser_factory: Callable[[str], InstitutionReportParser],
     ):
         self._uow = uow
-        self._portfolio_query_service = portfolio_query_service
         self._fx_service = fx_service
         self._market_data_service = market_data_service
         self._client_factory = client_factory
@@ -161,7 +158,7 @@ class SyncService:
     def _sync_stock_splits(
         self, instruments_metadata: Iterable[InstrumentMetadata]
     ) -> None:
-        splits_list = self._market_data_service.fetch_stock_splits(instruments_metadata)
+        splits_list = self._market_data_service.get_stock_splits(instruments_metadata)
         with self._uow as uow:
             for splits in splits_list:
                 uow.market_data.ensure_stock_splits(splits)

@@ -6,16 +6,18 @@ from decimal import Decimal
 class MarketDataClient(ABC):
     @abstractmethod
     def fetch_historical_prices(
-        self, symbols: set[str], effective_on: date
-    ) -> dict[str, Decimal]: ...
+        self, symbols: set[str], date_: date
+    ) -> dict[str, Decimal | None]: ...
 
     @abstractmethod
-    def fetch_spot_prices(self, symbols: set[str]) -> dict[str, Decimal]: ...
+    def fetch_spot_prices(
+        self, symbols: set[str], extended_hours: bool = False
+    ) -> dict[str, Decimal | None]: ...
 
     @abstractmethod
     def fetch_stock_splits(
-        self, symbols: set[str]
-    ) -> dict[str, dict[datetime, Decimal]]: ...
+        self, symbol: str
+    ) -> dict[datetime, Decimal]: ...
 
 
 class MarketDataClientError(Exception): ...
