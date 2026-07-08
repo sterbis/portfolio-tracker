@@ -5,7 +5,6 @@ from portfolio_tracker.domain.institution import Credentials, Institution
 
 @dataclass(frozen=True)
 class Trading212Credentials(Credentials):
-    account_id: str
     api_key: str
     api_secret: str
 

@@ -32,7 +32,7 @@ class SyncService:
         uow: UnitOfWork,
         fx_service: FxService,
         market_data_service: MarketDataService,
-        client_factory: Callable[[str], InstitutionClient],
+        client_factory: Callable[[str, Credentials], InstitutionClient[Credentials]],
         parser_factory: Callable[[str], InstitutionReportParser],
     ):
         self._uow = uow
@@ -46,26 +46,27 @@ class SyncService:
             self._get_institution_account_and_credentials(institution_account_id)
         )
 
-        client = self._client_factory(institution_account.institution_id)
-        report_bytes = client.fetch_report(
-            credentials, institution_account.last_synced_at
+        client = self._client_factory(institution_account.institution_id, credentials)
+        report = client.fetch_report(
+            start=institution_account.last_synced_at,
+            end=datetime.now(tz=timezone.utc),
         )
 
         updated_institution_account = institution_account.with_last_synced_at(
             datetime.now(timezone.utc)
         )
 
-        self._sync_institution_account_from_report_data(
+        self._sync_institution_account_from_report(
             updated_institution_account,
-            report_bytes,
+            report,
             institution_account_updated=True,
         )
 
-    def sync_institution_account_from_file(
+    def sync_institution_account_from_report_file(
         self, institution_account_id: str, report_path: Path
     ) -> None:
-        with report_path.open("rb") as report_file:
-            report_bytes = report_file.read()
+        with report_path.open("r") as report_file:
+            report = report_file.read()
 
         with self._uow as uow:
             institution_account = uow.accounts.get_institution_account_by_id(
@@ -76,18 +77,18 @@ class SyncService:
                     f"Institution account {institution_account_id} not found."
                 )
 
-        self._sync_institution_account_from_report_data(
-            institution_account, report_bytes
+        self._sync_institution_account_from_report(
+            institution_account, report
         )
 
-    def _sync_institution_account_from_report_data(
+    def _sync_institution_account_from_report(
         self,
         institution_account: InstitutionAccount,
-        report_data: bytes,
+        report: str,
         institution_account_updated: bool = False,
     ) -> None:
         parser = self._parser_factory(institution_account.institution_id)
-        parsed_report = parser.parse_report(report_data)
+        parsed_report = parser.parse_report(report)
 
         external_asset_account_ids: set[str] = set()
         transaction_dates: set[date] = set()
