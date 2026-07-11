@@ -86,8 +86,6 @@ coverage.xml
 Thumbs.db
 
 # ==============================================================================
-# Dev scripts and logs
+# Dev scripts, logs, data
 # ==============================================================================
-print_dir_structure.py
-transaction_examples.py
-tryit.py
+.dev/

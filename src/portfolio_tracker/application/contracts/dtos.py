@@ -388,8 +388,8 @@ class ReportInstrumentDto:
 
 @dataclass(frozen=True)
 class ReportTransactionDto:
-    external_transaction_id: str
     external_asset_account_id: str
+    external_transaction_id: str
     executed_at: datetime
     type: TransactionType
     instrument: ReportInstrumentDto | None
@@ -404,5 +404,4 @@ class ReportTransactionDto:
 @dataclass(frozen=True)
 class InstitutionReportDto:
     institution_account_id: str
-    generated_at: datetime
     transactions: list[ReportTransactionDto]

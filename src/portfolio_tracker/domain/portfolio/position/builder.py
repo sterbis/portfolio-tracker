@@ -151,7 +151,7 @@ class PositionBuilder:
                 updated_lots.append(lot)
                 continue
 
-            if lot.remaining_quantity <= remaining_quantity:
+            if remaining_quantity >= lot.remaining_quantity:
                 remaining_quantity -= lot.remaining_quantity
             else:
                 updated_remaining_quantity = lot.remaining_quantity - remaining_quantity
@@ -186,7 +186,7 @@ class PositionBuilder:
                 )
                 continue
 
-            if lot.remaining_quantity <= remaining_quantity:
+            if remaining_quantity >= lot.remaining_quantity:
                 remaining_quantity -= lot.remaining_quantity
 
             else:

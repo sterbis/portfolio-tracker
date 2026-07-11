@@ -1,8 +1,10 @@
 import csv
+import time
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from enum import StrEnum
 from io import StringIO
-import time
+from itertools import tee
 from typing import Any, Literal
 from urllib.parse import urljoin
 
@@ -29,42 +31,43 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
     def __init__(self, credentials: Trading212Credentials) -> None:
         super().__init__(credentials)
 
-    def _fetch_report_chunk(self, start: datetime, end: datetime) -> str:
+    def _fetch_report_chunk(self, start: datetime, end: datetime) -> Iterator[str]:
         report_id = self._generate_report(start, end)
         report = self._fetch_report_by_id(report_id)
-        if not report:
-            raise InstitutionClientError(
-                f"No available data for time range: {start} - {end}."
-            )
+        yield from report
 
-        return report
-
-    def _merge_report_chunks(self, chunks: list[str]) -> str:
-        records: list[dict[str, Any]] = []
+    def _merge_report_chunks(self, chunks: list[Iterator[str]]) -> Iterator[str]:
         report_columns: list[str] = []
 
-        for chunk in chunks:
-            chunk = chunk.strip()
-            if not chunk:
-                continue
+        header_streams: list[Iterator[str]] = []
+        row_streams: list[Iterator[str]] = []
 
-            reader = csv.DictReader(StringIO(chunk, newline=None))
+        for chunk in chunks:
+            header_stream, row_stream = tee(chunk)
+            header_streams.append(header_stream)
+            row_streams.append(row_stream)
+
+        for header_stream in header_streams:
+            reader = csv.DictReader(header_stream)
             if reader.fieldnames is None:
-                raise InstitutionClientError(f"Report does not contain header row.\n{chunk}")
+                raise InstitutionClientError("Report does not contain header row.")
 
             for column in reader.fieldnames:
                 if column not in report_columns:
                     report_columns.append(column)
 
-            records.extend(list(reader))
-
         report = StringIO(newline=None)
 
         writer = csv.DictWriter(report, fieldnames=report_columns, restval="")
         writer.writeheader()
-        writer.writerows(records)
 
-        return report.getvalue()
+        for row_stream in row_streams:
+            reader = csv.DictReader(row_stream)
+            for row in reader:
+                writer.writerow(row)
+
+        report.seek(0)
+        return report
 
     def _generate_report(
         self,
@@ -91,13 +94,14 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
         )
         return int(response.json()["reportId"])
 
-    def _fetch_report_by_id(self, report_id: int) -> str:
+    def _fetch_report_by_id(self, report_id: int) -> Iterator[str]:
         report_metadata = self._wait_for_report_generation(report_id)
-        response = self._request(
-            method="GET",
-            url=report_metadata["downloadLink"],
-        )
-        return response.text
+        response = requests.get(report_metadata["downloadLink"], timeout=10, stream=True)
+        response.raise_for_status()
+
+        for line in response.iter_lines(decode_unicode=True):
+            if line:
+                yield str(line)
 
     def _wait_for_report_generation(
         self,
@@ -143,8 +147,7 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
     def _request(
         self,
         method: Literal["GET", "POST"],
-        url: str | None = None,
-        endpoint: Trading212ApiEndpoint | None = None,
+        endpoint: Trading212ApiEndpoint,
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
@@ -155,13 +158,7 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
         base_sleep_time: float = 5.0,
         exponential_backoff: bool = True,
     ) -> requests.Response:
-        if not url and not endpoint:
-            raise ValueError("No url or endpoint provided.")
-
-        url = url or self._BASE_URL
-        if endpoint:
-            url = urljoin(url.rstrip("/") + "/", endpoint.value.lstrip("/"))
-
+        url = urljoin(self._BASE_URL.rstrip("/") + "/", endpoint.value.lstrip("/"))
         retries = 0
 
         while True:
