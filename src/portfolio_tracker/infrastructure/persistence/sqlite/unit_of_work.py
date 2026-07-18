@@ -5,8 +5,8 @@ from types import TracebackType
 from typing import Self
 
 from portfolio_tracker.application.encryption import Encryptor
+from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import UnitOfWork
-from portfolio_tracker.domain.institution import InstitutionRegistry
 
 from .database import open_connection
 from .executor import SqliteExecutor

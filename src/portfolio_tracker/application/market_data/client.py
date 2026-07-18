@@ -18,6 +18,3 @@ class MarketDataClient(ABC):
     def fetch_stock_splits(
         self, symbol: str
     ) -> dict[datetime, Decimal]: ...
-
-
-class MarketDataClientError(Exception): ...

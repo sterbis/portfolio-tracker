@@ -5,7 +5,7 @@ import sqlite3
 
 import pytest
 
-from portfolio_tracker.domain.institution import InstitutionRegistry
+from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.domain.user import User
 from portfolio_tracker.infrastructure.persistence.sqlite import SqliteUnitOfWork
 from tests.mocks import MockEncryptor

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
-from portfolio_tracker.domain.institution import Credentials, InstitutionRegistry
+from portfolio_tracker.application.institution import InstitutionRegistry
+from portfolio_tracker.domain.institution import Credentials
 
 
 class CredentialsStore(ABC):

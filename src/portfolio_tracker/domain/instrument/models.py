@@ -2,7 +2,7 @@ import hashlib
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
@@ -61,6 +61,7 @@ class InstrumentMetadata:
     symbol: str
     exchange: str | None
     currency: str
+    last_synced_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ class Instrument(ABC):
     symbol: str
     exchange: str | None
     currency: str
+    last_synced_at: datetime | None
     _id: str | None
     _checksum: str | None
 

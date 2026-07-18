@@ -3,8 +3,8 @@ from datetime import date
 from portfolio_tracker.application.contracts.dto_assembler import DtoAssembler
 from portfolio_tracker.application.contracts.dtos import TransactionDto
 from portfolio_tracker.application.contracts.queries import GetTransactionsQuery
+from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import UnitOfWork
-from portfolio_tracker.domain.institution import InstitutionRegistry
 from portfolio_tracker.domain.transaction import TransactionAdjuster
 
 

@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 from filterutils import FilterNode, Operator
 
 from portfolio_tracker.application.encryption import Encryptor
+from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import CredentialsStore
-from portfolio_tracker.domain.institution import Credentials, InstitutionRegistry
+from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.infrastructure.persistence.credentials_serializer import (
     deserialize_credentials,
     serialize_credentials,

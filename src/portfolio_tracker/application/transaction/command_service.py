@@ -9,7 +9,7 @@ from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction
 
 
-class TransactionService:
+class TransactionCommandService:
     def __init__(self, uow: UnitOfWork) -> None:
         self._uow = uow
 

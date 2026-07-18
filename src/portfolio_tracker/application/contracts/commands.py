@@ -37,6 +37,20 @@ class UpdateInstitutionAccountCommand:
 
 
 @dataclass(frozen=True)
+class CreateAssetAccountCommand:
+    institution_account_id: str
+    external_id: str
+    name: str
+
+
+@dataclass(frozen=True)
+class UpdateAssetAccountCommand:
+    asset_account_id: str
+    external_id: str
+    name: str
+
+
+@dataclass(frozen=True)
 class TransactionPayload:
     executed_at: datetime
     asset_account_id: str

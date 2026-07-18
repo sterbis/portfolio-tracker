@@ -1,5 +1,6 @@
 import sqlite3
 from collections import defaultdict
+from datetime import datetime
 from typing import Any, Literal
 
 from filterutils import Filter, FilterNode, Operator
@@ -16,6 +17,7 @@ from portfolio_tracker.domain.instrument import (
     Future,
     Instrument,
     InstrumentBaseData,
+    InstrumentMetadata,
     InstrumentType,
     Option,
     OptionType,
@@ -53,6 +55,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
                 "symbol": instrument.symbol,
                 "exchange": instrument.exchange,
                 "currency": instrument.currency,
+                "last_synced_at": instrument.last_synced_at,
             },
             conflict_columns=["checksum"],
         )
@@ -60,10 +63,30 @@ class SqliteInstrumentRepository(InstrumentRepository):
         if not inserted:
             return
 
+        details = self._get_instrument_details(instrument)
+        details["instrument_id"] = instrument.id
+
         self._executor.insert(
             table=self._table_by_type[instrument.type],
-            values=self._instrument_to_values(instrument),
+            values=details,
         )
+
+    def get_metadata(
+        self,
+        *,
+        filter_: Filter | None = None,
+        order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[InstrumentMetadata]:
+        rows = self._executor.select(
+            table="instrument",
+            filter_=filter_,
+            order_by=order_by,
+            limit=limit,
+            offset=offset,
+        )
+        return [self._row_to_metadata(row) for row in rows]
 
     def get(
         self,
@@ -73,25 +96,19 @@ class SqliteInstrumentRepository(InstrumentRepository):
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Instrument]:
-        rows = self._executor.select(
-            table="instrument",
+        metadata_list = self.get_metadata(
             filter_=filter_,
             order_by=order_by,
             limit=limit,
             offset=offset,
         )
 
-        base_data_by_id: dict[str, InstrumentBaseData] = {}
         ids_by_instrument_type: dict[InstrumentType, list[str]] = defaultdict(list)
 
-        for row in rows:
-            instrument_id = row["instrument_id"]
-            instrument_type = InstrumentType(row["type"])
+        for metadata in metadata_list:
+            ids_by_instrument_type[metadata.type].append(metadata.id)
 
-            base_data_by_id[instrument_id] = self._row_to_base_data(row)
-            ids_by_instrument_type[instrument_type].append(instrument_id)
-
-        details_by_id: dict[str, tuple[InstrumentType, dict[str, Any]]] = {}
+        details_by_id: dict[str, dict[str, Any]] = {}
 
         for instrument_type, instrument_ids in ids_by_instrument_type.items():
             rows = self._executor.select(
@@ -100,14 +117,22 @@ class SqliteInstrumentRepository(InstrumentRepository):
             )
             for row in rows:
                 details = self._row_to_instrument_details(instrument_type, row)
-                details_by_id[row["instrument_id"]] = (instrument_type, details)
+                details_by_id[row["instrument_id"]] = details
 
         instruments: list[Instrument] = []
 
-        for instrument_id, base_data in base_data_by_id.items():
-            instrument_type, details = details_by_id[instrument_id]
-
-            instrument = create_instrument(instrument_type, base_data, details)
+        for metadata in metadata_list:
+            base_data = InstrumentBaseData(
+                name=metadata.name,
+                symbol=metadata.symbol,
+                exchange=metadata.exchange,
+                currency=metadata.currency,
+                last_synced_at=metadata.last_synced_at,
+                _id=metadata.id,
+                _checksum=metadata.checksum,
+            )
+            details = details_by_id[metadata.id]
+            instrument = create_instrument(metadata.type, base_data, details)
             instruments.append(instrument)
 
         return instruments
@@ -120,38 +145,46 @@ class SqliteInstrumentRepository(InstrumentRepository):
             filter_=FilterNode("instrument_id", Operator.IN, instrument_ids)
         )
 
-    def _instrument_to_values(self, instrument: Instrument) -> dict[str, Any]:
+    def update_last_synced_at(self, last_synced_at: datetime, instrument_ids: set[str]) -> None:
+        self._executor.update(
+            table="instrument",
+            values={"last_synced_at": last_synced_at},
+            filter_=FilterNode("instrument_id", Operator.IN, instrument_ids),
+        )
+
+    def _get_instrument_details(self, instrument: Instrument) -> dict[str, Any]:
         match instrument:
             case Bond() as bond:
-                return self._bond_to_values(bond)
+                details = self._get_bond_details(bond)
 
             case Cfd() as cfd:
-                return self._cfd_to_values(cfd)
+                details = self._get_cfd_details(cfd)
 
             case Commodity() as commodity:
-                return self._commodity_to_values(commodity)
+                details = self._get_commodity_details(commodity)
 
             case Crypto() as crypto:
-                return self._crypto_to_values(crypto)
+                details = self._get_crypto_details(crypto)
 
             case Etf() as etf:
-                return self._etf_to_values(etf)
+                details = self._get_etf_details(etf)
 
             case Future() as future:
-                return self._future_to_values(future)
+                details = self._get_future_details(future)
 
             case Option() as option:
-                return self._option_to_values(option)
+                details = self._get_option_details(option)
 
             case Stock() as stock:
-                return self._stock_to_values(stock)
+                details = self._get_stock_details(stock)
 
             case _:
                 raise ValueError(f"Unsupported instrument type: {type(instrument)}.")
 
-    def _bond_to_values(self, bond: Bond) -> dict[str, Any]:
+        return details
+
+    def _get_bond_details(self, bond: Bond) -> dict[str, Any]:
         return {
-            "instrument_id": bond.id,
             "isin": bond.isin,
             "face_value": bond.face_value,
             "coupon_rate": bond.coupon_rate,
@@ -159,43 +192,36 @@ class SqliteInstrumentRepository(InstrumentRepository):
             "maturity_on": bond.maturity_on,
         }
 
-    def _cfd_to_values(self, cfd: Cfd) -> dict[str, Any]:
+    def _get_cfd_details(self, cfd: Cfd) -> dict[str, Any]:
         return {
-            "instrument_id": cfd.id,
             "underlying_instrument_id": cfd.underlying_instrument_id,
             "institution_id": cfd.institution_id,
             "leverage": cfd.leverage,
         }
 
-    def _commodity_to_values(self, commodity: Commodity) -> dict[str, Any]:
+    def _get_commodity_details(self, commodity: Commodity) -> dict[str, Any]:
         return {
-            "instrument_id": commodity.id,
             "unit": commodity.unit,
         }
 
-    def _crypto_to_values(self, crypto: Crypto) -> dict[str, Any]:
-        return {
-            "instrument_id": crypto.id,
-        }
+    def _get_crypto_details(self, _: Crypto) -> dict[str, Any]:
+        return {}
 
-    def _etf_to_values(self, etf: Etf) -> dict[str, Any]:
+    def _get_etf_details(self, etf: Etf) -> dict[str, Any]:
         return {
-            "instrument_id": etf.id,
             "isin": etf.isin,
         }
 
-    def _future_to_values(self, future: Future) -> dict[str, Any]:
+    def _get_future_details(self, future: Future) -> dict[str, Any]:
         return {
-            "instrument_id": future.id,
             "underlying_instrument_id": future.underlying_instrument_id,
             "isin": future.isin,
             "expiration_on": future.expiration_on,
             "multiplier": future.multiplier,
         }
 
-    def _option_to_values(self, option: Option) -> dict[str, Any]:
+    def _get_option_details(self, option: Option) -> dict[str, Any]:
         return {
-            "instrument_id": option.id,
             "underlying_instrument_id": option.underlying_instrument_id,
             "isin": option.isin,
             "expiration_on": option.expiration_on,
@@ -204,20 +230,23 @@ class SqliteInstrumentRepository(InstrumentRepository):
             "multiplier": option.multiplier,
         }
 
-    def _stock_to_values(self, stock: Stock) -> dict[str, Any]:
+    def _get_stock_details(self, stock: Stock) -> dict[str, Any]:
         return {
-            "instrument_id": stock.id,
             "isin": stock.isin,
         }
 
-    def _row_to_base_data(self, row: sqlite3.Row) -> InstrumentBaseData:
-        return InstrumentBaseData(
+    def _row_to_metadata(self, row: sqlite3.Row) -> InstrumentMetadata:
+        return InstrumentMetadata(
+            id=row["instrument_id"],
+            checksum=row["checksum"],
+            type=row["type"],
+            asset_class=row["asset_class"],
             name=row["name"],
             symbol=row["symbol"],
             exchange=row["exchange"],
             currency=row["currency"],
-            _id=row["instrument_id"],
-            _checksum=row["checksum"],
+            last_synced_at=row["last_synced_at"],
+            
         )
 
     def _row_to_instrument_details(

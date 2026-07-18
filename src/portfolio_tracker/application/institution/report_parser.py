@@ -18,6 +18,3 @@ class InstitutionReportParser(ABC):
     
     def _to_abs_decimal(self, value: Any) -> Decimal:
         return abs(self._to_decimal(value))
-
-
-class InstitutionReportParserError(Exception): ...

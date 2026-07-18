@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from portfolio_tracker.application.supported_institutions import Trading212Credentials
+from portfolio_tracker.infrastructure.institution.supported_institutions import Trading212Credentials
 from portfolio_tracker.application.institution import InstitutionClientError
 from portfolio_tracker.infrastructure.institution.trading_212.client import (
     Trading212Client, Trading212ApiEndpoint

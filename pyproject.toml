@@ -17,6 +17,9 @@ classifiers = [
 ]
 dependencies = []
 
+[project.scripts]
+portfolio = "portfolio_tracker.presentation.cli.main:app"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

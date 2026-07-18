@@ -1,3 +1,5 @@
+import asyncio
+
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from datetime import datetime, timedelta
@@ -10,30 +12,37 @@ TCredentials = TypeVar("TCredentials", bound=Credentials)
 
 
 class InstitutionClient(ABC, Generic[TCredentials]):
-    _MAX_REPORT_CHUNK_DAYS: int
+    _MAX_REPORT_DAYS: int
 
     def __init__(self, credentials: TCredentials) -> None:
         self._credentials = credentials
 
-    def fetch_report(self, start: datetime, end: datetime) -> Iterator[str]:
-        report_chunks: list[Iterator[str]] = []
+    async def fetch_report(self, start: datetime, end: datetime) -> Iterator[str]:
+        tasks = []
         current_start = start
-
+    
         while current_start < end:
-            current_end = min(current_start + timedelta(days=self._MAX_REPORT_CHUNK_DAYS), end)
-            
-            report_chunk = self._fetch_report_chunk(current_start, current_end)
-            report_chunks.append(report_chunk)
-
+            current_end = min(current_start + timedelta(days=self._MAX_REPORT_DAYS), end)
+            tasks.append(self._generate_report(current_start, current_end))
             current_start = current_end
 
-        return self._merge_report_chunks(report_chunks)
+        download_urls = await asyncio.gather(*tasks)
+
+        reports: list[Iterator[str]] = []
+    
+        for url in download_urls:
+            reports.append(self._download_report(url))
+
+        return self._merge_reports(reports)
+
+    @abstractmethod
+    def verify_connection(self) -> None: ...
     
     @abstractmethod
-    def _fetch_report_chunk(self, start: datetime, end: datetime) -> Iterator[str]: ...
+    async def _generate_report(self, start: datetime, end: datetime) -> str: ...
 
     @abstractmethod
-    def _merge_report_chunks(self, chunks: list[Iterator[str]]) -> Iterator[str]: ...
+    def _download_report(self, url: str) -> Iterator[str]: ...
 
-
-class InstitutionClientError(Exception): ...
+    @abstractmethod
+    def _merge_reports(self, reports: list[Iterator[str]]) -> Iterator[str]: ...

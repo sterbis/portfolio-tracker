@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from filterutils import Filter
 
+from portfolio_tracker.application.fx import FxDataIntegrityError
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.instrument import Instrument
+from portfolio_tracker.domain.instrument import Instrument, InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
@@ -35,6 +36,11 @@ class AccountRepository(ABC):
     ) -> list[InstitutionAccount]: ...
 
     @abstractmethod
+    def get_institution_accounts_by_user_id(
+        self, user_id: str
+    ) -> list[InstitutionAccount]: ...
+
+    @abstractmethod
     def get_institution_account_id_by_asset_account_id_map(
         self, asset_account_ids: set[str]
     ) -> dict[str, str]: ...
@@ -49,14 +55,34 @@ class AccountRepository(ABC):
     def add_asset_account(self, account: AssetAccount) -> None: ...
 
     @abstractmethod
-    def get_asset_accounts_by_ids(
-        self, account_ids: set[str]
-    ) -> list[AssetAccount]: ...
+    def get_asset_account_by_id(self, account_id: str) -> AssetAccount | None: ...
 
     @abstractmethod
     def get_asset_account_by_external_id(
         self, institution_account_id: str, external_id: str
     ) -> AssetAccount | None: ...
+
+    @abstractmethod
+    def get_asset_accounts_by_ids(
+        self, account_ids: set[str]
+    ) -> list[AssetAccount]: ...
+
+    @abstractmethod
+    def get_asset_accounts_by_institution_account_id(
+        self, institution_account_id: str
+    ) -> list[AssetAccount]: ...
+
+    @abstractmethod
+    def get_asset_accounts_by_user_id(self, user_id: str) -> list[AssetAccount]: ...
+
+    @abstractmethod
+    def get_deactivated_asset_account_external_ids(self, institution_account_id: str) -> set[str]: ...
+
+    @abstractmethod
+    def update_asset_account(self, account: AssetAccount) -> None: ...
+
+    @abstractmethod
+    def remove_asset_account_by_id(self, account_id: str) -> None: ...
 
 
 class InstrumentRepository(ABC):
@@ -74,7 +100,20 @@ class InstrumentRepository(ABC):
     ) -> list[Instrument]: ...
 
     @abstractmethod
+    def get_metadata(
+        self,
+        *,
+        filter_: Filter | None = None,
+        order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[InstrumentMetadata]: ...
+
+    @abstractmethod
     def get_by_ids(self, instrument_ids: set[str]) -> list[Instrument]: ...
+
+    @abstractmethod
+    def update_last_synced_at(self, last_synced_at: datetime, instrument_ids: set[str]) -> None: ...
 
 
 class TransactionRepository(ABC):
@@ -109,6 +148,9 @@ class TransactionRepository(ABC):
     def update(self, transaction: Transaction) -> None: ...
 
     @abstractmethod
+    def remove(self, filter_: Filter) -> None: ...
+
+    @abstractmethod
     def remove_by_id(self, transaction_id: str) -> None: ...
 
     @abstractmethod
@@ -141,9 +183,10 @@ class FxRatesRepository(ABC):
                 missing_date.isoformat() for missing_date in sorted(missing_dates)
             )
             raise FxDataIntegrityError(
-                f"Data Integrity Violation: Missing historical FX rates for "
-                f"following dates {formatted_dates}. "
-                "Please execute a FX rates data sync first."
+                detail=(
+                    f"Missing historical FX rates for following dates {formatted_dates}."
+                    "Please execute a FX rates data sync first."
+                ),
             )
 
         return rates_by_date
@@ -157,7 +200,3 @@ class MarketDataRepository(ABC):
     def get_stock_splits_by_instrument_ids(
         self, instrument_ids: set[str]
     ) -> list[StockSplits]: ...
-
-
-class FxDataIntegrityError(Exception):
-    pass

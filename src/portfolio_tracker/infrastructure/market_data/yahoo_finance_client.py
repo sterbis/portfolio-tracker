@@ -5,7 +5,7 @@ from typing import cast
 import pandas as pd
 import yfinance as yf
 
-from portfolio_tracker.application.market_data import MarketDataClient
+from portfolio_tracker.application.market_data import MarketDataClient, MarketDataClientError
 
 
 class YahooFinanceClient(MarketDataClient):
@@ -57,15 +57,20 @@ class YahooFinanceClient(MarketDataClient):
         end: date | datetime | None = None,
         extended_hours: bool = False,
     ) -> dict[str, Decimal | None]:
-        data: pd.DataFrame = yf.download(
-            symbols,
-            interval=interval,
-            period=period,
-            start=start,
-            end=end,
-            prepost=extended_hours,
-            group_by="ticker",
-        )
+        try:
+            data: pd.DataFrame = yf.download(
+                symbols,
+                interval=interval,
+                period=period,
+                start=start,
+                end=end,
+                prepost=extended_hours,
+                group_by="ticker",
+            )
+
+        except Exception as error:
+            raise MarketDataClientError("Fail to fetch yahoo finance market prices.") from error
+
         prices: dict[str, Decimal | None] = {symbol: None for symbol in symbols}
 
         if data.empty:

@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS user (
     id INTEGER PRIMARY KEY,
     user_id TEXT NOT NULL UNIQUE,
-    username TEXT NOT NULL,
+    username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL
 );
 
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS  institution_account (
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     created_on DATE NOT NULL,
-    last_synced_at DATETIME,
+    last_synced_at DATETIME NOT NULL,
 
     FOREIGN KEY (user_id) REFERENCES user(user_id) ON DELETE CASCADE
 );
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS credentials (
     created_on DATE NOT NULL,
     rotated_on DATE,
 
-    FOREIGN KEY (institution_account_id) REFERENCES institution_account(institution_account_id) ON DELETE CASCADE
+    FOREIGN KEY (institution_account_id) REFERENCES institution_account(institution_account_id)
 );
 
 CREATE TABLE IF NOT EXISTS asset_account (
@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS asset_account (
     external_id TEXT NOT NULL,
     institution_account_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
 
     FOREIGN KEY (institution_account_id) REFERENCES institution_account(institution_account_id) ON DELETE CASCADE
 );
@@ -48,7 +49,8 @@ CREATE TABLE IF NOT EXISTS instrument (
     name TEXT NOT NULL,
     symbol TEXT NOT NULL,
     exchange TEXT,
-    currency TEXT NOT NULL
+    currency TEXT NOT NULL,
+    last_synced_at DATETIME,
 );
 
 CREATE TABLE IF NOT EXISTS bond (

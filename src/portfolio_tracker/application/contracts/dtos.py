@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, fields
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -19,6 +19,7 @@ from portfolio_tracker.domain.portfolio.cash_balance import (
 from portfolio_tracker.domain.portfolio.position import Position, PositionValuation
 from portfolio_tracker.domain.shared import DualMoney, Money
 from portfolio_tracker.domain.transaction import Transaction, TransactionType
+from portfolio_tracker.domain.user import User
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,19 @@ class DualMoneyDto:
 
 
 @dataclass(frozen=True)
+class UserDto:
+    id: str
+    username: str
+
+    @classmethod
+    def from_domain(cls, user: User) -> UserDto:
+        return cls(
+            id=user.id,
+            username=user.username,
+        )
+
+
+@dataclass(frozen=True)
 class InstitutionDto:
     id: str
     name: str
@@ -64,6 +78,8 @@ class InstitutionAccountDto:
     id: str
     institution: InstitutionDto
     name: str
+    created_on: date
+    last_synced_at: datetime
     credentials: Credentials | None
 
     @classmethod
@@ -77,6 +93,8 @@ class InstitutionAccountDto:
             id=institution_account.id,
             institution=institution_dto,
             name=institution_account.name,
+            created_on=institution_account.created_on,
+            last_synced_at=institution_account.last_synced_at,
             credentials=credentials,
         )
 
@@ -85,7 +103,9 @@ class InstitutionAccountDto:
 class AssetAccountDto:
     id: str
     institution_account: InstitutionAccountDto
+    external_id: str
     name: str
+    is_active: bool
 
     @classmethod
     def from_domain(
@@ -96,7 +116,59 @@ class AssetAccountDto:
         return cls(
             id=asset_account.id,
             institution_account=institution_account_dto,
+            external_id=asset_account.external_id,
             name=asset_account.name,
+            is_active=asset_account.is_active,
+        )
+
+@dataclass(frozen=True)
+class InstitutionAccountOverviewDto:
+    id: str
+    institution: InstitutionDto
+    name: str
+    created_on: date
+    last_synced_at: datetime
+    credentials: Credentials | None
+    asset_accounts: list[AssetAccountOverviewDto]
+
+    @classmethod
+    def from_domain(
+        cls,
+        institution_account: InstitutionAccount,
+        institution_dto: InstitutionDto,
+        asset_account_overviews: list[AssetAccountOverviewDto],
+        credentials: Credentials | None = None,
+    ) -> InstitutionAccountOverviewDto:
+        return cls(
+            id=institution_account.id,
+            institution=institution_dto,
+            name=institution_account.name,
+            created_on=institution_account.created_on,
+            last_synced_at=institution_account.last_synced_at,
+            asset_accounts=asset_account_overviews,
+            credentials=credentials,
+        )
+
+
+@dataclass(frozen=True)
+class AssetAccountOverviewDto:
+    id: str
+    institution_account_id: str
+    external_id: str
+    name: str
+    is_active: bool
+
+    @classmethod
+    def from_domain(
+        cls,
+        asset_account: AssetAccount,
+    ) -> AssetAccountOverviewDto:
+        return cls(
+            id=asset_account.id,
+            institution_account_id=asset_account.institution_account_id,
+            external_id=asset_account.external_id,
+            name=asset_account.name,
+            is_active=asset_account.is_active,
         )
 
 
@@ -399,9 +471,3 @@ class ReportTransactionDto:
     tax: MoneyDto
     cash_impact: MoneyDto
     correlation_id: str | None = None
-
-
-@dataclass(frozen=True)
-class InstitutionReportDto:
-    institution_account_id: str
-    transactions: list[ReportTransactionDto]

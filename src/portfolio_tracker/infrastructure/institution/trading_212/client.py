@@ -1,6 +1,8 @@
+import asyncio
 import csv
 import time
 from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
 from io import StringIO
@@ -10,8 +12,17 @@ from urllib.parse import urljoin
 
 import requests
 
-from portfolio_tracker.application.institution import InstitutionClient, InstitutionClientError
-from portfolio_tracker.application.supported_institutions import Trading212Credentials
+from portfolio_tracker.application.institution import (
+    InstitutionClient,
+    InstitutionClientError,
+)
+from portfolio_tracker.domain.institution import Credentials
+
+
+@dataclass(frozen=True)
+class Trading212Credentials(Credentials):
+    api_key: str
+    api_secret: str
 
 
 class Trading212ApiEndpoint(StrEnum):
@@ -25,25 +36,36 @@ class Trading212ApiEndpoint(StrEnum):
 
 class Trading212Client(InstitutionClient[Trading212Credentials]):
     _BASE_URL = "https://live.trading212.com/api/v0/"
-    _MAX_REPORT_CHUNK_DAYS = 365
+    _MAX_REPORT_DAYS = 365
     _TIMEZONE = timezone.utc
 
     def __init__(self, credentials: Trading212Credentials) -> None:
         super().__init__(credentials)
 
-    def _fetch_report_chunk(self, start: datetime, end: datetime) -> Iterator[str]:
-        report_id = self._generate_report(start, end)
-        report = self._fetch_report_by_id(report_id)
-        yield from report
+    def verify_connection(self) -> None:
+        url = self._get_endpoint_url(Trading212ApiEndpoint.ACCOUNT_SUMMARY)
+        try:
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
 
-    def _merge_report_chunks(self, chunks: list[Iterator[str]]) -> Iterator[str]:
-        report_columns: list[str] = []
+        except requests.RequestException as error:
+            raise InstitutionClientError(f"Request to {url} failed.") from error
+
+    def _download_report(self, url: str) -> Iterator[str]:
+        response = requests.request("GET", url, timeout=10.0, stream=True)
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if line:
+                yield str(line)
+
+    def _merge_reports(self, reports: list[Iterator[str]]) -> Iterator[str]:
+        header_columns: list[str] = []
 
         header_streams: list[Iterator[str]] = []
         row_streams: list[Iterator[str]] = []
 
-        for chunk in chunks:
-            header_stream, row_stream = tee(chunk)
+        for report in reports:
+            header_stream, row_stream = tee(report)
             header_streams.append(header_stream)
             row_streams.append(row_stream)
 
@@ -53,12 +75,12 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
                 raise InstitutionClientError("Report does not contain header row.")
 
             for column in reader.fieldnames:
-                if column not in report_columns:
-                    report_columns.append(column)
+                if column not in header_columns:
+                    header_columns.append(column)
 
-        report = StringIO(newline=None)
+        merged_report = StringIO(newline=None)
 
-        writer = csv.DictWriter(report, fieldnames=report_columns, restval="")
+        writer = csv.DictWriter(merged_report, fieldnames=header_columns, restval="")
         writer.writeheader()
 
         for row_stream in row_streams:
@@ -66,10 +88,16 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
             for row in reader:
                 writer.writerow(row)
 
-        report.seek(0)
-        return report
+        merged_report.seek(0)
+        return merged_report
 
-    def _generate_report(
+    async def _generate_report(self, start: datetime, end: datetime) -> str:
+        report_id = await self._request_report_generation(start, end)
+        report_metadata = await self._wait_for_report_generation(report_id)
+        download_url: str = report_metadata["downloadLink"]
+        return download_url
+
+    async def _request_report_generation(
         self,
         start: datetime,
         end: datetime,
@@ -78,7 +106,7 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
         orders: bool = True,
         transactions: bool = True,
     ) -> int:
-        response = self._request(
+        response = await self._request(
             method="POST",
             endpoint=Trading212ApiEndpoint.REPORTS,
             json={
@@ -94,29 +122,20 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
         )
         return int(response.json()["reportId"])
 
-    def _fetch_report_by_id(self, report_id: int) -> Iterator[str]:
-        report_metadata = self._wait_for_report_generation(report_id)
-        response = requests.get(report_metadata["downloadLink"], timeout=10, stream=True)
-        response.raise_for_status()
-
-        for line in response.iter_lines(decode_unicode=True):
-            if line:
-                yield str(line)
-
-    def _wait_for_report_generation(
+    async def _wait_for_report_generation(
         self,
         report_id: int,
         timeout: float = 300,
         initial_delay: float = 30,
         poll_interval: float = 60,
     ) -> dict[str, Any]:
-        time.sleep(initial_delay)
+        await asyncio.sleep(initial_delay)
 
         deadline = time.time() + timeout
 
         while True:
             try:
-                metadata = self._fetch_report_metadata(report_id)
+                metadata = await self._fetch_report_metadata(report_id)
             except InstitutionClientError:
                 metadata = {}
 
@@ -128,15 +147,17 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
                     f"Report {report_id} generation not finished within timeout: {timeout} seconds."
                 )
 
-            time.sleep(poll_interval)
+            await asyncio.sleep(poll_interval)
 
-    def _fetch_report_metadata(self, report_id: int) -> dict[str, Any]:
-        reports_metadata: list[dict[str, Any]] = self._request(
+    async def _fetch_report_metadata(self, report_id: int) -> dict[str, Any]:
+        response = await self._request(
             method="GET",
             endpoint=Trading212ApiEndpoint.REPORTS,
-            max_retries=0,
+            max_attempts=1,
             exponential_backoff=False,
-        ).json()
+        )
+
+        reports_metadata: list[dict[str, Any]] = response.json()
 
         for metadata in reports_metadata:
             if int(metadata["reportId"]) == report_id:
@@ -144,7 +165,7 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
 
         raise InstitutionClientError(f"Report with id {report_id} not found.")
 
-    def _request(
+    async def _request(
         self,
         method: Literal["GET", "POST"],
         endpoint: Trading212ApiEndpoint,
@@ -154,14 +175,14 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
         data: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         timeout: float = 5.0,
-        max_retries: int = 2,
-        base_sleep_time: float = 5.0,
+        max_attempts: int = 3,
+        initial_backoff: float = 5.0,
         exponential_backoff: bool = True,
     ) -> requests.Response:
-        url = urljoin(self._BASE_URL.rstrip("/") + "/", endpoint.value.lstrip("/"))
-        retries = 0
+        url = self._get_endpoint_url(endpoint)
+        auth = (self._credentials.api_key, self._credentials.api_secret)
 
-        while True:
+        for attempt in range(1, max_attempts + 1):
             try:
                 response = requests.request(
                     method,
@@ -170,29 +191,51 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
                     json=json,
                     data=data,
                     headers=headers,
-                    auth=(self._credentials.api_key, self._credentials.api_secret),
+                    auth=auth,
                     timeout=timeout,
                 )
-            except requests.RequestException as error:
-                raise InstitutionClientError(
-                    f"Request to {url} failed."
-                ) from error
+                if response.status_code == 429 and attempt < max_attempts:
+                    retry_after = self._get_retry_after_duration(
+                        response, attempt, initial_backoff, exponential_backoff
+                    )
 
-            if response.status_code == 429 and retries < max_retries:
-                sleep_time = (
-                    base_sleep_time * (2 ** retries)
-                    if exponential_backoff
-                    else base_sleep_time
-                )
-                time.sleep(sleep_time)
-                retries += 1
-                continue
+                    await asyncio.sleep(retry_after)
 
-            try:
+                    attempt += 1
+                    continue
+
                 response.raise_for_status()
-            except requests.RequestException as error:
+                return response
+
+            except requests.HTTPError as error:
                 raise InstitutionClientError(
                     f"Request to {url} failed: {response.status_code} {response.reason}."
                 ) from error
 
-            return response
+            except Exception as error:
+                raise InstitutionClientError(f"Request to {url} failed.") from error
+
+        raise InstitutionClientError(
+            f"Request to {url} failed. Max attempts ({max_attempts}) reached."
+        )
+
+    def _get_retry_after_duration(
+        self,
+        response: requests.Response,
+        attempt: int,
+        initial_backoff: float,
+        exponential_backoff: bool = False,
+    ) -> float:
+        return float(
+            response.headers.get(
+                "Retry-After",
+                (
+                    (initial_backoff * (2**(attempt - 1)))
+                    if exponential_backoff
+                    else initial_backoff
+                ),
+            )
+        )
+
+    def _get_endpoint_url(self, endpoint: Trading212ApiEndpoint) -> str:
+        return urljoin(self._BASE_URL.rstrip("/") + "/", endpoint.value.lstrip("/"))

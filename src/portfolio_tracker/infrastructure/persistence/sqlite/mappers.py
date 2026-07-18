@@ -51,16 +51,18 @@ _MAPPERS_REGISTERED = False
 def register_mappers() -> None:
     global _MAPPERS_REGISTERED  # pylint: disable=global-statement
 
-    if not _MAPPERS_REGISTERED:
-        sqlite3.register_adapter(date, adapt_date)
-        sqlite3.register_adapter(datetime, adapt_datetime)
-        sqlite3.register_adapter(Decimal, adapt_decimal)
-        sqlite3.register_adapter(StrEnum, adapt_str_enum)
-        sqlite3.register_adapter(Money, adapt_money)
+    if _MAPPERS_REGISTERED:
+        return
 
-        sqlite3.register_converter("date", convert_date)
-        sqlite3.register_converter("datetime", convert_datetime)
-        sqlite3.register_converter("decimal_as_text", convert_decimal)
-        sqlite3.register_converter("money", convert_money)
+    sqlite3.register_adapter(date, adapt_date)
+    sqlite3.register_adapter(datetime, adapt_datetime)
+    sqlite3.register_adapter(Decimal, adapt_decimal)
+    sqlite3.register_adapter(StrEnum, adapt_str_enum)
+    sqlite3.register_adapter(Money, adapt_money)
 
-        _MAPPERS_REGISTERED = True
+    sqlite3.register_converter("date", convert_date)
+    sqlite3.register_converter("datetime", convert_datetime)
+    sqlite3.register_converter("decimal_as_text", convert_decimal)
+    sqlite3.register_converter("money", convert_money)
+
+    _MAPPERS_REGISTERED = True

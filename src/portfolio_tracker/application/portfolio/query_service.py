@@ -13,6 +13,7 @@ from portfolio_tracker.application.contracts.queries import (
     OutputType,
 )
 from portfolio_tracker.application.fx import FxService
+from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.persistence import (
     AccountRepository,
@@ -23,7 +24,6 @@ from portfolio_tracker.application.persistence import (
     UnitOfWork,
 )
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
-from portfolio_tracker.domain.institution import InstitutionRegistry
 from portfolio_tracker.domain.instrument import Instrument
 from portfolio_tracker.domain.portfolio import (
     ConsolidationScope,

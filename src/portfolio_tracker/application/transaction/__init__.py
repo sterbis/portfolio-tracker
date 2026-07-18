@@ -1,7 +1,7 @@
 from .query_service import TransactionQueryService
-from .service import TransactionService
+from .command_service import TransactionCommandService
 
 __all__ = [
     "TransactionQueryService",
-    "TransactionService",
+    "TransactionCommandService",
 ]

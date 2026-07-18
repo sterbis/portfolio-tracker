@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, TypedDict
 
 from .models import (
@@ -19,6 +20,7 @@ class InstrumentBaseData(TypedDict):
     symbol: str
     exchange: str | None
     currency: str
+    last_synced_at: datetime | None
     _id: str | None
     _checksum: str | None
 

@@ -9,6 +9,11 @@ from portfolio_tracker.domain.portfolio import ConsolidationScope
 from .dtos import PortfolioValuationDto
 
 
+@dataclass(frozen=True)
+class GetAccountOverviewQuery:
+    user_id: str
+
+
 class OutputType(Enum):
     PORTFOLIO = auto()
     PORTFOLIO_VALUATION = auto()

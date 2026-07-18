@@ -21,4 +21,5 @@ class AssetAccount:
     institution_account_id: str
     external_id: str
     name: str
+    is_active: bool = True
     id: str = field(default_factory=lambda: f"ast_acc_{uuid.uuid4().hex[:16]}")

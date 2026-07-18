@@ -1,6 +1,7 @@
 import pytest
 
-from portfolio_tracker.domain.institution import Credentials, InstitutionRegistry
+from portfolio_tracker.application.institution import InstitutionRegistry
+from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.infrastructure.persistence.credentials_serializer import (
     deserialize_credentials,
     serialize_credentials,

@@ -48,11 +48,15 @@ class SqliteAccountRepository(AccountRepository):
     def get_institution_accounts_by_ids(
         self, account_ids: set[str]
     ) -> list[InstitutionAccount]:
-        if not account_ids:
-            return []
-
         return self.get_institution_accounts(
             filter_=FilterNode("institution_account_id", Operator.IN, account_ids)
+        )
+
+    def get_institution_accounts_by_user_id(
+        self, user_id: str
+    ) -> list[InstitutionAccount]:
+        return self.get_institution_accounts(
+            filter_=FilterNode("user_id", Operator.EQ, user_id)
         )
 
     def get_institution_account_id_by_asset_account_id_map(
@@ -101,13 +105,12 @@ class SqliteAccountRepository(AccountRepository):
         )
         return [self._row_to_asset_account(row) for row in rows]
 
-    def get_asset_accounts_by_ids(self, account_ids: set[str]) -> list[AssetAccount]:
-        if not account_ids:
-            return []
-
-        return self.get_asset_accounts(
-            filter_=FilterNode("asset_account_id", Operator.IN, account_ids)
+    def get_asset_account_by_id(self, account_id: str) -> AssetAccount | None:
+        row = self._executor.select_one(
+            table="asset_account",
+            filter_=FilterNode("asset_account_id", Operator.EQ, account_id),
         )
+        return self._row_to_asset_account(row) if row else None
 
     def get_asset_account_by_external_id(
         self, institution_account_id: str, external_id: str
@@ -122,6 +125,61 @@ class SqliteAccountRepository(AccountRepository):
             filter_=filter_,
         )
         return self._row_to_asset_account(row) if row else None
+
+    def get_asset_accounts_by_ids(self, account_ids: set[str]) -> list[AssetAccount]:
+        return self.get_asset_accounts(
+            filter_=FilterNode("asset_account_id", Operator.IN, account_ids)
+        )
+
+    def get_asset_accounts_by_institution_account_id(
+        self, institution_account_id: str
+    ) -> list[AssetAccount]:
+        return self.get_asset_accounts(
+            filter_=FilterNode(
+                "institution_account_id", Operator.EQ, institution_account_id
+            )
+        )
+
+    def get_asset_accounts_by_user_id(self, user_id: str) -> list[AssetAccount]:
+        institution_accounts = self.get_institution_accounts_by_user_id(user_id)
+        return self.get_asset_accounts(
+            filter_=FilterNode(
+                "institution_account_id",
+                Operator.IN,
+                {
+                    institution_account.id
+                    for institution_account in institution_accounts
+                },
+            )
+        )
+
+    def get_deactivated_asset_account_external_ids(
+        self, institution_account_id: str
+    ) -> set[str]:
+        filter_ = FilterTree()
+        filter_.add_child(
+            FilterNode("institution_account_id", Operator.EQ, institution_account_id)
+        )
+        filter_.add_child(FilterNode("is_active", Operator.EQ, False))
+        rows = self._executor.select(
+            table="asset_account",
+            columns=["external_id"],
+            filter_=filter_,
+        )
+        return {row["external_id"] for row in rows}
+
+    def update_asset_account(self, account: AssetAccount) -> None:
+        self._executor.update(
+            table="asset_account",
+            values=self._asset_account_to_values(account),
+            filter_=FilterNode("asset_account_id", Operator.EQ, account.id),
+        )
+
+    def remove_asset_account_by_id(self, account_id: str) -> None:
+        self._executor.delete(
+            table="asset_account",
+            filter_=FilterNode("asset_account_id", Operator.EQ, account_id),
+        )
 
     def _institution_account_to_values(
         self, account: InstitutionAccount
@@ -141,6 +199,7 @@ class SqliteAccountRepository(AccountRepository):
             "external_id": account.external_id,
             "institution_account_id": account.institution_account_id,
             "name": account.name,
+            "is_active": account.is_active,
         }
 
     def _row_to_institution_account(self, row: sqlite3.Row) -> InstitutionAccount:
@@ -159,4 +218,5 @@ class SqliteAccountRepository(AccountRepository):
             external_id=row["external_id"],
             institution_account_id=row["institution_account_id"],
             name=row["name"],
+            is_active=bool(row["is_active"]),
         )

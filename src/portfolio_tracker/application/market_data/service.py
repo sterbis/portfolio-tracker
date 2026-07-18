@@ -4,7 +4,8 @@ from portfolio_tracker.domain.instrument import InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.shared import Money
 
-from .client import MarketDataClient, MarketDataClientError
+from .client import MarketDataClient
+from .exceptions import MarketDataClientError, MarketDataIntegrityError
 
 
 class MarketDataService:
@@ -31,7 +32,7 @@ class MarketDataService:
         if missing_symbols:
             formatted_symbols = ", ".join(sorted(missing_symbols))
             raise MarketDataIntegrityError(
-                f"Missing spot price data for following symbols: {formatted_symbols}"
+                detail=f"Missing spot price data for following symbols: {formatted_symbols}"
             )
 
         price_by_instrument_id: dict[str, Money | None] = {}
@@ -52,17 +53,17 @@ class MarketDataService:
 
         for instrument_metadata in instruments_metadata:
             try:
-                splits_data = self._market_data_client.fetch_stock_splits(
+                split_by_datetime = self._market_data_client.fetch_stock_splits(
                     instrument_metadata.symbol
                 )
             except MarketDataClientError:
                 continue
 
-            if splits_data:
+            if split_by_datetime:
                 splits_list.append(
                     StockSplits(
                         instrument_id=instrument_metadata.id,
-                        splits=splits_data,
+                        splits=split_by_datetime,
                     )
                 )
 
@@ -75,7 +76,3 @@ class MarketDataService:
             instrument_metadata.symbol: instrument_metadata
             for instrument_metadata in instruments_metadata
         }
-
-
-class MarketDataIntegrityError(Exception):
-    pass

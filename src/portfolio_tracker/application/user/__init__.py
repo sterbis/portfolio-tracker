@@ -1,5 +1,15 @@
-from .service import IdentityService
+from .exceptions import (
+    InvalidUsernameOrPasswordError,
+    UserAlreadyExistsError,
+    UserAlreadyLoggedOutError,
+    UserNotLoggedInError,
+)
+from .service import AuthService
 
 __all__ = [
-    "IdentityService",
+    "AuthService",
+    "InvalidUsernameOrPasswordError",
+    "UserAlreadyExistsError",
+    "UserAlreadyLoggedOutError",
+    "UserNotLoggedInError",
 ]

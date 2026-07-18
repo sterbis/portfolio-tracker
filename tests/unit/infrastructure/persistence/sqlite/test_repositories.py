@@ -2,9 +2,9 @@ import sqlite3
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.institution import InstitutionRegistry
 from portfolio_tracker.domain.instrument import Stock
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.shared import Money
