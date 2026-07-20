@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.domain.institution import Credentials, InstitutionId
 from portfolio_tracker.domain.transaction import TransactionType
 
 from .dtos import MoneyDto
@@ -22,7 +22,7 @@ class LogInUserCommand:
 
 @dataclass(frozen=True)
 class ConnectInstitutionAccountCommand:
-    institution_id: str
+    institution_id: InstitutionId
     name: str
     created_on: date
     credentials: Credentials
@@ -34,13 +34,6 @@ class UpdateInstitutionAccountCommand:
     name: str
     created_on: date
     credentials: Credentials | None
-
-
-@dataclass(frozen=True)
-class CreateAssetAccountCommand:
-    institution_account_id: str
-    external_id: str
-    name: str
 
 
 @dataclass(frozen=True)
@@ -73,8 +66,3 @@ class CreateTransactionCommand:
 class UpdateTransactionCommand:
     transaction_id: str
     payload: TransactionPayload
-
-
-@dataclass(frozen=True)
-class DeleteTransactionCommand:
-    transaction_id: str

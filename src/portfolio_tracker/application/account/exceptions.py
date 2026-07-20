@@ -5,7 +5,7 @@ from portfolio_tracker.application.contracts.exceptions import (
     AppError,
     EntityNotFoundError,
 )
-from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.domain.institution import Credentials, InstitutionId
 
 
 class AssetAccountNotFoundError(EntityNotFoundError):
@@ -42,7 +42,7 @@ class CredentialsNotFoundError(AppError):
 class InvalidCredentialsError(AppError):
     _message_template = "Cannot connect to institution {institution_id} API with provided credentials:\n{credentials}."
 
-    def __init__(self, institution_id: str, credentials: Credentials) -> None:
+    def __init__(self, institution_id: InstitutionId, credentials: Credentials) -> None:
         super().__init__(
             institution_id=institution_id,
             credentials=pformat(asdict(credentials), sort_dicts=False),

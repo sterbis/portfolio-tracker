@@ -1,7 +1,7 @@
 import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import AsyncIterator, Callable
 
 from filterutils import FilterNode, Operator
 
@@ -9,28 +9,26 @@ from portfolio_tracker.application.account import (
     CredentialsNotFoundError,
     InstitutionAccountNotFoundError,
 )
-from portfolio_tracker.application.contracts.dtos import (
-    ReportInstrumentDto,
-    ReportTransactionDto,
-)
 from portfolio_tracker.application.fx import FxService
 from portfolio_tracker.application.institution import (
     InstitutionClient,
     InstitutionClientError,
     InstitutionReportParser,
     InstitutionReportParserError,
+    ReportChunk,
+    ReportInstrument,
+    ReportTransaction,
 )
 from portfolio_tracker.application.market_data import MarketDataService
-from portfolio_tracker.application.persistence import UnitOfWork
+from portfolio_tracker.application.persistence import SessionFactory
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
-from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.domain.institution import Credentials, InstitutionId
 from portfolio_tracker.domain.instrument import (
     Instrument,
     InstrumentBaseData,
     InstrumentType,
     create_instrument,
 )
-from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction
 
 from .exceptions import FetchReportError, ParseReportError
@@ -39,13 +37,15 @@ from .exceptions import FetchReportError, ParseReportError
 class SyncService:
     def __init__(
         self,
-        uow: UnitOfWork,
+        session_factory: SessionFactory,
         fx_service: FxService,
         market_data_service: MarketDataService,
-        client_factory: Callable[[str, Credentials], InstitutionClient[Credentials]],
-        parser_factory: Callable[[str, str], InstitutionReportParser],
+        client_factory: Callable[
+            [InstitutionId, Credentials], InstitutionClient[Credentials]
+        ],
+        parser_factory: Callable[[InstitutionId, str], InstitutionReportParser],
     ):
-        self._uow = uow
+        self._session_factory = session_factory
         self._fx_service = fx_service
         self._market_data_service = market_data_service
         self._client_factory = client_factory
@@ -58,7 +58,7 @@ class SyncService:
         asset_account_ids: set[str] | None = None,
     ) -> None:
         institution_account = self._get_institution_account(institution_account_id)
-        report: Iterator[str] = report_path.open("r", encoding="utf-8")
+        report = report_path.open("r", encoding="utf-8")
         self._process_report(institution_account, report, asset_account_ids)
 
     def sync(
@@ -75,7 +75,10 @@ class SyncService:
                 "Parameters 'institution_account_ids' and 'asset_account_ids' are mutually exclusive."
             )
 
-        with self._uow as uow:
+        with (
+            self._session_factory.create(read_only=True) as session,
+            session.unit_of_work() as uow,
+        ):
             if asset_account_ids:
                 asset_accounts = uow.accounts.get_asset_accounts_by_ids(
                     asset_account_ids
@@ -95,37 +98,38 @@ class SyncService:
                     user_id
                 )
 
-        results = asyncio.run(
+        asyncio.run(
             self._sync_institution_accounts(
-                institution_accounts, start, end, restore
+                institution_accounts, asset_account_ids, start, end, restore
             )
         )
-
-        transaction_dates: set[date] = set()
-
-        for institution_account, report in results:
-            report_transaction_dates = self._process_report(
-                institution_account, report, asset_account_ids
-            )
-            transaction_dates.update(report_transaction_dates)
-
-        self.sync_fx_rates(user_id, transaction_dates)
-        self.sync_stock_splits(new_only=True)
 
     async def _sync_institution_accounts(
         self,
         institution_accounts: list[InstitutionAccount],
+        asset_account_ids: set[str] | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
         restore: bool = False,
-    ) -> list[tuple[InstitutionAccount, Iterator[str]]]:
+    ) -> None:
         tasks = [
-            self._sync_institution_account(
-                institution_account, start, end, restore
-            )
+            self._sync_institution_account(institution_account, start, end, restore)
             for institution_account in institution_accounts
         ]
-        return await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+
+        transaction_dates: set[date] = set()
+
+        for institution_account, report in results:
+            async for report_chunk in report:
+                transaction_dates.update(
+                    self._process_report(
+                        institution_account, report_chunk, asset_account_ids
+                    )
+                )
+
+        self.sync_fx_rates(transaction_dates)
+        self.sync_stock_splits(new_only=True)
 
     async def _sync_institution_account(
         self,
@@ -133,7 +137,7 @@ class SyncService:
         start: datetime | None = None,
         end: datetime | None = None,
         restore: bool = False,
-    ) -> tuple[InstitutionAccount, Iterator[str]]:
+    ) -> tuple[InstitutionAccount, AsyncIterator[ReportChunk]]:
         if restore:
             start = datetime.combine(
                 institution_account.created_on,
@@ -146,23 +150,26 @@ class SyncService:
             start = start or institution_account.last_synced_at
             end = end or datetime.now(tz=timezone.utc)
 
+        if end > institution_account.last_synced_at:
+            institution_account = institution_account.with_last_synced_at(end)
+
         credentials = self._get_credentials(institution_account.id)
         client = self._client_factory(institution_account.institution_id, credentials)
 
         try:
-            report = await client.fetch_report(start, end)
+            report = client.fetch_report(start, end)
 
         except InstitutionClientError as error:
             raise FetchReportError(
                 institution_account.id, institution_account.name
             ) from error
-        
+
         return institution_account, report
 
     def _process_report(
         self,
         institution_account: InstitutionAccount,
-        report: Iterator[str],
+        report: ReportChunk,
         required_asset_account_ids: set[str] | None = None,
     ) -> set[date]:
         required_asset_account_ids = required_asset_account_ids or set()
@@ -182,8 +189,8 @@ class SyncService:
         transaction_dates: set[date] = set()
         instrument_ids: set[str] = set()
         asset_account_id_by_external_id: dict[str, str] = {}
-    
-        with self._uow as uow:
+
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             ignored_external_ids = (
                 uow.accounts.get_deactivated_asset_account_external_ids(
                     institution_account.id
@@ -250,21 +257,19 @@ class SyncService:
 
             uow.accounts.update_institution_account(institution_account)
             uow.commit()
-        
+
         return transaction_dates
 
     def sync_fx_rates(
         self,
-        user_id: str,
         transaction_dates: set[date] | None = None,
     ) -> None:
-        with self._uow as uow:
+        with (
+            self._session_factory.create(read_only=True) as session,
+            session.unit_of_work() as uow,
+        ):
             if not transaction_dates:
-                asset_accounts = uow.accounts.get_asset_accounts_by_user_id(user_id)
-                transaction_dates = uow.transactions.get_distinct_dates(
-                    filter_=FilterNode(
-                        "asset_account_id", Operator.IN, {asset_account.id for asset_account in asset_accounts})
-                )
+                transaction_dates = uow.transactions.get_distinct_dates()
 
             rates_dates = uow.fx_rates.get_distinct_dates()
 
@@ -277,38 +282,50 @@ class SyncService:
             to_date=max(missing_dates),
         )
 
-        with self._uow as uow:
+        with self._session_factory.create() as session:
+            uow = session.unit_of_work()
             for rates in rates_stream:
-                uow.fx_rates.ensure(rates)
-
-            uow.commit()
+                with uow:
+                    uow.fx_rates.ensure(rates)
+                    uow.commit()
 
     def sync_stock_splits(
-        self, new_only: bool = False,
-        last_synced_before: timedelta = timedelta(days=1)
+        self,
+        new_only: bool = False,
+        sync_interval: timedelta = timedelta(days=1),
     ) -> None:
         now = datetime.now(tz=timezone.utc)
-        if new_only:
-            filter_=FilterNode("last_synced_at", Operator.EQ, None)
-        else:
-            filter_=FilterNode("last_synced_at", Operator.LT, now - last_synced_before)
-        
-        with self._uow as uow:
-            instruments_metadata = uow.instruments.get_metadata(filter_=filter_)
+        filter_ = (
+            FilterNode("last_synced_at", Operator.EQ, None)
+            if new_only
+            else FilterNode("last_synced_at", Operator.LT, now - sync_interval)
+        )
 
-        splits_list = self._market_data_service.get_stock_splits(instruments_metadata)
-        with self._uow as uow:
+        with (
+            self._session_factory.create(read_only=True) as session,
+            session.unit_of_work() as uow,
+        ):
+            metadata_list = uow.instruments.get_metadata(filter_=filter_)
+
+        splits_list = self._market_data_service.get_stock_splits(metadata_list)
+
+        with self._session_factory.create() as session:
+            uow = session.unit_of_work()
+
             for splits in splits_list:
-                uow.market_data.ensure_stock_splits(splits)
-
-            uow.instruments.update_last_synced_at(
-                last_synced_at=now,
-                instrument_ids={metadata.id for metadata in instruments_metadata}
-            )
-            uow.commit()
+                with uow:
+                    uow.market_data.ensure_stock_splits(splits)
+                    uow.instruments.update_last_synced_at(
+                        instrument_id=splits.instrument_id,
+                        last_synced_at=now,
+                    )
+                    uow.commit()
 
     def _get_institution_account(self, account_id: str) -> InstitutionAccount:
-        with self._uow as uow:
+        with (
+            self._session_factory.create(read_only=True) as session,
+            session.unit_of_work() as uow,
+        ):
             institution_account = uow.accounts.get_institution_account_by_id(account_id)
             if not institution_account:
                 raise InstitutionAccountNotFoundError(account_id)
@@ -316,7 +333,10 @@ class SyncService:
             return institution_account
 
     def _get_credentials(self, account_id: str) -> Credentials:
-        with self._uow as uow:
+        with (
+            self._session_factory.create(read_only=True) as session,
+            session.unit_of_work() as uow,
+        ):
             credentials = uow.credentials.retrieve(account_id)
             if not credentials:
                 raise CredentialsNotFoundError(account_id)
@@ -325,7 +345,7 @@ class SyncService:
 
     def _resolve_transaction(
         self,
-        report_transaction: ReportTransactionDto,
+        report_transaction: ReportTransaction,
         asset_account_id: str,
         institution_id: str,
     ) -> tuple[Transaction, list[Instrument]]:
@@ -346,23 +366,17 @@ class SyncService:
             type=report_transaction.type,
             instrument_id=main_instrument_id,
             quantity=report_transaction.quantity,
-            price=Money(
-                report_transaction.price.amount,
-                report_transaction.price.currency,
-            ),
-            fee=Money(report_transaction.fee.amount, report_transaction.fee.currency),
-            tax=Money(report_transaction.tax.amount, report_transaction.tax.currency),
-            cash_impact=Money(
-                report_transaction.cash_impact.amount,
-                report_transaction.cash_impact.currency,
-            ),
+            price=report_transaction.price,
+            fee=report_transaction.fee,
+            tax=report_transaction.tax,
+            cash_impact=report_transaction.cash_impact,
             correlation_id=report_transaction.correlation_id,
         )
 
         return transaction, instruments
 
     def _resolve_instrument(
-        self, report_instrument: ReportInstrumentDto, institution_id: str
+        self, report_instrument: ReportInstrument, institution_id: str
     ) -> tuple[Instrument, list[Instrument]]:
         base_data: InstrumentBaseData = {
             "name": report_instrument.name,

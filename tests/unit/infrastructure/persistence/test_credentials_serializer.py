@@ -6,14 +6,18 @@ from portfolio_tracker.infrastructure.persistence.credentials_serializer import 
     deserialize_credentials,
     serialize_credentials,
 )
-from tests.mocks import HyperactiveBrokersCredentials, Trading321Credentials
+from tests.mocks import (
+    HyperactiveBrokersCredentials,
+    MockInstitutionCode,
+    Trading321Credentials,
+)
 
 
 @pytest.mark.parametrize(
     "instituion_id, credentials, expected_serialized_credetials",
     [
         (
-            "inst_001",
+            MockInstitutionCode.TRADING_321,
             Trading321Credentials(
                 api_key="key_123",
                 api_secret="secret_abc",
@@ -21,7 +25,7 @@ from tests.mocks import HyperactiveBrokersCredentials, Trading321Credentials
             '{"api_key": "key_123", "api_secret": "secret_abc"}',
         ),
         (
-            "inst_002",
+            MockInstitutionCode.HYPERACTIVE_BROKERS,
             HyperactiveBrokersCredentials(
                 web_service_token="token_#@$",
                 query_ids=["q1", "q2"],
@@ -31,7 +35,7 @@ from tests.mocks import HyperactiveBrokersCredentials, Trading321Credentials
     ],
 )
 def test_serialize_credentials_round_trip(
-    instituion_id: str,
+    instituion_id: MockInstitutionCode,
     credentials: Credentials,
     expected_serialized_credetials: str,
     sample_institution_registry: InstitutionRegistry,

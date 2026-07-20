@@ -27,7 +27,7 @@ class FrankfurterClient(FxClient):
         quote_currencies: set[str],
     ) -> FxRates:
         return self._fetch_rates(base_currency, quote_currencies)
-    
+
     def fetch_rates_series(
         self,
         base_currency: str,
@@ -47,7 +47,9 @@ class FrankfurterClient(FxClient):
 
         required_base_currency = base_currency.upper()
         required_quote_currencies = {currency.upper() for currency in quote_currencies}
-        required_dates = {date.isoformat() for date in only_dates} if only_dates else set()
+        required_dates = (
+            {date.isoformat() for date in only_dates} if only_dates else set()
+        )
 
         buffer: dict[str, dict[str, str]] = defaultdict(dict)
 

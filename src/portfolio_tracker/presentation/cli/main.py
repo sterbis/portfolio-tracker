@@ -77,18 +77,16 @@ def main(ctx: typer.Context) -> None:
         error_console.print("To register, run: portfolio register")
         raise typer.Exit(code=1)
 
-    if active_user_id and time.time() > session_expiration:
+    if session_expiration and time.time() > session_expiration:
         delete_login_session()
-        error_console.print(
-            "Session expired due to inactivity. Please log in again."
-        )
+        error_console.print("Session expired due to inactivity. Please log in again.")
         raise typer.Exit(code=1)
 
     if active_user_id:
         if command in auth_commands:
             delete_login_session()
             active_user_id = None
-        
+
         else:
             set_login_session(active_user_id, session_ttl)
 

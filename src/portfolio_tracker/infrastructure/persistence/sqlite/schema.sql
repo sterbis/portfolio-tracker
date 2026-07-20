@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS instrument (
     symbol TEXT NOT NULL,
     exchange TEXT,
     currency TEXT NOT NULL,
-    last_synced_at DATETIME,
+    last_synced_at DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS bond (

@@ -1,12 +1,12 @@
-from datetime import datetime, timezone, timedelta
-from typing import Annotated, Optional
+from datetime import datetime
+from typing import Annotated
 
 import typer
 
 from portfolio_tracker.application.sync import SyncService
 from portfolio_tracker.bootstrap import AppContext
 
-from ..console import console, error_console
+from ..console import error_console
 
 sync_app = typer.Typer()
 
@@ -18,7 +18,7 @@ def parse_list_option(values: list[str] | None) -> list[str]:
     items: list[str] = []
     for value in values:
         items.extend(item.strip() for item in value.split(",") if item.strip())
-    
+
     return items
 
 
@@ -35,16 +35,20 @@ def sync(
     asset_account_ids = parse_list_option(asset_account_id)
 
     if account_ids and asset_account_ids:
-        error_console.print("Error: Options --account-id and --asset-account-id are mutually exclusive.")
+        error_console.print(
+            "Error: Options --account-id and --asset-account-id are mutually exclusive."
+        )
         raise typer.Exit(code=1)
-    
+
     if restore and (start or end):
-        error_console.print("Error: --restore option overrides both --start and --end options.")
+        error_console.print(
+            "Error: --restore option overrides both --start and --end options."
+        )
         raise typer.Exit(code=1)
-    
+
     context: AppContext = ctx.obj
     sync_service = context.get(SyncService)
-    
+
     sync_service.sync(
         user_id=context.active_user_id,
         institution_account_ids=set(account_ids),

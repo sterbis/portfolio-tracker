@@ -30,7 +30,7 @@ def register(
         RegisterUserCommand(username=username, password=password)
     )
     console.print(f"User '{username}' successfully registered.")
-    _login_user(user, context.SESSION_TTL)
+    _login_user(user, context.USER_SESSION_TTL)
 
 
 @auth_app.command(name="login")
@@ -44,7 +44,7 @@ def login(
     user = service.authenticate_user(
         LogInUserCommand(username=username, password=password)
     )
-    _login_user(user, context.SESSION_TTL)
+    _login_user(user, context.USER_SESSION_TTL)
 
 
 @auth_app.command(name="logout")

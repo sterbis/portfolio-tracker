@@ -1,33 +1,30 @@
 import csv
-import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Callable
 
-from portfolio_tracker.application.contracts.dtos import (
-    MoneyDto,
-    ReportInstrumentDto,
-    ReportTransactionDto,
-)
 from portfolio_tracker.application.institution import (
     InstitutionReportParser,
     InstitutionReportParserError,
+    ReportInstrument,
+    ReportTransaction,
 )
 from portfolio_tracker.domain.instrument import InstrumentType
+from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import TransactionType
 
 
 @dataclass
 class TransactionDetails:
     type: TransactionType
-    instrument: ReportInstrumentDto | None
+    instrument: ReportInstrument | None
     quantity: Decimal
-    price: MoneyDto
-    fee: MoneyDto
-    tax: MoneyDto
-    cash_impact: MoneyDto
+    price: Money
+    fee: Money
+    tax: Money
+    cash_impact: Money
     correlation_id: str | None = None
 
 
@@ -40,14 +37,6 @@ class Trading212ReportParser(InstitutionReportParser):
         "Market buy": TransactionType.BUY,
         "Market sell": TransactionType.SELL,
         "Withdrawal": TransactionType.WITHDRAWAL,
-    }
-    _transaction_cash_impact_direction = {
-        TransactionType.BUY: -1,
-        TransactionType.DEPOSIT: 1,
-        TransactionType.DIVIDEND: 1,
-        TransactionType.INTEREST: 1,
-        TransactionType.SELL: 1,
-        TransactionType.WITHDRAWAL: -1,
     }
 
     def __init__(self, institution_account_id: str) -> None:
@@ -68,7 +57,7 @@ class Trading212ReportParser(InstitutionReportParser):
     def _external_account_id(self) -> str:
         return self._institution_account_id
 
-    def parse_report(self, report: Iterator[str]) -> Iterator[ReportTransactionDto]:
+    def parse_report(self, report: Iterator[str]) -> Iterator[ReportTransaction]:
         reader = csv.DictReader(report)
 
         for row in reader:
@@ -80,7 +69,7 @@ class Trading212ReportParser(InstitutionReportParser):
                 )
 
             for details in parser(row):
-                yield ReportTransactionDto(
+                yield ReportTransaction(
                     external_asset_account_id=self._external_account_id,
                     external_transaction_id=row["ID"],
                     executed_at=self._parse_datetime(row),
@@ -94,7 +83,7 @@ class Trading212ReportParser(InstitutionReportParser):
                     correlation_id=details.correlation_id,
                 )
 
-    def _add_currency_conversion_if_needed(
+    def _add_currency_conversion_details(
         self,
         row: dict[str, Any],
         details_list: list[TransactionDetails],
@@ -105,9 +94,6 @@ class Trading212ReportParser(InstitutionReportParser):
         to_currency: str,
         expected_to_amount: Decimal | None = None,
     ) -> None:
-        if rate == Decimal("1.0"):
-            return
-
         correlation_id = self._generate_correlation_id()
         for details in details_list:
             details.correlation_id = correlation_id
@@ -131,10 +117,7 @@ class Trading212ReportParser(InstitutionReportParser):
         quantity = self._parse_quantity(row)
         price = self._parse_price(row)
         direction = self._get_cash_impact_direction(transaction_type)
-        cash_impact = MoneyDto(
-            amount=(quantity * price.amount * direction),
-            currency=price.currency,
-        )
+        cash_impact = direction * quantity * price
         rate = self._parse_exchange_rate(row)
 
         trade_details = TransactionDetails(
@@ -142,8 +125,8 @@ class Trading212ReportParser(InstitutionReportParser):
             instrument=self._parse_instrument(row),
             quantity=quantity,
             price=price,
-            fee=self._zero_money_dto(price.currency),
-            tax=self._zero_money_dto(price.currency),
+            fee=Money.zero(price.currency),
+            tax=Money.zero(price.currency),
             cash_impact=cash_impact,
         )
         details_list.append(trade_details)
@@ -163,7 +146,7 @@ class Trading212ReportParser(InstitutionReportParser):
                 expected_to_amount = total.amount
                 to_currency = total.currency
 
-            self._add_currency_conversion_if_needed(
+            self._add_currency_conversion_details(
                 row,
                 details_list,
                 rate=rate,
@@ -199,33 +182,34 @@ class Trading212ReportParser(InstitutionReportParser):
         total = self._parse_total(row)
         rate = self._parse_exchange_rate(row)
         tax = self._parse_withholding_tax(row)
-        cash_impact = MoneyDto(
+        cash_impact = Money(
             amount=(total.amount / rate),
             currency=tax.currency,
         )
         dividend_per_share = (cash_impact.amount + tax.amount) / quantity
-        price = MoneyDto(amount=dividend_per_share, currency=cash_impact.currency)
+        price = Money(amount=dividend_per_share, currency=cash_impact.currency)
 
         dividend_details = TransactionDetails(
             type=TransactionType.DIVIDEND,
             instrument=self._parse_instrument(row),
             quantity=quantity,
             price=price,
-            fee=self._zero_money_dto(price.currency),
+            fee=Money.zero(price.currency),
             tax=tax,
             cash_impact=cash_impact,
         )
         details_list.append(dividend_details)
 
-        self._add_currency_conversion_if_needed(
-            row,
-            details_list,
-            rate=rate,
-            from_amount=cash_impact.amount,
-            from_currency=cash_impact.currency,
-            to_currency=total.currency,
-            expected_to_amount=total.amount,
-        )
+        if rate != Decimal("1.0"):
+            self._add_currency_conversion_details(
+                row,
+                details_list,
+                rate=rate,
+                from_amount=cash_impact.amount,
+                from_currency=cash_impact.currency,
+                to_currency=total.currency,
+                expected_to_amount=total.amount,
+            )
 
         return details_list
 
@@ -235,18 +219,15 @@ class Trading212ReportParser(InstitutionReportParser):
         transaction_type = self._parse_transaction_type(row)
         direction = self._get_cash_impact_direction(transaction_type)
         total = self._parse_total(row)
-        cash_impact = MoneyDto(
-            amount=(total.amount * direction),
-            currency=total.currency,
-        )
+        cash_impact = direction * total
         return [
             TransactionDetails(
                 type=transaction_type,
                 instrument=None,
                 quantity=Decimal("0.0"),
-                price=self._zero_money_dto(cash_impact.currency),
-                fee=self._zero_money_dto(cash_impact.currency),
-                tax=self._zero_money_dto(cash_impact.currency),
+                price=Money.zero(cash_impact.currency),
+                fee=Money.zero(cash_impact.currency),
+                tax=Money.zero(cash_impact.currency),
                 cash_impact=cash_impact,
             )
         ]
@@ -261,10 +242,11 @@ class Trading212ReportParser(InstitutionReportParser):
         expected_to_amount: Decimal | None = None,
         correlation_id: str | None = None,
     ) -> tuple[TransactionDetails, TransactionDetails]:
-        if row.get("Currency conversion fee"):
-            fee = self._parse_currency_conversion_fee(row)
-        else:
-            fee = self._zero_money_dto(from_currency)
+        fee = (
+            self._parse_currency_conversion_fee(row)
+            if row.get("Currency conversion fee")
+            else Money.zero(from_currency)
+        )
 
         if fee.currency == from_currency:
             to_amount = (from_amount - fee.amount) * rate
@@ -287,20 +269,10 @@ class Trading212ReportParser(InstitutionReportParser):
             type=TransactionType.CURRENCY_EXCHANGE,
             instrument=None,
             quantity=from_amount,
-            price=MoneyDto(
-                amount=rate,
-                currency=to_currency,
-            ),
-            fee=(
-                fee
-                if fee.currency == from_currency
-                else self._zero_money_dto(from_currency)
-            ),
-            tax=self._zero_money_dto(from_currency),
-            cash_impact=MoneyDto(
-                amount=(from_amount * -1),
-                currency=from_currency,
-            ),
+            price=Money(amount=rate, currency=to_currency),
+            fee=fee if fee.currency == from_currency else Money.zero(from_currency),
+            tax=Money.zero(from_currency),
+            cash_impact=Money(amount=(-1 * from_amount), currency=from_currency),
             correlation_id=correlation_id,
         )
 
@@ -308,35 +280,23 @@ class Trading212ReportParser(InstitutionReportParser):
             type=TransactionType.CURRENCY_EXCHANGE,
             instrument=None,
             quantity=to_amount,
-            price=MoneyDto(
-                amount=(Decimal("1.0") / rate),
-                currency=from_currency,
-            ),
-            fee=(
-                fee
-                if fee.currency == to_currency
-                else self._zero_money_dto(to_currency)
-            ),
-            tax=self._zero_money_dto(to_currency),
-            cash_impact=MoneyDto(
-                amount=to_amount,
-                currency=to_currency,
-            ),
+            price=Money(amount=(Decimal("1.0") / rate), currency=from_currency),
+            fee=fee if fee.currency == to_currency else Money.zero(to_currency),
+            tax=Money.zero(to_currency),
+            cash_impact=Money(amount=to_amount, currency=to_currency),
             correlation_id=correlation_id,
         )
         return currency_sell_details, currency_buy_details
 
-    def _parse_instrument(self, row: dict[str, Any]) -> ReportInstrumentDto:
-        return ReportInstrumentDto(
+    def _parse_instrument(self, row: dict[str, Any]) -> ReportInstrument:
+        return ReportInstrument(
             type=InstrumentType.STOCK,
             name=row["Name"],
             symbol=row["Ticker"],
             currency=row["Currency (Price / share)"],
-            details={
-                "isin": row["ISIN"],
-            },
+            details={"isin": row["ISIN"]},
         )
-    
+
     def _parse_transaction_type(self, row: dict[str, Any]) -> TransactionType:
         try:
             return self._transaction_type_by_action[row["Action"]]
@@ -344,62 +304,48 @@ class Trading212ReportParser(InstitutionReportParser):
             raise InstitutionReportParserError(
                 f"Unsupported report action: {row['Action']}."
             ) from error
-    
+
     def _parse_datetime(self, row: dict[str, Any]) -> datetime:
         return datetime.fromisoformat(row["Time"]).replace(tzinfo=timezone.utc)
 
     def _parse_quantity(self, row: dict[str, Any]) -> Decimal:
         return self._to_abs_decimal(row["No. of shares"])
-    
+
     def _parse_exchange_rate(self, row: dict[str, Any]) -> Decimal:
         return self._to_decimal(row["Exchange rate"])
 
-    def _parse_price(self, row: dict[str, Any]) -> MoneyDto:
-        return MoneyDto(
+    def _parse_price(self, row: dict[str, Any]) -> Money:
+        return Money(
             amount=self._to_abs_decimal(row["Price / share"]),
             currency=row["Currency (Price / share)"],
         )
 
-    def _parse_total(self, row: dict[str, Any]) -> MoneyDto:
-        return MoneyDto(
+    def _parse_total(self, row: dict[str, Any]) -> Money:
+        return Money(
             amount=self._to_abs_decimal(row["Total"]),
             currency=row["Currency (Total)"],
         )
 
-    def _parse_withholding_tax(self, row: dict[str, Any]) -> MoneyDto:
-        return MoneyDto(
+    def _parse_withholding_tax(self, row: dict[str, Any]) -> Money:
+        return Money(
             amount=self._to_decimal(row["Withholding tax"]),
             currency=row["Currency (Withholding tax)"],
         )
 
-    def _parse_currency_conversion_from_amount(self, row: dict[str, Any]) -> MoneyDto:
-        return MoneyDto(
+    def _parse_currency_conversion_from_amount(self, row: dict[str, Any]) -> Money:
+        return Money(
             amount=self._to_decimal(row["Currency conversion from amount"]),
             currency=row["Currency (Currency conversion from amount)"],
         )
 
-    def _parse_currency_conversion_to_amount(self, row: dict[str, Any]) -> MoneyDto:
-        return MoneyDto(
+    def _parse_currency_conversion_to_amount(self, row: dict[str, Any]) -> Money:
+        return Money(
             amount=self._to_decimal(row["Currency conversion to amount"]),
             currency=row["Currency (Currency conversion to amount)"],
         )
-    
-    def _parse_currency_conversion_fee(self, row: dict[str, Any]) -> MoneyDto:
-        return MoneyDto(
+
+    def _parse_currency_conversion_fee(self, row: dict[str, Any]) -> Money:
+        return Money(
             amount=self._to_abs_decimal(row["Currency conversion fee"]),
             currency=row["Currency (Currency conversion fee)"],
         )
-    
-    def _zero_money_dto(self, currency: str) -> MoneyDto:
-        return MoneyDto(amount=Decimal("0.0"), currency=currency)
-
-    def _get_cash_impact_direction(self, transaction_type: TransactionType) -> int:
-        try:
-            return self._transaction_cash_impact_direction[transaction_type]
-        except KeyError as error:
-            raise InstitutionReportParserError(
-                f"Cash impact direction not available for transaction type: {transaction_type}."
-            ) from error
-
-    def _generate_correlation_id(self) -> str:
-        return f"tr_{uuid.uuid4().hex[:16]}"

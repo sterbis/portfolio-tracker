@@ -39,11 +39,31 @@ class UnitOfWork(ABC):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        if exc_type is not None:
-            self.rollback()
+        self.rollback()
 
     @abstractmethod
     def commit(self) -> None: ...
 
     @abstractmethod
     def rollback(self) -> None: ...
+
+
+class Session(ABC):
+    @abstractmethod
+    def __enter__(self) -> Self: ...
+
+    @abstractmethod
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None: ...
+
+    @abstractmethod
+    def unit_of_work(self) -> UnitOfWork: ...
+
+
+class SessionFactory(ABC):
+    @abstractmethod
+    def create(self, read_only: bool = False) -> Session: ...

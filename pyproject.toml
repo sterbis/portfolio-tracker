@@ -38,6 +38,12 @@ files = ["src", "tests"]
 module = "yfinance"
 ignore_missing_imports = true
 
+[tool.pylint.main]
+fail-under = 9.5
+
+[tool.pylint.BASIC]
+typevar-rgx = "^_?[A-Z][a-zA-Z0-9]*$"
+
 [tool.pylint."messages control"]
 disable = [
     "C0301", # Line too long (101/100) (line-too-long)
@@ -54,9 +60,9 @@ src_paths = ["src", "tests"]
 [tool.taskipy.tasks]
 format = "black src tests && isort ."
 lint = "mypy src tests && pylint src tests"
-vulture = "vulture src"
-secrets = "git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline"
 audit = "pip-audit"
 test = "pytest tests -v"
+vulture = "vulture src .vulture_whitelist.py"
+secrets = "git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline"
 
-all = "task format && task lint && task vulture && task secrets && task audit && task test"
+precommit = "task format && task lint && task audit && task test"

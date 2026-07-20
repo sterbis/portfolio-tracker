@@ -1,11 +1,14 @@
 from collections.abc import Iterator
 from datetime import date, datetime, timezone
+from typing import TYPE_CHECKING
 
-from portfolio_tracker.application.persistence import UnitOfWork
 from portfolio_tracker.domain.fx import FxRates
 
 from .client import FxClient
 from .exceptions import FxClientError, FxDataIntegrityError
+
+if TYPE_CHECKING:
+    from portfolio_tracker.application.persistence import UnitOfWork
 
 
 class FxService:

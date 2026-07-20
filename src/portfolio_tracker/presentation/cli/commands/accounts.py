@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, Literal
+from typing import Annotated
 
 import click
 import typer
@@ -23,6 +23,9 @@ from portfolio_tracker.bootstrap import AppContext
 from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.infrastructure.institution import (
     IbkrCredentials,
+    InstitutionCode,
+)
+from portfolio_tracker.infrastructure.institution.trading_212 import (
     Trading212Credentials,
 )
 
@@ -71,11 +74,8 @@ def list_accounts(ctx: typer.Context) -> None:
 def add_institution_account(
     ctx: typer.Context,
     institution: Annotated[
-        Literal["IBKR", "T212"],
-        typer.Option(
-            prompt=True,
-            parser=lambda institution: institution.strip().upper(),
-        ),
+        InstitutionCode,
+        typer.Option(prompt=True, case_sensitive=False),
     ],
 ) -> None:
     context: AppContext = ctx.obj
@@ -110,7 +110,6 @@ def edit_institution_account(
         context, institution_account.institution.id, institution_account
     )
     command_service.update_institution_account(
-        context.active_user_id,
         UpdateInstitutionAccountCommand(
             institution_account_id=institution_account.id,
             name=name,
@@ -197,8 +196,10 @@ def activate_asset_account(
             return
 
     command_service.activate_asset_account(account_id)
-    sync_service.sync_asset_account(
-        asset_account.institution_account_id, asset_account.external_id
+    sync_service.sync(
+        context.active_user_id,
+        asset_account_ids={account_id},
+        restore=True,
     )
 
 

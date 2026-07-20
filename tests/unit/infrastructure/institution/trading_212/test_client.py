@@ -1,15 +1,17 @@
 # pylint: disable=redefined-outer-name
 # pylint: disable=protected-access
 
-from unittest.mock import Mock
+import asyncio
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 import requests
 
-from portfolio_tracker.infrastructure.institution.supported_institutions import Trading212Credentials
 from portfolio_tracker.application.institution import InstitutionClientError
 from portfolio_tracker.infrastructure.institution.trading_212.client import (
-    Trading212Client, Trading212ApiEndpoint
+    Trading212ApiEndpoints,
+    Trading212Client,
+    Trading212Credentials,
 )
 
 
@@ -23,7 +25,8 @@ def trading_212_client() -> Trading212Client:
     )
 
 
-def test_request_returns_successful_response_immediately(
+@pytest.mark.asyncio
+async def test_request_returns_successful_response_immediately(
     monkeypatch: pytest.MonkeyPatch, trading_212_client: Trading212Client
 ) -> None:
     response = Mock(spec=requests.Response)
@@ -33,12 +36,16 @@ def test_request_returns_successful_response_immediately(
     request = Mock(return_value=response)
     monkeypatch.setattr(requests, "request", request)
 
-    result = trading_212_client._request(method="GET", endpoint=Trading212ApiEndpoint.ACCOUNT_SUMMARY)
+    result = await trading_212_client._request(
+        Trading212ApiEndpoints.ACCOUNT_SUMMARY, auth=("api_key", "api_secret")
+    )
 
     assert result is response
     request.assert_called_once_with(
-        "GET",
-        trading_212_client._BASE_URL + Trading212ApiEndpoint.ACCOUNT_SUMMARY.value,
+        method="GET",
+        url=Trading212ApiEndpoints.ACCOUNT_SUMMARY.build_url(
+            trading_212_client._BASE_URL
+        ),
         params=None,
         json=None,
         data=None,
@@ -49,12 +56,18 @@ def test_request_returns_successful_response_immediately(
     response.raise_for_status.assert_called_once()
 
 
-def test_request_retries_on_429_and_returns_when_successful(
+@pytest.mark.asyncio
+async def test_request_retries_on_429_and_returns_when_successful(
     monkeypatch: pytest.MonkeyPatch, trading_212_client: Trading212Client
 ) -> None:
     first_response = Mock(spec=requests.Response)
+    first_response.headers = {}
     first_response.status_code = 429
+    first_response.reason = "Too many requests"
     first_response.raise_for_status = Mock()
+    first_response.raise_for_status.side_effect = requests.HTTPError(
+        "429 Too many requests", response=first_response
+    )
 
     second_response = Mock(spec=requests.Response)
     second_response.status_code = 200
@@ -62,28 +75,32 @@ def test_request_retries_on_429_and_returns_when_successful(
 
     request = Mock(side_effect=[first_response, second_response])
     monkeypatch.setattr(requests, "request", request)
-    monkeypatch.setattr("time.sleep", lambda _: None)
+    monkeypatch.setattr(asyncio, "sleep", AsyncMock())
 
-    result = trading_212_client._request(method="GET", endpoint=Trading212ApiEndpoint.ACCOUNT_SUMMARY)
+    result = await trading_212_client._request(Trading212ApiEndpoints.ACCOUNT_SUMMARY)
 
     assert result is second_response
     assert request.call_count == 2
     second_response.raise_for_status.assert_called_once()
 
 
-def test_request_raises_institution_client_error_on_non_429_error(
+@pytest.mark.asyncio
+async def test_request_raises_institution_client_error_on_non_429_error(
     monkeypatch: pytest.MonkeyPatch, trading_212_client: Trading212Client
 ) -> None:
     response = Mock(spec=requests.Response)
     response.status_code = 500
     response.reason = "Internal Server Error"
-    response.raise_for_status = Mock(side_effect=requests.HTTPError("server error"))
+    response.raise_for_status = Mock(
+        side_effect=requests.HTTPError("500 Internal Server Error", response=response)
+    )
 
     request = Mock(return_value=response)
     monkeypatch.setattr(requests, "request", request)
+    monkeypatch.setattr(asyncio, "sleep", AsyncMock())
 
     with pytest.raises(
         InstitutionClientError,
-        match="Request to .+ failed: 500 Internal Server Error.",
+        match="Request to .+ failed after 3 attempts. Status: 500, reason: Internal Server Error",
     ):
-        trading_212_client._request(method="GET", endpoint=Trading212ApiEndpoint.ACCOUNT_SUMMARY)
+        await trading_212_client._request(Trading212ApiEndpoints.ACCOUNT_SUMMARY)

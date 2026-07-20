@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from portfolio_tracker.application.encryption import Encryptor
-from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.domain.institution import Credentials, InstitutionId
 
 
 class MockEncryptor(Encryptor):
@@ -10,6 +10,11 @@ class MockEncryptor(Encryptor):
 
     def decrypt(self, encrypted_text: str) -> str:
         return encrypted_text.replace("encrypted_", "")
+
+
+class MockInstitutionCode(InstitutionId):
+    TRADING_321 = "T321"
+    HYPERACTIVE_BROKERS = "HBKR"
 
 
 @dataclass(frozen=True)

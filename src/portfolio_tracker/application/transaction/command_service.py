@@ -4,14 +4,14 @@ from portfolio_tracker.application.contracts.commands import (
     CreateTransactionCommand,
     UpdateTransactionCommand,
 )
-from portfolio_tracker.application.persistence import UnitOfWork
+from portfolio_tracker.application.persistence import SessionFactory
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction
 
 
 class TransactionCommandService:
-    def __init__(self, uow: UnitOfWork) -> None:
-        self._uow = uow
+    def __init__(self, session_factory: SessionFactory) -> None:
+        self._session_factory = session_factory
 
     def create_transaction(self, command: CreateTransactionCommand) -> str:
         payload = command.payload
@@ -29,7 +29,7 @@ class TransactionCommandService:
             correlation_id=payload.correlation_id,
         )
 
-        with self._uow as uow:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             if uow.transactions.exists_by_checksum(transaction.checksum):
                 raise ValueError(f"Transaction already exists: {transaction.id}")
 
@@ -40,7 +40,7 @@ class TransactionCommandService:
         return transaction.id
 
     def update_transaction(self, command: UpdateTransactionCommand) -> None:
-        with self._uow as uow:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             transaction = uow.transactions.get_by_id(command.transaction_id)
             if not transaction:
                 raise ValueError(f"Transaction not foud. ID: {command.transaction_id}")
@@ -83,7 +83,7 @@ class TransactionCommandService:
             self._update_market_data_streamer(updated_transaction.asset_account_id)
 
     def delete_transaction(self, transaction_id: str) -> None:
-        with self._uow as uow:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             transaction = uow.transactions.get_by_id(transaction_id)
             if not transaction:
                 raise ValueError(f"Transaction not foud. ID: {transaction_id}")

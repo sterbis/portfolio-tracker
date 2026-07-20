@@ -5,7 +5,10 @@ from typing import cast
 import pandas as pd
 import yfinance as yf
 
-from portfolio_tracker.application.market_data import MarketDataClient, MarketDataClientError
+from portfolio_tracker.application.market_data import (
+    MarketDataClient,
+    MarketDataClientError,
+)
 
 
 class YahooFinanceClient(MarketDataClient):
@@ -39,7 +42,7 @@ class YahooFinanceClient(MarketDataClient):
             end=date_ + timedelta(days=1),
             extended_hours=False,
         )
-    
+
     def fetch_stock_splits(self, symbol: str) -> dict[datetime, Decimal]:
         ticker = yf.Ticker(symbol)
         splits = ticker.get_splits()
@@ -69,7 +72,9 @@ class YahooFinanceClient(MarketDataClient):
             )
 
         except Exception as error:
-            raise MarketDataClientError("Fail to fetch yahoo finance market prices.") from error
+            raise MarketDataClientError(
+                "Fail to fetch yahoo finance market prices."
+            ) from error
 
         prices: dict[str, Decimal | None] = {symbol: None for symbol in symbols}
 

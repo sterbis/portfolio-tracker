@@ -20,8 +20,8 @@ from portfolio_tracker.application.persistence import (
     FxRatesRepository,
     InstrumentRepository,
     MarketDataRepository,
+    SessionFactory,
     TransactionRepository,
-    UnitOfWork,
 )
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.instrument import Instrument
@@ -39,7 +39,7 @@ class PortfolioQueryService:
     def __init__(
         self,
         institution_registry: InstitutionRegistry,
-        uow: UnitOfWork,
+        session_factory: SessionFactory,
         transaction_adjuster: TransactionAdjuster,
         portfolio_builder: PortfolioBuilder,
         portfolio_evaluator: PortfolioEvaluator,
@@ -47,7 +47,7 @@ class PortfolioQueryService:
         market_data_service: MarketDataService,
     ) -> None:
         self._institution_registry = institution_registry
-        self._uow = uow
+        self._session_factory = session_factory
         self._market_data_service = market_data_service
         self._fx_service = fx_service
         self._transaction_adjuster = transaction_adjuster
@@ -61,7 +61,10 @@ class PortfolioQueryService:
         | dict[str | None, PortfolioValuationDto]
         | list[ValuedPortfolioDto]
     ):
-        with self._uow as uow:
+        with (
+            self._session_factory.create(read_only=True) as session,
+            session.unit_of_work() as uow,
+        ):
             transactions: Iterable[Transaction] = uow.transactions.get(
                 filter_=query.filter,
                 order_by=[("executed_at", "ASC")],

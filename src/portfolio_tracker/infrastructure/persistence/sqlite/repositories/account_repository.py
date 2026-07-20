@@ -3,6 +3,7 @@ from typing import Any, Literal
 
 from filterutils import Filter, FilterNode, FilterTree, Operator
 
+from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import AccountRepository
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 
@@ -10,7 +11,10 @@ from ..executor import SqliteExecutor
 
 
 class SqliteAccountRepository(AccountRepository):
-    def __init__(self, executor: SqliteExecutor) -> None:
+    def __init__(
+        self, institution_registry: InstitutionRegistry, executor: SqliteExecutor
+    ) -> None:
+        self._institution_registry = institution_registry
         self._executor = executor
 
     def add_institution_account(self, account: InstitutionAccount) -> None:
@@ -140,19 +144,6 @@ class SqliteAccountRepository(AccountRepository):
             )
         )
 
-    def get_asset_accounts_by_user_id(self, user_id: str) -> list[AssetAccount]:
-        institution_accounts = self.get_institution_accounts_by_user_id(user_id)
-        return self.get_asset_accounts(
-            filter_=FilterNode(
-                "institution_account_id",
-                Operator.IN,
-                {
-                    institution_account.id
-                    for institution_account in institution_accounts
-                },
-            )
-        )
-
     def get_deactivated_asset_account_external_ids(
         self, institution_account_id: str
     ) -> set[str]:
@@ -173,12 +164,6 @@ class SqliteAccountRepository(AccountRepository):
             table="asset_account",
             values=self._asset_account_to_values(account),
             filter_=FilterNode("asset_account_id", Operator.EQ, account.id),
-        )
-
-    def remove_asset_account_by_id(self, account_id: str) -> None:
-        self._executor.delete(
-            table="asset_account",
-            filter_=FilterNode("asset_account_id", Operator.EQ, account_id),
         )
 
     def _institution_account_to_values(
@@ -206,7 +191,9 @@ class SqliteAccountRepository(AccountRepository):
         return InstitutionAccount(
             id=row["institution_account_id"],
             user_id=row["user_id"],
-            institution_id=row["institution_id"],
+            institution_id=self._institution_registry.institution_id_cls(
+                row["institution_id"]
+            ),
             name=row["name"],
             created_on=row["created_on"],
             last_synced_at=row["last_synced_at"],

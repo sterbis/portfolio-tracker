@@ -16,12 +16,10 @@ from portfolio_tracker.application.transaction import (
     TransactionQueryService,
 )
 from portfolio_tracker.application.user import AuthService, UserNotLoggedInError
-
 from portfolio_tracker.domain.portfolio import PortfolioBuilder, PortfolioEvaluator
 from portfolio_tracker.domain.portfolio.cash_balance import CashBalanceEvaluator
 from portfolio_tracker.domain.portfolio.position import PositionEvaluator
 from portfolio_tracker.domain.transaction import TransactionAdjuster
-
 from portfolio_tracker.infrastructure.encryption import FernetEncryptor
 from portfolio_tracker.infrastructure.fx import FrankfurterClient
 from portfolio_tracker.infrastructure.institution import (
@@ -30,7 +28,7 @@ from portfolio_tracker.infrastructure.institution import (
     create_registry,
 )
 from portfolio_tracker.infrastructure.market_data import YahooFinanceClient
-from portfolio_tracker.infrastructure.persistence.sqlite import SqliteUnitOfWork
+from portfolio_tracker.infrastructure.persistence.sqlite import SqliteSessionFactory
 
 TService = TypeVar("TService")
 
@@ -40,7 +38,7 @@ load_dotenv()
 
 class AppContext:
     DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"]
-    SESSION_TTL = 1800  # 30m = 30 * 60s = 1800s
+    USER_SESSION_TTL = 1800  # 30m = 30 * 60s = 1800s
 
     def __init__(self, active_user_id: str | None = None) -> None:
         self._active_user_id = active_user_id
@@ -74,11 +72,8 @@ def bootstrap_app(active_user_id: str | None = None) -> AppContext:
 
     institution_registry = create_registry()
 
-    read_uow = SqliteUnitOfWork(
-        sqlite_db_path, encryptor, institution_registry, read_only=True
-    )
-    write_uow = SqliteUnitOfWork(
-        sqlite_db_path, encryptor, institution_registry, read_only=False
+    session_factory = SqliteSessionFactory(
+        sqlite_db_path, encryptor, institution_registry
     )
 
     fx_client = FrankfurterClient()
@@ -95,24 +90,26 @@ def bootstrap_app(active_user_id: str | None = None) -> AppContext:
 
     context = AppContext(active_user_id)
     context.register(
-        AccountCommandService, AccountCommandService(
+        AccountCommandService,
+        AccountCommandService(
             institution_registry=institution_registry,
-            uow=write_uow,
+            session_factory=session_factory,
             client_factory=create_client,
-        )
+        ),
     )
     context.register(
-        AccountQueryService, AccountQueryService(
+        AccountQueryService,
+        AccountQueryService(
             institution_registry=institution_registry,
-            uow=read_uow,
-        )
+            session_factory=session_factory,
+        ),
     )
-    context.register(AuthService, AuthService(uow=write_uow))
+    context.register(AuthService, AuthService(session_factory=session_factory))
     context.register(
         PortfolioQueryService,
         PortfolioQueryService(
             institution_registry=institution_registry,
-            uow=read_uow,
+            session_factory=session_factory,
             transaction_adjuster=transaction_adjuster,
             portfolio_builder=PortfolioBuilder(),
             portfolio_evaluator=PortfolioEvaluator(
@@ -126,7 +123,7 @@ def bootstrap_app(active_user_id: str | None = None) -> AppContext:
     context.register(
         SyncService,
         SyncService(
-            uow=write_uow,
+            session_factory=session_factory,
             fx_service=fx_service,
             market_data_service=market_data_service,
             client_factory=create_client,
@@ -136,14 +133,14 @@ def bootstrap_app(active_user_id: str | None = None) -> AppContext:
     context.register(
         TransactionCommandService,
         TransactionCommandService(
-            uow=write_uow,
+            session_factory=session_factory,
         ),
     )
     context.register(
         TransactionQueryService,
         TransactionQueryService(
             institution_registry=institution_registry,
-            uow=read_uow,
+            session_factory=session_factory,
             transaction_adjuster=transaction_adjuster,
         ),
     )

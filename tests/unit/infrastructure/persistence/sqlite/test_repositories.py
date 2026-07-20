@@ -37,10 +37,12 @@ def test_user_repository_round_trips_user(
 
 def test_account_repository_round_trips_institution_and_asset_accounts(
     initialized_shared_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    sample_institution_registry: InstitutionRegistry,
     sample_institution_account: InstitutionAccount,
     sample_asset_account: AssetAccount,
 ) -> None:
     account_repository = SqliteAccountRepository(
+        sample_institution_registry,
         SqliteExecutor(initialized_shared_memory_db_connection_foreign_keys_off)
     )
 
@@ -79,6 +81,7 @@ def test_credentials_repository_round_trips_credentials(
     user_repository.add(sample_user)
 
     account_repository = SqliteAccountRepository(
+        sample_institution_registry,
         SqliteExecutor(initialized_shared_memory_db_connection),
     )
     account_repository.add_institution_account(sample_institution_account)

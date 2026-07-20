@@ -2,7 +2,6 @@ from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import List
 
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.shared import DualMoney, Money
@@ -28,7 +27,7 @@ class PositionBuilder:
         self.native_currency = native_currency
         self.reporting_currency = reporting_currency
         self.accounting_method = accounting_method
-        self._lots: List[TaxLot] = []
+        self._lots: list[TaxLot] = []
 
         self._opened_at: datetime | None = None
         self._last_trade_at: datetime | None = None
@@ -61,7 +60,7 @@ class PositionBuilder:
         return self.cost_basis / self.quantity
 
     @property
-    def lots(self) -> List[TaxLot]:
+    def lots(self) -> list[TaxLot]:
         return self._lots
 
     def add(self, transaction: Transaction, rates: FxRates) -> None:

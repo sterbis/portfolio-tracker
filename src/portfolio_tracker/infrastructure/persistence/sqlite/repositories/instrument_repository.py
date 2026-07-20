@@ -145,11 +145,13 @@ class SqliteInstrumentRepository(InstrumentRepository):
             filter_=FilterNode("instrument_id", Operator.IN, instrument_ids)
         )
 
-    def update_last_synced_at(self, last_synced_at: datetime, instrument_ids: set[str]) -> None:
+    def update_last_synced_at(
+        self, instrument_id: str, last_synced_at: datetime
+    ) -> None:
         self._executor.update(
             table="instrument",
             values={"last_synced_at": last_synced_at},
-            filter_=FilterNode("instrument_id", Operator.IN, instrument_ids),
+            filter_=FilterNode("instrument_id", Operator.EQ, instrument_id),
         )
 
     def _get_instrument_details(self, instrument: Instrument) -> dict[str, Any]:
@@ -239,14 +241,13 @@ class SqliteInstrumentRepository(InstrumentRepository):
         return InstrumentMetadata(
             id=row["instrument_id"],
             checksum=row["checksum"],
-            type=row["type"],
-            asset_class=row["asset_class"],
+            type=InstrumentType(row["type"]),
+            asset_class=AssetClass(row["asset_class"]),
             name=row["name"],
             symbol=row["symbol"],
             exchange=row["exchange"],
             currency=row["currency"],
             last_synced_at=row["last_synced_at"],
-            
         )
 
     def _row_to_instrument_details(

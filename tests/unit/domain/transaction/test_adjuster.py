@@ -65,7 +65,11 @@ def test_transaction_adjuster_split_boundaries() -> None:
     snapshot_at = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)
     results = list(
         adjuster.adjust(
-            transactions=[transaction_before_split, transaction_after_split, transaction_exactly_at_split],
+            transactions=[
+                transaction_before_split,
+                transaction_after_split,
+                transaction_exactly_at_split,
+            ],
             splits_list=splits_list,
             snapshot_at=snapshot_at,
         )

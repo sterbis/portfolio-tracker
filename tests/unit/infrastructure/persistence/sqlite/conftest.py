@@ -3,6 +3,7 @@
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
@@ -96,3 +97,23 @@ def tmp_db_connection(tmp_db_path: Path) -> Iterator[sqlite3.Connection]:
 def initialized_tmp_db_path(tmp_db_path: Path, schema_path: str) -> Iterator[Path]:
     initialize_database(tmp_db_path, schema_path)
     yield tmp_db_path
+
+
+@pytest.fixture
+def open_initialized_tmp_db_connection(
+    initialized_tmp_db_path: Path,
+) -> Iterator[Callable[..., sqlite3.Connection]]:
+    connections: list[sqlite3.Connection] = []
+
+    def get_connection(timeout: float = 5.0) -> sqlite3.Connection:
+        connection = open_connection(initialized_tmp_db_path, timeout=timeout)
+        connections.append(connection)
+        return connection
+
+    yield get_connection
+
+    for connection in connections:
+        try:
+            connection.close()
+        except sqlite3.Error:
+            pass

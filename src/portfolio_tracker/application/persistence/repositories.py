@@ -73,16 +73,12 @@ class AccountRepository(ABC):
     ) -> list[AssetAccount]: ...
 
     @abstractmethod
-    def get_asset_accounts_by_user_id(self, user_id: str) -> list[AssetAccount]: ...
-
-    @abstractmethod
-    def get_deactivated_asset_account_external_ids(self, institution_account_id: str) -> set[str]: ...
+    def get_deactivated_asset_account_external_ids(
+        self, institution_account_id: str
+    ) -> set[str]: ...
 
     @abstractmethod
     def update_asset_account(self, account: AssetAccount) -> None: ...
-
-    @abstractmethod
-    def remove_asset_account_by_id(self, account_id: str) -> None: ...
 
 
 class InstrumentRepository(ABC):
@@ -113,7 +109,9 @@ class InstrumentRepository(ABC):
     def get_by_ids(self, instrument_ids: set[str]) -> list[Instrument]: ...
 
     @abstractmethod
-    def update_last_synced_at(self, last_synced_at: datetime, instrument_ids: set[str]) -> None: ...
+    def update_last_synced_at(
+        self, instrument_id: str, last_synced_at: datetime
+    ) -> None: ...
 
 
 class TransactionRepository(ABC):

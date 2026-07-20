@@ -7,7 +7,7 @@ from .repositories import (
     TransactionRepository,
     UserRepository,
 )
-from .unit_of_work import UnitOfWork
+from .unit_of_work import Session, SessionFactory, UnitOfWork
 
 __all__ = [
     "AccountRepository",
@@ -15,6 +15,8 @@ __all__ = [
     "FxRatesRepository",
     "InstrumentRepository",
     "MarketDataRepository",
+    "Session",
+    "SessionFactory",
     "TransactionRepository",
     "UnitOfWork",
     "UserRepository",

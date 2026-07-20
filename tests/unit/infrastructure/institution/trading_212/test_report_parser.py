@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from portfolio_tracker.application.contracts.dtos import MoneyDto
+from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.infrastructure.institution.trading_212 import (
     Trading212ReportParser,
 )
@@ -88,8 +88,8 @@ def currency_conversion_row() -> dict[str, Any]:
             "USD",
             Decimal("1.06480041"),
             (Decimal("23.1921858000") * Decimal("175.6700000000")),
-            MoneyDto(amount=Decimal("5.74"), currency="EUR"),
-            MoneyDto(amount=Decimal("0.0"), currency="USD"),
+            Money(amount=Decimal("5.74"), currency="EUR"),
+            Money(amount=Decimal("0.0"), currency="USD"),
         ),
         (
             "market_sell_row",
@@ -98,8 +98,8 @@ def currency_conversion_row() -> dict[str, Any]:
             "USD",
             Decimal("1.00000000"),
             Decimal("900.00"),
-            MoneyDto(amount=Decimal("0.0"), currency="USD"),
-            MoneyDto(amount=Decimal("0.0"), currency="USD"),
+            Money(amount=Decimal("0.0"), currency="USD"),
+            Money(amount=Decimal("0.0"), currency="USD"),
         ),
         (
             "dividend_row",
@@ -108,8 +108,8 @@ def currency_conversion_row() -> dict[str, Any]:
             "EUR",
             Decimal("0.85600300"),
             Decimal("9.10"),
-            MoneyDto(amount=Decimal("0.0"), currency="USD"),
-            MoneyDto(amount=Decimal("0.0"), currency="EUR"),
+            Money(amount=Decimal("0.0"), currency="USD"),
+            Money(amount=Decimal("0.0"), currency="EUR"),
         ),
         (
             "currency_conversion_row",
@@ -118,8 +118,8 @@ def currency_conversion_row() -> dict[str, Any]:
             "CZK",
             (Decimal("110165.25") / Decimal("4612.31")),
             Decimal("110000.0"),
-            MoneyDto(amount=Decimal("0.0"), currency="USD"),
-            MoneyDto(amount=Decimal("165.25"), currency="CZK"),
+            Money(amount=Decimal("0.0"), currency="USD"),
+            Money(amount=Decimal("165.25"), currency="CZK"),
         ),
     ],
 )
@@ -132,8 +132,8 @@ def test_parse_currency_conversion(
     to_currency: str,
     rate: Decimal,
     expected_to_amount: Decimal,
-    expected_sell_fee: MoneyDto,
-    expected_buy_fee: MoneyDto,
+    expected_sell_fee: Money,
+    expected_buy_fee: Money,
 ) -> None:
     row = request.getfixturevalue(row_fixture)
 
@@ -151,18 +151,16 @@ def test_parse_currency_conversion(
     tolerance = Decimal("0.001")
 
     assert currency_sell_details.quantity == from_amount
-    assert currency_sell_details.price == MoneyDto(amount=rate, currency=to_currency)
+    assert currency_sell_details.price == Money(amount=rate, currency=to_currency)
     assert currency_sell_details.fee == expected_sell_fee
-    assert currency_sell_details.cash_impact == MoneyDto(
+    assert currency_sell_details.cash_impact == Money(
         amount=(from_amount * -1), currency=from_currency
     )
 
     assert abs(currency_buy_details.quantity - expected_to_amount) < tolerance
-    assert currency_buy_details.price == MoneyDto(
+    assert currency_buy_details.price == Money(
         amount=(Decimal("1.0") / rate), currency=from_currency
     )
     assert currency_buy_details.fee == expected_buy_fee
-    assert (
-        abs(currency_buy_details.cash_impact.amount - expected_to_amount) < tolerance
-    )
+    assert abs(currency_buy_details.cash_impact.amount - expected_to_amount) < tolerance
     assert currency_buy_details.cash_impact.currency == to_currency

@@ -2,6 +2,7 @@
 # pylint: disable=redefined-outer-name
 
 import sqlite3
+from typing import Callable
 
 import pytest
 
@@ -13,15 +14,14 @@ from tests.mocks import MockEncryptor
 
 @pytest.fixture
 def shared_memory_uow(
-    initialized_shared_memory_db_uri: str,
+    initialized_shared_memory_db_connection: sqlite3.Connection,
     mock_encryptor: MockEncryptor,
     sample_institution_registry: InstitutionRegistry,
 ) -> SqliteUnitOfWork:
     return SqliteUnitOfWork(
-        initialized_shared_memory_db_uri,
+        initialized_shared_memory_db_connection,
         mock_encryptor,
         sample_institution_registry,
-        uri=True,
     )
 
 
@@ -29,7 +29,7 @@ def test_unit_of_work_transaction_lifecycle(
     shared_memory_uow: SqliteUnitOfWork,
 ) -> None:
     connection = shared_memory_uow._connection
-    assert connection is None
+    assert connection is not None
 
     with shared_memory_uow:
         assert shared_memory_uow._connection is not None
@@ -47,7 +47,7 @@ def test_unit_of_work_transaction_lifecycle(
 
         assert shared_memory_uow._connection.in_transaction is False
 
-    assert shared_memory_uow._connection is None
+    assert shared_memory_uow._connection is not None
 
 
 def test_rollback_occurs_when_transaction_aborts(
@@ -77,25 +77,28 @@ def test_explicit_commit_needed_to_write_database_changes(
 ) -> None:
     with shared_memory_uow:
         shared_memory_uow.users.add(sample_user)
-        # uow.commit()
+        # uow.commit() omitted
 
     with shared_memory_uow:
         assert shared_memory_uow.users.get_by_username(sample_user.username) is None
 
 
 def test_write_connection_does_not_block_read_connection(
-    initialized_tmp_db_path: str,
+    open_initialized_tmp_db_connection: Callable[..., sqlite3.Connection],
     mock_encryptor: MockEncryptor,
     sample_institution_registry: InstitutionRegistry,
     sample_user: User,
 ) -> None:
+    connection_1 = open_initialized_tmp_db_connection()
     uow_1 = SqliteUnitOfWork(
-        initialized_tmp_db_path,
+        connection_1,
         mock_encryptor,
         sample_institution_registry,
     )
+
+    connection_2 = open_initialized_tmp_db_connection()
     uow_2 = SqliteUnitOfWork(
-        initialized_tmp_db_path,
+        connection_2,
         mock_encryptor,
         sample_institution_registry,
         read_only=True,
@@ -117,22 +120,24 @@ def test_write_connection_does_not_block_read_connection(
 
 
 def test_two_connections_cannot_write_at_the_same_time(
-    initialized_tmp_db_path: str,
+    open_initialized_tmp_db_connection: Callable[..., sqlite3.Connection],
     mock_encryptor: MockEncryptor,
     sample_institution_registry: InstitutionRegistry,
     sample_user: User,
     sample_user_2: User,
 ) -> None:
+    connection_1 = open_initialized_tmp_db_connection()
     uow_1 = SqliteUnitOfWork(
-        initialized_tmp_db_path,
+        connection_1,
         mock_encryptor,
         sample_institution_registry,
     )
+
+    connection_2 = open_initialized_tmp_db_connection(timeout=0)
     uow_2 = SqliteUnitOfWork(
-        initialized_tmp_db_path,
+        connection_2,
         mock_encryptor,
         sample_institution_registry,
-        timeout=0,
     )
 
     with uow_1:

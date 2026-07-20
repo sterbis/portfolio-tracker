@@ -4,7 +4,7 @@ from portfolio_tracker.application.contracts.dto_assembler import DtoAssembler
 from portfolio_tracker.application.contracts.dtos import TransactionDto
 from portfolio_tracker.application.contracts.queries import GetTransactionsQuery
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import UnitOfWork
+from portfolio_tracker.application.persistence import SessionFactory
 from portfolio_tracker.domain.transaction import TransactionAdjuster
 
 
@@ -12,15 +12,18 @@ class TransactionQueryService:
     def __init__(
         self,
         institution_registry: InstitutionRegistry,
-        uow: UnitOfWork,
+        session_factory: SessionFactory,
         transaction_adjuster: TransactionAdjuster,
     ) -> None:
         self._institution_registry = institution_registry
-        self._uow = uow
+        self._session_factory = session_factory
         self._transaction_adjuster = transaction_adjuster
 
     def execute(self, query: GetTransactionsQuery) -> list[TransactionDto]:
-        with self._uow as uow:
+        with (
+            self._session_factory.create(read_only=True) as session,
+            session.unit_of_work() as uow,
+        ):
             transactions = uow.transactions.get(
                 filter_=query.filter,
                 order_by=query.order_by,

@@ -15,27 +15,31 @@ from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction, TransactionType
 from portfolio_tracker.domain.user import User
 
-from .mocks import HyperactiveBrokersCredentials, Trading321Credentials
-
+from .mocks import (
+    HyperactiveBrokersCredentials,
+    MockInstitutionCode,
+    Trading321Credentials,
+)
 
 
 @pytest.fixture(scope="session")
 def sample_institution_registry() -> InstitutionRegistry:
     return InstitutionRegistry(
         institutions={
-            "inst_001": Institution(
-                id="inst_001",
+            MockInstitutionCode.TRADING_321: Institution(
+                id=MockInstitutionCode.TRADING_321,
                 name="Trading 321",
                 log_in_url="https:\\trading321.com",
                 credentials_cls=Trading321Credentials,
             ),
-            "inst_002": Institution(
-                id="inst_002",
+            MockInstitutionCode.HYPERACTIVE_BROKERS: Institution(
+                id=MockInstitutionCode.HYPERACTIVE_BROKERS,
                 name="Hyperactive Brokers",
                 log_in_url="https:\\hbkr.com",
                 credentials_cls=HyperactiveBrokersCredentials,
             ),
-        }
+        },
+        institution_id_cls=MockInstitutionCode,
     )
 
 
@@ -62,7 +66,7 @@ def sample_institution_account() -> InstitutionAccount:
     return InstitutionAccount(
         id="inst_acc_001",
         user_id="usr_001",
-        institution_id="inst_001",
+        institution_id=MockInstitutionCode.TRADING_321,
         name="Trading 321 Account",
         created_on=date(2026, 1, 1),
         last_synced_at=datetime(2026, 6, 1, 12, 0, 0),
@@ -87,6 +91,7 @@ def googl_stock() -> Stock:
         exchange="NASDAQ",
         currency="USD",
         isin="US02079K3059",
+        last_synced_at=None,
         _id=None,
         _checksum=None,
     )
@@ -100,6 +105,7 @@ def msft_stock() -> Stock:
         exchange="NASDAQ",
         currency="USD",
         isin="US5949181045",
+        last_synced_at=None,
         _id=None,
         _checksum=None,
     )
@@ -113,6 +119,7 @@ def aapl_stock() -> Stock:
         exchange="NASDAQ",
         currency="USD",
         isin="US0378331005",
+        last_synced_at=None,
         _id=None,
         _checksum=None,
     )
@@ -126,6 +133,7 @@ def nvda_stock() -> Stock:
         exchange="NASDAQ",
         currency="USD",
         isin="US67066G1040",
+        last_synced_at=None,
         _id=None,
         _checksum=None,
     )

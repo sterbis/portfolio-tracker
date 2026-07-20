@@ -5,21 +5,21 @@ from portfolio_tracker.application.contracts.commands import (
     RegisterUserCommand,
 )
 from portfolio_tracker.application.contracts.dtos import UserDto
-from portfolio_tracker.application.persistence import UnitOfWork
+from portfolio_tracker.application.persistence import SessionFactory
 from portfolio_tracker.domain.user import User
 
 from .exceptions import InvalidUsernameOrPasswordError, UserAlreadyExistsError
 
 
 class AuthService:
-    def __init__(self, uow: UnitOfWork):
-        self._uow = uow
+    def __init__(self, session_factory: SessionFactory):
+        self._session_factory = session_factory
 
     def register_user(self, command: RegisterUserCommand) -> UserDto:
-        with self._uow as uow:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             if uow.users.get_by_username(command.username):
                 raise UserAlreadyExistsError(command.username)
-            
+
             salt = bcrypt.gensalt(rounds=12)
             password_bytes = command.password.encode("utf-8")
             password_hash = bcrypt.hashpw(password_bytes, salt).decode("utf-8")
@@ -31,7 +31,7 @@ class AuthService:
             return UserDto.from_domain(user)
 
     def authenticate_user(self, command: LogInUserCommand) -> UserDto:
-        with self._uow as uow:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             user = uow.users.get_by_username(command.username)
             if not user:
                 raise InvalidUsernameOrPasswordError()

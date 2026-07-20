@@ -5,7 +5,7 @@ from typing import Any
 
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.institution import Credentials, Institution
+from portfolio_tracker.domain.institution import Credentials, Institution, InstitutionId
 from portfolio_tracker.domain.instrument import AssetClass, Instrument, InstrumentType
 from portfolio_tracker.domain.portfolio import (
     ConsolidationScope,
@@ -60,7 +60,7 @@ class UserDto:
 
 @dataclass(frozen=True)
 class InstitutionDto:
-    id: str
+    id: InstitutionId
     name: str
     log_in_url: str
 
@@ -120,6 +120,7 @@ class AssetAccountDto:
             name=asset_account.name,
             is_active=asset_account.is_active,
         )
+
 
 @dataclass(frozen=True)
 class InstitutionAccountOverviewDto:
@@ -446,28 +447,3 @@ class PortfolioValuationDto:
 class ValuedPortfolioDto:
     portfolio: PortfolioDto
     valuation: PortfolioValuationDto | None
-
-
-@dataclass(frozen=True)
-class ReportInstrumentDto:
-    type: InstrumentType
-    name: str
-    symbol: str
-    currency: str
-    exchange: str | None = None
-    details: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class ReportTransactionDto:
-    external_asset_account_id: str
-    external_transaction_id: str
-    executed_at: datetime
-    type: TransactionType
-    instrument: ReportInstrumentDto | None
-    quantity: Decimal
-    price: MoneyDto
-    fee: MoneyDto
-    tax: MoneyDto
-    cash_impact: MoneyDto
-    correlation_id: str | None = None

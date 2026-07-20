@@ -76,11 +76,14 @@ class SqliteTransactionRepository(TransactionRepository):
             filter_=FilterNode("transaction_id", Operator.EQ, transaction.id),
         )
 
-    def remove_by_id(self, transaction_id: str) -> None:
+    def remove(self, filter_: Filter) -> None:
         self._executor.delete(
             table="ledger_entry",
-            filter_=FilterNode("transaction_id", Operator.EQ, transaction_id),
+            filter_=filter_,
         )
+
+    def remove_by_id(self, transaction_id: str) -> None:
+        self.remove(filter_=FilterNode("transaction_id", Operator.EQ, transaction_id))
 
     def exists_by_checksum(self, checksum: str) -> bool:
         row = self._executor.select_one(

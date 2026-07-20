@@ -9,10 +9,14 @@ from portfolio_tracker.application.contracts.commands import (
     UpdateAssetAccountCommand,
     UpdateInstitutionAccountCommand,
 )
-from portfolio_tracker.application.institution import InstitutionClient, InstitutionClientError, InstitutionRegistry
-from portfolio_tracker.application.persistence import UnitOfWork
+from portfolio_tracker.application.institution import (
+    InstitutionClient,
+    InstitutionClientError,
+    InstitutionRegistry,
+)
+from portfolio_tracker.application.persistence import SessionFactory
 from portfolio_tracker.domain.account import InstitutionAccount
-from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.domain.institution import Credentials, InstitutionId
 
 from .exceptions import (
     AssetAccountAlreadyActivatedError,
@@ -27,11 +31,13 @@ class AccountCommandService:
     def __init__(
         self,
         institution_registry: InstitutionRegistry,
-        uow: UnitOfWork,
-        client_factory: Callable[[str, Credentials], InstitutionClient[Credentials]],
+        session_factory: SessionFactory,
+        client_factory: Callable[
+            [InstitutionId, Credentials], InstitutionClient[Credentials]
+        ],
     ) -> None:
         self._institution_registry = institution_registry
-        self._uow = uow
+        self._session_factory = session_factory
         self._client_factory = client_factory
 
     def connect_institution_account(
@@ -39,7 +45,7 @@ class AccountCommandService:
     ) -> str:
         self._validate_credentials(command.institution_id, command.credentials)
 
-        with self._uow as uow:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             institution_account = InstitutionAccount(
                 user_id=user_id,
                 institution_id=command.institution_id,
@@ -61,7 +67,7 @@ class AccountCommandService:
     def update_institution_account(
         self, command: UpdateInstitutionAccountCommand
     ) -> None:
-        with self._uow as uow:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             institution_account = uow.accounts.get_institution_account_by_id(
                 command.institution_account_id
             )
@@ -83,15 +89,13 @@ class AccountCommandService:
             uow.commit()
 
     def disconnect_institution_account(self, account_id: str) -> None:
-        with self._uow as uow:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             uow.accounts.remove_institution_account_by_id(account_id)
             uow.credentials.remove(account_id)
             uow.commit()
 
-    def update_asset_account(
-        self, command: UpdateAssetAccountCommand
-    ) -> None:
-        with self._uow as uow:
+    def update_asset_account(self, command: UpdateAssetAccountCommand) -> None:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             asset_account = uow.accounts.get_asset_account_by_id(
                 command.asset_account_id
             )
@@ -106,19 +110,12 @@ class AccountCommandService:
             uow.accounts.update_asset_account(asset_account)
             uow.commit()
 
-    def delete_asset_account(self, account_id: str) -> None:
-        with self._uow as uow:
-            uow.accounts.remove_asset_account_by_id(account_id)
-            uow.commit()
-
-    def activate_asset_account(
-        self, account_id: str
-    ) -> None:
-        with self._uow as uow:
+    def activate_asset_account(self, account_id: str) -> None:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             asset_account = uow.accounts.get_asset_account_by_id(account_id)
             if not asset_account:
                 raise AssetAccountNotFoundError(account_id)
-            
+
             if asset_account.is_active:
                 raise AssetAccountAlreadyActivatedError(account_id)
 
@@ -127,14 +124,12 @@ class AccountCommandService:
             uow.accounts.update_asset_account(asset_account)
             uow.commit()
 
-    def deactivate_asset_account(
-        self, account_id: str
-    ) -> None:
-        with self._uow as uow:
+    def deactivate_asset_account(self, account_id: str) -> None:
+        with self._session_factory.create() as session, session.unit_of_work() as uow:
             asset_account = uow.accounts.get_asset_account_by_id(account_id)
             if not asset_account:
                 raise AssetAccountNotFoundError(account_id)
-            
+
             if not asset_account.is_active:
                 raise AssetAccountAlreadyDeactivatedError(account_id)
 
@@ -147,7 +142,7 @@ class AccountCommandService:
             uow.commit()
 
     def _validate_credentials(
-        self, institution_id: str, credentials: Credentials
+        self, institution_id: InstitutionId, credentials: Credentials
     ) -> None:
         client = self._client_factory(institution_id, credentials)
         try:

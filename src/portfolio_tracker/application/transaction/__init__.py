@@ -1,5 +1,5 @@
-from .query_service import TransactionQueryService
 from .command_service import TransactionCommandService
+from .query_service import TransactionQueryService
 
 __all__ = [
     "TransactionQueryService",

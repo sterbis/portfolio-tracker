@@ -2,11 +2,13 @@ import uuid
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 
+from portfolio_tracker.domain.institution import InstitutionId
+
 
 @dataclass(frozen=True)
 class InstitutionAccount:
     user_id: str
-    institution_id: str
+    institution_id: InstitutionId
     name: str
     created_on: date
     last_synced_at: datetime
