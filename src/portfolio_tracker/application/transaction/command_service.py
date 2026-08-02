@@ -1,19 +1,16 @@
-from dataclasses import replace
-
-from portfolio_tracker.application.contracts.commands import (
-    CreateTransactionCommand,
-    UpdateTransactionCommand,
-)
-from portfolio_tracker.application.persistence import SessionFactory
+from portfolio_tracker.application.shared.exceptions import TransactionAlreadyExistsError, TransactionNotFoundError
+from portfolio_tracker.application.shared.service import ApplicationService
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction
 
+from .commands import (
+    CreateTransactionCommand,
+    UpdateTransactionCommand,
+)
 
-class TransactionCommandService:
-    def __init__(self, session_factory: SessionFactory) -> None:
-        self._session_factory = session_factory
 
-    def create_transaction(self, command: CreateTransactionCommand) -> str:
+class TransactionCommandService(ApplicationService):
+    def create_transaction(self, user_id: str, command: CreateTransactionCommand) -> str:
         payload = command.payload
 
         transaction = Transaction(
@@ -29,26 +26,24 @@ class TransactionCommandService:
             correlation_id=payload.correlation_id,
         )
 
-        with self._session_factory.create() as session, session.unit_of_work() as uow:
-            if uow.transactions.exists_by_checksum(transaction.checksum):
-                raise ValueError(f"Transaction already exists: {transaction.id}")
+        with self._user_unit_of_work(user_id) as uow:
+            if uow.transactions.exists(transaction):
+                raise TransactionAlreadyExistsError(transaction_id=transaction.id)
 
             uow.transactions.add(transaction)
             uow.commit()
 
-        self._update_market_data_streamer(transaction.asset_account_id)
         return transaction.id
 
-    def update_transaction(self, command: UpdateTransactionCommand) -> None:
-        with self._session_factory.create() as session, session.unit_of_work() as uow:
+    def update_transaction(self, user_id: str, command: UpdateTransactionCommand) -> None:
+        with self._user_unit_of_work(user_id) as uow:
             transaction = uow.transactions.get_by_id(command.transaction_id)
             if not transaction:
-                raise ValueError(f"Transaction not foud. ID: {command.transaction_id}")
+                raise TransactionNotFoundError(command.transaction_id)
 
             payload = command.payload
-
-            updated_transaction = replace(
-                transaction,
+            updated_transaction = Transaction(
+                id=command.transaction_id,
                 executed_at=payload.executed_at,
                 asset_account_id=payload.asset_account_id,
                 type=payload.type,
@@ -57,9 +52,7 @@ class TransactionCommandService:
                 price=Money(payload.price.amount, payload.price.currency),
                 fee=Money(payload.fee.amount, payload.fee.currency),
                 tax=Money(payload.tax.amount, payload.tax.currency),
-                cash_impact=Money(
-                    payload.cash_impact.amount, payload.cash_impact.currency
-                ),
+                cash_impact=Money(payload.cash_impact.amount, payload.cash_impact.currency),
                 correlation_id=payload.correlation_id,
             )
 
@@ -68,30 +61,18 @@ class TransactionCommandService:
                 uow.commit()
                 return
 
-            if uow.transactions.exists_by_checksum(updated_transaction.checksum):
-                raise ValueError(
-                    f"Transaction already exists: {updated_transaction.checksum}"
-                )
+            if uow.transactions.exists(updated_transaction):
+                raise TransactionAlreadyExistsError(transaction_id=updated_transaction.id)
 
             uow.transactions.remove_by_id(transaction.id)
             uow.transactions.add(updated_transaction)
             uow.commit()
 
-        self._update_market_data_streamer(transaction.asset_account_id)
-
-        if updated_transaction.asset_account_id != transaction.asset_account_id:
-            self._update_market_data_streamer(updated_transaction.asset_account_id)
-
-    def delete_transaction(self, transaction_id: str) -> None:
-        with self._session_factory.create() as session, session.unit_of_work() as uow:
+    def delete_transaction(self, user_id: str, transaction_id: str) -> None:
+        with self._user_unit_of_work(user_id) as uow:
             transaction = uow.transactions.get_by_id(transaction_id)
             if not transaction:
-                raise ValueError(f"Transaction not foud. ID: {transaction_id}")
+                raise TransactionNotFoundError(transaction_id)
 
             uow.transactions.remove_by_id(transaction_id)
             uow.commit()
-
-        self._update_market_data_streamer(transaction.asset_account_id)
-
-    def _update_market_data_streamer(self, asset_account_id: str) -> None:
-        pass

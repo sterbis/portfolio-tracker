@@ -8,18 +8,15 @@ from rich.tree import Tree
 from portfolio_tracker.application.account import (
     AccountCommandService,
     AccountQueryService,
-)
-from portfolio_tracker.application.contracts.commands import (
     ConnectInstitutionAccountCommand,
     UpdateAssetAccountCommand,
     UpdateInstitutionAccountCommand,
 )
-from portfolio_tracker.application.contracts.dtos import (
+from portfolio_tracker.application.shared.dtos import (
     AssetAccountOverviewDto,
     InstitutionAccountDto,
 )
-from portfolio_tracker.application.sync import SyncService
-from portfolio_tracker.bootstrap import AppContext
+from portfolio_tracker.bootstrap import ApplicationContext
 from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.infrastructure.institution import (
     IbkrCredentials,
@@ -28,32 +25,26 @@ from portfolio_tracker.infrastructure.institution import (
 from portfolio_tracker.infrastructure.institution.trading_212 import (
     Trading212Credentials,
 )
+from portfolio_tracker.presentation.cli.console import console
+from portfolio_tracker.presentation.cli.parsers import validate_non_empty
 
-from ..console import console
+from .sync import sync_accounts
 
-accounts_app = typer.Typer()
+account_app = typer.Typer()
 asset_accounts_app = typer.Typer()
 
-accounts_app.add_typer(asset_accounts_app, name="assets")
+account_app.add_typer(asset_accounts_app, name="asset")
 
 
-def validate_non_empty(value: str) -> str:
-    value = value.strip()
-    if not value:
-        raise typer.BadParameter("Value is empty.")
-
-    return value
-
-
-@accounts_app.command(name="list")
+@account_app.command(name="list")
 def list_accounts(ctx: typer.Context) -> None:
-    context: AppContext = ctx.obj
-    query_service = context.get(AccountQueryService)
-    institution_accounts = query_service.get_accounts_overview(context.active_user_id)
+    context: ApplicationContext = ctx.obj
+    service = context.get(AccountQueryService)
+    institution_accounts = service.get_accounts_overview(context.active_user_id)
 
     if not institution_accounts:
         console.print(
-            "No institution accounts found. To connect institution account, run: portfolio accounts add"
+            "No institution accounts found. To connect institution account run: portfolio account add"
         )
         return
 
@@ -70,7 +61,7 @@ def list_accounts(ctx: typer.Context) -> None:
     console.print(tree)
 
 
-@accounts_app.command(name="add")
+@account_app.command(name="add")
 def add_institution_account(
     ctx: typer.Context,
     institution: Annotated[
@@ -78,9 +69,8 @@ def add_institution_account(
         typer.Option(prompt=True, case_sensitive=False),
     ],
 ) -> None:
-    context: AppContext = ctx.obj
+    context: ApplicationContext = ctx.obj
     service = context.get(AccountCommandService)
-
     name, created_on, credentials = _prompt_institution_account_data(
         context, institution
     )
@@ -96,21 +86,22 @@ def add_institution_account(
     console.print(f"{institution} '{name}' institution account successfully connected.")
 
 
-@accounts_app.command(name="edit")
+@account_app.command(name="edit")
 def edit_institution_account(
     ctx: typer.Context,
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
 ) -> None:
-    context: AppContext = ctx.obj
+    context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
 
-    institution_account = query_service.get_institution_account(account_id)
+    institution_account = query_service.get_institution_account(context.active_user_id, account_id)
     name, created_on, credentials = _prompt_institution_account_data(
         context, institution_account.institution.id, institution_account
     )
     command_service.update_institution_account(
-        UpdateInstitutionAccountCommand(
+        context.active_user_id,
+        command=UpdateInstitutionAccountCommand(
             institution_account_id=institution_account.id,
             name=name,
             created_on=created_on,
@@ -122,16 +113,16 @@ def edit_institution_account(
     )
 
 
-@accounts_app.command(name="remove")
+@account_app.command(name="remove")
 def remove_institution_account(
     ctx: typer.Context,
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
     force: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    context: AppContext = ctx.obj
+    context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
-    institution_account = query_service.get_institution_account(account_id)
+    institution_account = query_service.get_institution_account(context.active_user_id, account_id)
 
     if not force:
         remove = typer.confirm(
@@ -143,7 +134,7 @@ def remove_institution_account(
             console.print("Operation cancelled.")
             return
 
-    command_service.disconnect_institution_account(account_id)
+    command_service.disconnect_institution_account(context.active_user_id, account_id)
     console.print(
         f"Institution account '{institution_account.name}' "
         f"({institution_account.id}) successfully disconnected."
@@ -155,13 +146,13 @@ def edit_asset_account(
     ctx: typer.Context,
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
 ) -> None:
-    context: AppContext = ctx.obj
+    context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
-
-    asset_account = query_service.get_asset_account_overview(account_id)
+    asset_account = query_service.get_asset_account_overview(context.active_user_id, account_id)
     name, external_id = _prompt_asset_account_data(asset_account)
     command_service.update_asset_account(
+        context.active_user_id,
         command=UpdateAssetAccountCommand(
             asset_account_id=account_id,
             name=name,
@@ -177,30 +168,33 @@ def activate_asset_account(
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
     force: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    context: AppContext = ctx.obj
+    context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
-    sync_service = context.get(SyncService)
-
-    asset_account = query_service.get_asset_account_overview(account_id)
+    asset_account = query_service.get_asset_account_overview(context.active_user_id, account_id)
 
     if not force:
         activate = typer.confirm(
             "Are you sure you want to activate asset account "
-            f"'{asset_account.name}' ({asset_account.id})? "
-            "All account historical transactions will be synced up to the last institution account sync date.",
+            f"'{asset_account.name}' ({asset_account.id})? ",
             default=False,
         )
         if not activate:
             console.print("Operation cancelled.")
             return
 
-    command_service.activate_asset_account(account_id)
-    sync_service.sync(
-        context.active_user_id,
-        asset_account_ids={account_id},
-        restore=True,
+    command_service.activate_asset_account(context.active_user_id, account_id)
+
+    sync = typer.confirm(
+        "Do you want to start activated asset account sync? This might take up to few minutes.",
+        default=False,
     )
+    if sync:
+        ctx.invoke(
+            sync_accounts,
+            asset_account_id=[asset_account.id],
+            restore=True,
+        )
 
 
 @asset_accounts_app.command(name="deactivate")
@@ -209,11 +203,10 @@ def deactivate_asset_account(
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
     force: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    context: AppContext = ctx.obj
+    context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
-
-    asset_account = query_service.get_asset_account_overview(account_id)
+    asset_account = query_service.get_asset_account_overview(context.active_user_id, account_id)
 
     if not force:
         deactivate = typer.confirm(
@@ -226,11 +219,11 @@ def deactivate_asset_account(
             console.print("Operation cancelled.")
             return
 
-    command_service.deactivate_asset_account(account_id)
+    command_service.deactivate_asset_account(context.active_user_id, account_id)
 
 
 def _prompt_institution_account_data(
-    context: AppContext,
+    context: ApplicationContext,
     institution_id: str,
     current_institution_account: InstitutionAccountDto | None = None,
 ) -> tuple[str, date, Credentials]:
@@ -247,14 +240,17 @@ def _prompt_institution_account_data(
         default=current_created_on,
         type=click.DateTime(formats=context.DATE_FORMATS),
     )
+    current_credentials = (
+        current_institution_account.credentials if current_institution_account else None
+    )
 
     match institution_id:
         case "IBKR":
             current_token = current_query_ids = None
 
-            if isinstance(current_institution_account, IbkrCredentials):
-                current_token = current_institution_account.flex_web_service_token
-                current_query_ids = current_institution_account.flex_query_ids
+            if isinstance(current_credentials, IbkrCredentials):
+                current_token = current_credentials.flex_web_service_token
+                current_query_ids = current_credentials.flex_query_ids
 
             token: str = typer.prompt("Flex web service token", default=current_token)
             query_ids: list[str] = typer.prompt(
@@ -272,9 +268,9 @@ def _prompt_institution_account_data(
 
         case "T212":
             current_api_key = current_api_secret = None
-            if isinstance(current_institution_account, Trading212Credentials):
-                current_api_key = current_institution_account.api_key
-                current_api_secret = current_institution_account.api_secret
+            if isinstance(current_credentials, Trading212Credentials):
+                current_api_key = current_credentials.api_key
+                current_api_secret = current_credentials.api_secret
 
             api_key = typer.prompt("API key", default=current_api_key)
             api_secret = typer.prompt("API secret", default=current_api_secret)

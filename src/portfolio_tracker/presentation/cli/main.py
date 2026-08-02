@@ -5,22 +5,32 @@ from types import TracebackType
 
 import typer
 
-from portfolio_tracker.application.contracts.exceptions import AppError
-from portfolio_tracker.application.sync import SyncError
-from portfolio_tracker.bootstrap import bootstrap_app
+from portfolio_tracker.application.shared.exceptions import ApplicationError
+from portfolio_tracker.bootstrap import bootstrap_app, ApplicationContext
 
 from .commands import (
-    accounts_app,
-    auth_app,
+    account_app,
     cash_balance_app,
-    positions_app,
+    import_app,
+    position_app,
     sync_app,
-    transactions_app,
+    transaction_app,
+    user_app,
 )
 from .console import error_console
 from .session import delete_login_session, get_login_session, set_login_session
 
 logger = logging.getLogger(__name__)
+
+app = typer.Typer()
+app.add_typer(account_app, name="account")
+app.add_typer(transaction_app, name="transaction")
+app.add_typer(sync_app, name="sync")
+
+app.add_typer(user_app, name="")
+app.add_typer(import_app, name="")
+app.add_typer(cash_balance_app, name="")
+app.add_typer(position_app, name="")
 
 
 def global_exception_handler(
@@ -30,11 +40,9 @@ def global_exception_handler(
 ) -> None:
     exc_info = (exc_type, exc_value, traceback)
 
-    if isinstance(exc_value, AppError):
+    if isinstance(exc_value, ApplicationError):
         message = exc_value.message
-
-        if isinstance(exc_value, SyncError):
-            logger.error(message, exc_info=exc_info)
+        logger.error(message, exc_info=exc_info)
 
     else:
         message = (
@@ -50,20 +58,10 @@ def global_exception_handler(
 sys.excepthook = global_exception_handler
 
 
-app = typer.Typer()
-app.add_typer(accounts_app, name="accounts")
-app.add_typer(transactions_app, name="transactions")
-
-app.add_typer(auth_app, name="")
-app.add_typer(cash_balance_app, name="")
-app.add_typer(positions_app, name="")
-app.add_typer(sync_app, name="")
-
-
 @app.callback()
 def main(ctx: typer.Context) -> None:
-    auth_commands = ("register", "login", "logout")
-    session_ttl = 1800
+    auth_free_commands = ("register", "login", "logout")
+    context: ApplicationContext = ctx.obj
 
     command = ctx.invoked_subcommand
     if not command:
@@ -71,7 +69,7 @@ def main(ctx: typer.Context) -> None:
 
     active_user_id, session_expiration = get_login_session()
 
-    if not active_user_id and command not in auth_commands:
+    if not active_user_id and command not in auth_free_commands:
         error_console.print("Error: Login required.")
         error_console.print("To log in, run: portfolio login")
         error_console.print("To register, run: portfolio register")
@@ -83,12 +81,12 @@ def main(ctx: typer.Context) -> None:
         raise typer.Exit(code=1)
 
     if active_user_id:
-        if command in auth_commands:
+        if command in auth_free_commands:
             delete_login_session()
             active_user_id = None
 
         else:
-            set_login_session(active_user_id, session_ttl)
+            set_login_session(active_user_id, context.USER_SESSION_TTL)
 
     ctx.obj = bootstrap_app(active_user_id)
 

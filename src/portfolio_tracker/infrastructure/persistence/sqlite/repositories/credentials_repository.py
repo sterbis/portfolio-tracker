@@ -38,10 +38,10 @@ class SqliteCredentialsRepository(CredentialsStore):
             "rotated_on": None,
         }
 
-        inserted = self._executor.insert_if_not_exists(
-            table="credentials",
+        inserted = self._executor.insert_on_conflict_do_nothing(
+            entity_reference="credentials",
             values=values,
-            conflict_columns=["institution_account_id"],
+            conflict_fields=["institution_account_id"],
         )
 
         if not inserted:
@@ -53,7 +53,7 @@ class SqliteCredentialsRepository(CredentialsStore):
             }
 
             self._executor.update(
-                table="credentials",
+                entity_reference="credentials",
                 values=update_values,
                 filter_=FilterNode(
                     "institution_account_id", Operator.EQ, institution_account_id
@@ -86,7 +86,7 @@ class SqliteCredentialsRepository(CredentialsStore):
 
     def remove(self, institution_account_id: str) -> None:
         self._executor.delete(
-            table="credentials",
+            entity_reference="credentials",
             filter_=FilterNode(
                 "institution_account_id", Operator.EQ, institution_account_id
             ),

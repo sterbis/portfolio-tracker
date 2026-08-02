@@ -23,25 +23,20 @@ class TransactionType(StrEnum):
     WITHDRAWAL = "WITHDRAWAL"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Transaction:
-    executed_at: datetime
+    id: str = field(default_factory=lambda: f"tr_{uuid.uuid4().hex[:16]}")
+    correlation_id: str | None = None
+    checksum: str | None = None
     asset_account_id: str
+    executed_at: datetime
     type: TransactionType
-    instrument_id: str | None
+    instrument_id: str | None = None
     quantity: Decimal
     price: Money
     fee: Money
     tax: Money
     cash_impact: Money
-    id: str = field(default_factory=lambda: f"tr_{uuid.uuid4().hex[:16]}")
-    correlation_id: str | None = None
-    _checksum: str | None = None
-
-    @property
-    def checksum(self) -> str:
-        assert self._checksum is not None
-        return self._checksum
 
     def __post_init__(self) -> None:
         if (
@@ -75,10 +70,10 @@ class Transaction:
         )
         checksum = hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()[:16]
 
-        if self._checksum is None:
+        if self.checksum is None:
             object.__setattr__(self, "_checksum", checksum)
 
-        elif self._checksum != checksum:
+        elif self.checksum != checksum:
             raise ValueError(
-                f"Provided transaction checksum '{self._checksum}' does not match computed checksum '{checksum}'."
+                f"Provided transaction checksum '{self.checksum}' does not match computed checksum '{checksum}'."
             )

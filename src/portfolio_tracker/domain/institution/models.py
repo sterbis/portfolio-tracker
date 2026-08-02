@@ -7,8 +7,7 @@ class InstitutionId(StrEnum): ...
 
 
 @dataclass(frozen=True)
-class Credentials(ABC):
-    pass
+class Credentials(ABC): ...
 
 
 @dataclass(frozen=True)

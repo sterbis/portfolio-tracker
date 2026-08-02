@@ -52,7 +52,7 @@ def test_account_repository_round_trips_institution_and_asset_accounts(
     )
     assert stored_institution_account == sample_institution_account
 
-    account_repository.add_asset_account(sample_asset_account)
+    account_repository.ensure_asset_account(sample_asset_account)
     stored_asset_account = account_repository.get_asset_account_by_external_id(
         sample_asset_account.institution_account_id, sample_asset_account.external_id
     )

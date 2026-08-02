@@ -1,7 +1,7 @@
 import hashlib
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -64,33 +64,21 @@ class InstrumentMetadata:
     last_synced_at: datetime | None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Instrument(ABC):
+    id: str = field(default_factory=lambda: f"instr_{uuid.uuid4().hex[:16]}")
+    checksum: str | None = None
+    type: InstrumentType
+    asset_class: AssetClass
     name: str
     symbol: str
-    exchange: str | None
+    exchange: str | None = None
     currency: str
-    last_synced_at: datetime | None
-    _id: str | None
-    _checksum: str | None
-
-    @property
-    def id(self) -> str:
-        assert self._id is not None
-        return self._id
-
-    @property
-    def checksum(self) -> str:
-        assert self._checksum is not None
-        return self._checksum
+    last_synced_at: datetime | None = None
 
     @property
     @abstractmethod
-    def type(self) -> InstrumentType: ...
-
-    @property
-    @abstractmethod
-    def asset_class(self) -> AssetClass: ...
+    def _identifier(self) -> str: ...
 
     @property
     def metadata(self) -> InstrumentMetadata:
@@ -102,37 +90,27 @@ class Instrument(ABC):
         )
 
     def __post_init__(self) -> None:
-        if self._id is None:
-            object.__setattr__(self, "_id", f"instr_{uuid.uuid4().hex[:16]}")
-
         checksum_string = f"{self.type.value}|{self._identifier}"
         checksum = hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()[:16]
 
-        if self._checksum is None:
-            object.__setattr__(self, "_checksum", checksum)
+        if self.checksum is None:
+            object.__setattr__(self, "checksum", checksum)
 
-        elif self._checksum != checksum:
+        elif self.checksum != checksum:
             raise ValueError(
-                f"Provided instrument checksum {self._checksum} does not match computed checksum {checksum}."
+                f"Provided instrument checksum {self.checksum} does not match computed checksum {checksum}."
             )
 
-    @property
-    @abstractmethod
-    def _identifier(self) -> str: ...
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class DerivativeInstrument(Instrument):
     underlying_instrument_id: str
-    _asset_class: AssetClass
-
-    @property
-    def asset_class(self) -> AssetClass:
-        return self._asset_class
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Bond(Instrument):
+    type: InstrumentType = field(init=False, default=InstrumentType.BOND)
+    asset_class: AssetClass = field(init=False, default=AssetClass.CASH)
     isin: str
     face_value: Decimal
     coupon_rate: Decimal
@@ -140,124 +118,84 @@ class Bond(Instrument):
     maturity_on: date
 
     @property
-    def type(self) -> InstrumentType:
-        return InstrumentType.BOND
-
-    @property
-    def asset_class(self) -> AssetClass:
-        return AssetClass.CASH
-
-    @property
     def _identifier(self) -> str:
         return f"{self.isin}|{self.symbol}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Cfd(DerivativeInstrument):
+    type: InstrumentType = field(init=False, default=InstrumentType.CFD)
     institution_id: str
     leverage: Decimal
-
-    @property
-    def type(self) -> InstrumentType:
-        return InstrumentType.CFD
 
     @property
     def _identifier(self) -> str:
         return f"{self.institution_id}|{self.symbol}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Commodity(Instrument):
+    type: InstrumentType = field(init=False, default=InstrumentType.COMMODITY)
+    asset_class: AssetClass = field(init=False, default=AssetClass.COMMODITY)
     unit: str
-
-    @property
-    def type(self) -> InstrumentType:
-        return InstrumentType.COMMODITY
-
-    @property
-    def asset_class(self) -> AssetClass:
-        return AssetClass.COMMODITY
 
     @property
     def _identifier(self) -> str:
         return f"{self.symbol}|{self.unit}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Crypto(Instrument):
-    @property
-    def type(self) -> InstrumentType:
-        return InstrumentType.CRYPTO
-
-    @property
-    def asset_class(self) -> AssetClass:
-        return AssetClass.CRYPTO
+    type: InstrumentType = field(init=False, default=InstrumentType.CRYPTO)
+    asset_class: AssetClass = field(init=False, default=AssetClass.CRYPTO)
 
     @property
     def _identifier(self) -> str:
         return f"{self.symbol}|{self.currency}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Etf(Instrument):
+    type: InstrumentType = field(init=False, default=InstrumentType.ETF)
+    asset_class: AssetClass = field(init=False, default=AssetClass.EQUITY)
     isin: str
-
-    @property
-    def type(self) -> InstrumentType:
-        return InstrumentType.ETF
-
-    @property
-    def asset_class(self) -> AssetClass:
-        return AssetClass.EQUITY
 
     @property
     def _identifier(self) -> str:
         return f"{self.isin}|{self.symbol}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Future(DerivativeInstrument):
-    isin: str | None
+    type: InstrumentType = field(init=False, default=InstrumentType.FUTURE)
+    isin: str | None = None
     expiration_on: date
     multiplier: int
 
     @property
-    def type(self) -> InstrumentType:
-        return InstrumentType.FUTURE
-
-    @property
     def _identifier(self) -> str:
         return f"{self.isin}|{self.symbol}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Option(DerivativeInstrument):
-    isin: str | None
+    type: InstrumentType = field(init=False, default=InstrumentType.OPTION)
+    isin: str | None = None
     expiration_on: date
     option_type: OptionType
     strike_price: Decimal
     multiplier: int
 
     @property
-    def type(self) -> InstrumentType:
-        return InstrumentType.OPTION
-
-    @property
     def _identifier(self) -> str:
         return f"{self.isin}|{self.symbol}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Stock(Instrument):
+    type: InstrumentType = field(init=False, default=InstrumentType.ETF)
+    asset_class: AssetClass = field(init=False, default=AssetClass.EQUITY)
     isin: str
-
-    @property
-    def type(self) -> InstrumentType:
-        return InstrumentType.STOCK
-
-    @property
-    def asset_class(self) -> AssetClass:
-        return AssetClass.EQUITY
 
     @property
     def _identifier(self) -> str:

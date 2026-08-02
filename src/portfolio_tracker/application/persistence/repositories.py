@@ -1,16 +1,39 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Literal
 
 from filterutils import Filter
 
-from portfolio_tracker.application.fx import FxDataIntegrityError
-from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
+from portfolio_tracker.application.shared.exceptions import FxDataIntegrityError
+from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount, UserAccountsMap
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.instrument import Instrument, InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
+
+
+@dataclass(frozen=True)
+class Join:
+    table: str
+    left_column: str
+    right_column: str
+    alias: str | None = None
+    type: Literal["INNER", "LEFT", "RIGHT", "FULL"] = "INNER"
+
+    def to_sql(self) -> str:
+        alias_clause = f" AS {self.alias}" if self.alias else ""
+        target_table = f"{self.table}{alias_clause}"
+        return f"{self.type} JOIN {target_table} ON {self.left_column} = {self.right_column}"
+
+
+
+@dataclass(frozen=True)
+class OrderBy:
+    field: str
+    item_type: type
+    direction: Literal["ASC", "DESC"] = "ASC"
 
 
 class UserRepository(ABC):
@@ -41,18 +64,13 @@ class AccountRepository(ABC):
     ) -> list[InstitutionAccount]: ...
 
     @abstractmethod
-    def get_institution_account_id_by_asset_account_id_map(
-        self, asset_account_ids: set[str]
-    ) -> dict[str, str]: ...
-
-    @abstractmethod
     def update_institution_account(self, account: InstitutionAccount) -> None: ...
 
     @abstractmethod
     def remove_institution_account_by_id(self, account_id: str) -> None: ...
 
     @abstractmethod
-    def add_asset_account(self, account: AssetAccount) -> None: ...
+    def ensure_asset_account(self, account: AssetAccount) -> None: ...
 
     @abstractmethod
     def get_asset_account_by_id(self, account_id: str) -> AssetAccount | None: ...
@@ -73,12 +91,10 @@ class AccountRepository(ABC):
     ) -> list[AssetAccount]: ...
 
     @abstractmethod
-    def get_deactivated_asset_account_external_ids(
-        self, institution_account_id: str
-    ) -> set[str]: ...
+    def update_asset_account(self, account: AssetAccount) -> None: ...
 
     @abstractmethod
-    def update_asset_account(self, account: AssetAccount) -> None: ...
+    def get_user_accounts_map(self, user_id: str) -> UserAccountsMap: ...
 
 
 class InstrumentRepository(ABC):
@@ -90,7 +106,7 @@ class InstrumentRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
+        order_by: list[OrderBy] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Instrument]: ...
@@ -100,13 +116,16 @@ class InstrumentRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
+        order_by: list[OrderBy] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[InstrumentMetadata]: ...
 
     @abstractmethod
     def get_by_ids(self, instrument_ids: set[str]) -> list[Instrument]: ...
+
+    @abstractmethod
+    def get_ids_by_symbols(self, symbols: set[str]) -> set[str]: ...
 
     @abstractmethod
     def update_last_synced_at(
@@ -126,7 +145,7 @@ class TransactionRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
+        order_by: list[OrderBy] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Transaction]: ...
@@ -150,6 +169,12 @@ class TransactionRepository(ABC):
 
     @abstractmethod
     def remove_by_id(self, transaction_id: str) -> None: ...
+
+    @abstractmethod
+    def remove_by_asset_account_id(self, account_id: str) -> None: ...
+
+    @abstractmethod
+    def exists(self, filter_: Filter) -> bool: ...
 
     @abstractmethod
     def exists_by_checksum(self, checksum: str) -> bool: ...

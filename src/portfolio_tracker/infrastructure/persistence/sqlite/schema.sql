@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS stock (
     isin TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS ledger_entry (
+CREATE TABLE IF NOT EXISTS ledger (
     id INTEGER PRIMARY KEY,
     transaction_id TEXT NOT NULL UNIQUE,
     correlation_id TEXT,

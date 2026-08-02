@@ -1,15 +1,11 @@
-from .exceptions import (
-    InvalidUsernameOrPasswordError,
-    UserAlreadyExistsError,
-    UserAlreadyLoggedOutError,
-    UserNotLoggedInError,
+from .commands import (
+    AuthenticateUserCommand,
+    RegisterUserCommand,
 )
-from .service import AuthService
+from .service import UserService
 
 __all__ = [
-    "AuthService",
-    "InvalidUsernameOrPasswordError",
-    "UserAlreadyExistsError",
-    "UserAlreadyLoggedOutError",
-    "UserNotLoggedInError",
+    "AuthenticateUserCommand",
+    "RegisterUserCommand",
+    "UserService",
 ]

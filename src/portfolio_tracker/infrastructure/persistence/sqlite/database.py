@@ -17,7 +17,6 @@ def open_connection(
         uri=uri,
         autocommit=True,
     )
-    connection.row_factory = sqlite3.Row
 
     connection.execute("PRAGMA foreign_keys = ON;")
     connection.execute("PRAGMA journal_mode = WAL;")

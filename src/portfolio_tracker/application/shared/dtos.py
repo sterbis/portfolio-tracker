@@ -79,7 +79,7 @@ class InstitutionAccountDto:
     institution: InstitutionDto
     name: str
     created_on: date
-    last_synced_at: datetime
+    last_synced_at: datetime | None
     credentials: Credentials | None
 
     @classmethod
@@ -128,7 +128,7 @@ class InstitutionAccountOverviewDto:
     institution: InstitutionDto
     name: str
     created_on: date
-    last_synced_at: datetime
+    last_synced_at: datetime | None
     credentials: Credentials | None
     asset_accounts: list[AssetAccountOverviewDto]
 
@@ -221,8 +221,6 @@ class TransactionDto:
         asset_account_dto: AssetAccountDto,
         instrument_dto: InstrumentDto | None = None,
     ) -> TransactionDto:
-        transaction.price.convert(reporting_currency, rates)
-
         return cls(
             id=transaction.id,
             executed_at=transaction.executed_at,

@@ -30,19 +30,18 @@ logger = logging.getLogger(__name__)
 class SqliteUnitOfWork(UnitOfWork):
     def __init__(
         self,
-        connection: sqlite3.Connection,
-        encryptor: Encryptor,
         institution_registry: InstitutionRegistry,
+        encryptor: Encryptor,
+        connection: sqlite3.Connection,
         *,
         read_only: bool = False,
     ) -> None:
-        self._connection = connection
         super().__init__(institution_registry)
+        self._connection = connection
         self._encryptor = encryptor
         self._read_only = read_only
         self._active = False
 
-    def __enter__(self) -> Self:
         executor = SqliteExecutor(self._connection)
 
         self.accounts = SqliteAccountRepository(self._institution_registry, executor)
@@ -55,8 +54,8 @@ class SqliteUnitOfWork(UnitOfWork):
             self._institution_registry, self._encryptor, executor
         )
 
+    def __enter__(self) -> Self:
         mode = "DEFERRED" if self._read_only else "IMMEDIATE"
-
         logger.debug("Begin %s database transaction.", mode.lower())
         self._connection.execute(f"BEGIN {mode} TRANSACTION;")
         self._active = True
@@ -125,9 +124,9 @@ class SqliteSession(Session):
             raise RuntimeError("Database connection not opened.")
 
         return SqliteUnitOfWork(
-            connection=self._connection,
-            encryptor=self._encryptor,
             institution_registry=self._institution_registry,
+            encryptor=self._encryptor,
+            connection=self._connection,
             read_only=self._read_only,
         )
 

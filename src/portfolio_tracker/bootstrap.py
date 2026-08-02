@@ -7,6 +7,7 @@ from portfolio_tracker.application.account import (
     AccountCommandService,
     AccountQueryService,
 )
+from portfolio_tracker.application.shared.exceptions import UserNotLoggedInError
 from portfolio_tracker.application.fx import FxService
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.portfolio import PortfolioQueryService
@@ -15,7 +16,7 @@ from portfolio_tracker.application.transaction import (
     TransactionCommandService,
     TransactionQueryService,
 )
-from portfolio_tracker.application.user import AuthService, UserNotLoggedInError
+from portfolio_tracker.application.user import UserService
 from portfolio_tracker.domain.portfolio import PortfolioBuilder, PortfolioEvaluator
 from portfolio_tracker.domain.portfolio.cash_balance import CashBalanceEvaluator
 from portfolio_tracker.domain.portfolio.position import PositionEvaluator
@@ -36,8 +37,13 @@ TService = TypeVar("TService")
 load_dotenv()
 
 
-class AppContext:
+class ApplicationContext:
     DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"]
+
+    BASE_CURRENCY = "USD"
+    SUPPORTED_CURRENCIES = {"CZK", "EUR", "USD"}
+    DEFAULT_REPORTING_CURRENCY = "USD"
+
     USER_SESSION_TTL = 1800  # 30m = 30 * 60s = 1800s
 
     def __init__(self, active_user_id: str | None = None) -> None:
@@ -59,7 +65,7 @@ class AppContext:
         return service
 
 
-def bootstrap_app(active_user_id: str | None = None) -> AppContext:
+def bootstrap_app(active_user_id: str | None = None) -> ApplicationContext:
     encryption_key = os.getenv("ENCRYPTION_KEY")
     if not encryption_key:
         raise ValueError("'ENCRYPTION_KEY' environment variable not defined.")
@@ -79,8 +85,8 @@ def bootstrap_app(active_user_id: str | None = None) -> AppContext:
     fx_client = FrankfurterClient()
     fx_service = FxService(
         fx_client,
-        app_base_currency="USD",
-        app_supported_currencies={"CZK", "EUR", "USD"},
+        app_base_currency=ApplicationContext.BASE_CURRENCY,
+        app_supported_currencies=ApplicationContext.SUPPORTED_CURRENCIES,
     )
 
     market_data_client = YahooFinanceClient()
@@ -88,23 +94,23 @@ def bootstrap_app(active_user_id: str | None = None) -> AppContext:
 
     transaction_adjuster = TransactionAdjuster()
 
-    context = AppContext(active_user_id)
+    context = ApplicationContext(active_user_id)
     context.register(
         AccountCommandService,
         AccountCommandService(
-            institution_registry=institution_registry,
             session_factory=session_factory,
+            institution_registry=institution_registry,
             client_factory=create_client,
         ),
     )
     context.register(
         AccountQueryService,
         AccountQueryService(
-            institution_registry=institution_registry,
             session_factory=session_factory,
+            institution_registry=institution_registry,
         ),
     )
-    context.register(AuthService, AuthService(session_factory=session_factory))
+    context.register(UserService, UserService(session_factory=session_factory))
     context.register(
         PortfolioQueryService,
         PortfolioQueryService(

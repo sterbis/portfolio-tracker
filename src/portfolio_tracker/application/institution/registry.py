@@ -1,6 +1,6 @@
 from portfolio_tracker.domain.institution import Institution, InstitutionId
 
-from .exceptions import InstitutionNotFoundError
+from portfolio_tracker.application.shared.exceptions import InstitutionNotFoundError
 
 
 class InstitutionRegistry:

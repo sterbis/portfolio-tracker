@@ -8,7 +8,7 @@ from filterutils import Filter, FilterNode, Operator
 from portfolio_tracker.application.persistence import FxRatesRepository
 from portfolio_tracker.domain.fx import FxRates
 
-from ..executor import SqliteExecutor
+from ..executor import SqliteExecutor, FieldReference
 
 
 class SqliteFxRatesRepository(FxRatesRepository):
@@ -17,15 +17,15 @@ class SqliteFxRatesRepository(FxRatesRepository):
 
     def ensure(self, rates: FxRates) -> None:
         for quote_currency, rate in rates.base_rates.items():
-            self._executor.insert_if_not_exists(
-                table="fx_rate",
+            self._executor.insert_on_conflict_do_nothing(
+                entity_reference="fx_rate",
                 values={
                     "effective_on": rates.effective_on,
                     "base_currency": rates.base_currency,
                     "quote_currency": quote_currency,
                     "rate": rate,
                 },
-                conflict_columns=["effective_on", "base_currency", "quote_currency"],
+                conflict_fields=["effective_on", "base_currency", "quote_currency"],
             )
 
     def get(

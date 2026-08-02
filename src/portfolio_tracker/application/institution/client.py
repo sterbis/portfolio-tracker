@@ -9,9 +9,9 @@ from typing import Any, AsyncIterator, Generic, TypeVar
 
 import requests
 
+from portfolio_tracker.application.shared.exceptions import InstitutionClientError
 from portfolio_tracker.domain.institution import Credentials
 
-from .exceptions import InstitutionClientError
 
 ReportChunk = Iterator[str]
 TCredentials = TypeVar("TCredentials", bound=Credentials)

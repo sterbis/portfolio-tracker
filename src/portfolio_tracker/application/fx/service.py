@@ -2,10 +2,13 @@ from collections.abc import Iterator
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING
 
+from portfolio_tracker.application.shared.exceptions import (
+    FxClientError,
+    FxDataIntegrityError,
+)
 from portfolio_tracker.domain.fx import FxRates
 
 from .client import FxClient
-from .exceptions import FxClientError, FxDataIntegrityError
 
 if TYPE_CHECKING:
     from portfolio_tracker.application.persistence import UnitOfWork
@@ -50,19 +53,16 @@ class FxService:
         self._spot_rates_fetched_at = now
         return rates
 
-    def get_rates_series(self, from_date: date, to_date: date) -> Iterator[FxRates]:
-        try:
-            return self._fx_client.fetch_rates_series(
-                self._app_base_currency,
-                self._app_supported_currencies,
-                from_date=from_date,
-                to_date=to_date,
-            )
-
-        except FxClientError as error:
-            raise FxDataIntegrityError(
-                detail=f"Failed to fetch FX rates series from {from_date} to {to_date}."
-            ) from error
+    def get_rates_series(
+        self, from_date: date, to_date: date, only_dates: set[date] | None = None
+    ) -> Iterator[FxRates]:
+        return self._fx_client.fetch_rates_series(
+            self._app_base_currency,
+            self._app_supported_currencies,
+            from_date=from_date,
+            to_date=to_date,
+            only_dates=only_dates,
+        )
 
     def _get_fallback_spot_rates(self, today: date, uow: UnitOfWork) -> FxRates:
         max_allowed_lag_days = 3 if today.weekday() in (5, 6, 0) else 1

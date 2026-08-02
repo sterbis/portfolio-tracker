@@ -3,10 +3,10 @@ from typing import Any, TypeVar
 
 from portfolio_tracker.application.institution import (
     InstitutionClient,
-    InstitutionNotFoundError,
     InstitutionRegistry,
     InstitutionReportParser,
 )
+from portfolio_tracker.application.shared.exceptions import InstitutionNotFoundError
 from portfolio_tracker.domain.institution import Credentials, Institution, InstitutionId
 
 from .trading_212 import Trading212Client, Trading212Credentials, Trading212ReportParser

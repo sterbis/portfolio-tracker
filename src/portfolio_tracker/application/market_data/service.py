@@ -4,8 +4,9 @@ from portfolio_tracker.domain.instrument import InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.shared import Money
 
+
 from .client import MarketDataClient
-from .exceptions import MarketDataClientError, MarketDataIntegrityError
+from portfolio_tracker.application.shared.exceptions import MarketDataClientError, MarketDataIntegrityError
 
 
 class MarketDataService:
@@ -47,27 +48,17 @@ class MarketDataService:
         return price_by_instrument_id
 
     def get_stock_splits(
-        self, instruments_metadata: Iterable[InstrumentMetadata]
-    ) -> list[StockSplits]:
-        splits_list: list[StockSplits] = []
+        self, instrument_metadata: InstrumentMetadata, restore: bool = False
+    ) -> StockSplits | None:
+        start = None if restore else instrument_metadata.last_synced_at
 
-        for instrument_metadata in instruments_metadata:
-            try:
-                split_by_datetime = self._market_data_client.fetch_stock_splits(
-                    instrument_metadata.symbol
-                )
-            except MarketDataClientError:
-                continue
-
-            if split_by_datetime:
-                splits_list.append(
-                    StockSplits(
-                        instrument_id=instrument_metadata.id,
-                        splits=split_by_datetime,
-                    )
-                )
-
-        return splits_list
+        splits = self._market_data_client.fetch_stock_splits(
+            instrument_metadata.symbol, start
+        )
+        return StockSplits(
+            instrument_id=instrument_metadata.id,
+            splits=splits,
+        ) if splits else None
 
     def _get_instrument_metadata_by_symbol_map(
         self, instruments_metadata: Iterable[InstrumentMetadata]

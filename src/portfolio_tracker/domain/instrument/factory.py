@@ -16,13 +16,13 @@ from .models import (
 
 
 class InstrumentBaseData(TypedDict):
+    id: str | None
+    checksum: str | None
     name: str
     symbol: str
     exchange: str | None
     currency: str
     last_synced_at: datetime | None
-    _id: str | None
-    _checksum: str | None
 
 
 def create_instrument(

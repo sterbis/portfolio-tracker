@@ -11,7 +11,7 @@ def set_login_session(user_id: str, session_ttl: int) -> None:
     )
 
 
-def get_login_session() -> tuple[str | None, int | None]:
+def get_login_session() -> tuple[str, int] | tuple[None, None]:
     active_user = keyring.get_password("portfolio-tracker", "active_user")
     if active_user:
         active_user_id, session_expiration = active_user.split("|")

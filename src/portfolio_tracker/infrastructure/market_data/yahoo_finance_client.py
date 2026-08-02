@@ -5,10 +5,8 @@ from typing import cast
 import pandas as pd
 import yfinance as yf
 
-from portfolio_tracker.application.market_data import (
-    MarketDataClient,
-    MarketDataClientError,
-)
+from portfolio_tracker.application.market_data import MarketDataClient
+from portfolio_tracker.application.shared.exceptions import MarketDataClientError
 
 
 class YahooFinanceClient(MarketDataClient):
@@ -43,12 +41,21 @@ class YahooFinanceClient(MarketDataClient):
             extended_hours=False,
         )
 
-    def fetch_stock_splits(self, symbol: str) -> dict[datetime, Decimal]:
+    def fetch_stock_splits(
+        self, symbol: str, start: datetime | None = None
+    ) -> dict[datetime, Decimal]:
         ticker = yf.Ticker(symbol)
-        splits = ticker.get_splits()
+        data = ticker.get_splits()
+
+        if data.empty:
+            return {}
+        
+        if start:
+            data = data[data.index >= start]
+
         return {
             timestamp.to_pydatetime().astimezone(timezone.utc): Decimal(str(value))
-            for timestamp, value in splits.items()
+            for timestamp, value in data.items()
         }
 
     def _fetch_prices(

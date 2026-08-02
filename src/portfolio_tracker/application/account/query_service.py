@@ -1,31 +1,28 @@
-from portfolio_tracker.application.contracts.dtos import (
+from portfolio_tracker.application.institution import InstitutionRegistry
+from portfolio_tracker.application.persistence import SessionFactory
+from portfolio_tracker.application.shared.service import ApplicationService
+from portfolio_tracker.application.shared.dtos import (
     AssetAccountOverviewDto,
     InstitutionAccountDto,
     InstitutionAccountOverviewDto,
     InstitutionDto,
 )
-from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import SessionFactory
-
-from .exceptions import AssetAccountNotFoundError, InstitutionAccountNotFoundError
 
 
-class AccountQueryService:
+class AccountQueryService(ApplicationService):
     def __init__(
-        self, institution_registry: InstitutionRegistry, session_factory: SessionFactory
+        self,
+        session_factory: SessionFactory,
+        institution_registry: InstitutionRegistry
     ) -> None:
+        super().__init__(session_factory)
         self._institution_registry = institution_registry
-        self._session_factory = session_factory
 
     def get_accounts_overview(
         self, user_id: str
     ) -> list[InstitutionAccountOverviewDto]:
-        accounts_overview: list[InstitutionAccountOverviewDto] = []
-
-        with (
-            self._session_factory.create(read_only=True) as session,
-            session.unit_of_work() as uow,
-        ):
+        with self._user_unit_of_work(user_id, read_only=True) as uow:
+            accounts_overview: list[InstitutionAccountOverviewDto] = []
             institution_accounts = uow.accounts.get_institution_accounts_by_user_id(
                 user_id
             )
@@ -49,17 +46,11 @@ class AccountQueryService:
                     )
                 )
 
-        return accounts_overview
+            return accounts_overview
 
-    def get_institution_account(self, account_id: str) -> InstitutionAccountDto:
-        with (
-            self._session_factory.create(read_only=True) as session,
-            session.unit_of_work() as uow,
-        ):
+    def get_institution_account(self, user_id: str, account_id: str) -> InstitutionAccountDto:
+        with self._user_unit_of_work(user_id, read_only=True) as uow:
             institution_account = uow.accounts.get_institution_account_by_id(account_id)
-            if not institution_account:
-                raise InstitutionAccountNotFoundError(account_id)
-
             institution = self._institution_registry.get(
                 institution_account.institution_id
             )
@@ -71,13 +62,7 @@ class AccountQueryService:
                 credentials=credentials,
             )
 
-    def get_asset_account_overview(self, account_id: str) -> AssetAccountOverviewDto:
-        with (
-            self._session_factory.create(read_only=True) as session,
-            session.unit_of_work() as uow,
-        ):
+    def get_asset_account_overview(self, user_id: str, account_id: str) -> AssetAccountOverviewDto:
+        with self._user_unit_of_work(user_id, read_only=True) as uow:
             asset_account = uow.accounts.get_asset_account_by_id(account_id)
-            if not asset_account:
-                raise AssetAccountNotFoundError(account_id)
-
             return AssetAccountOverviewDto.from_domain(asset_account)

@@ -7,10 +7,10 @@ from typing import Any, Callable
 
 from portfolio_tracker.application.institution import (
     InstitutionReportParser,
-    InstitutionReportParserError,
     ReportInstrument,
     ReportTransaction,
 )
+from portfolio_tracker.application.shared.exceptions import InstitutionReportParserError
 from portfolio_tracker.domain.instrument import InstrumentType
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import TransactionType
@@ -65,7 +65,7 @@ class Trading212ReportParser(InstitutionReportParser):
             parser = self._action_parsers.get(action)
             if parser is None:
                 raise InstitutionReportParserError(
-                    f"Unsupported report action: {action}."
+                    message=f"Unsupported report action: {action}."
                 )
 
             for details in parser(row):
@@ -254,15 +254,17 @@ class Trading212ReportParser(InstitutionReportParser):
             to_amount = (from_amount * rate) - fee.amount
         else:
             raise InstitutionReportParserError(
-                f"Unexpected {from_currency} -> {to_currency} "
-                f"currency exchange fee currency: {fee.currency}."
+                message =(
+                    f"Unexpected {from_currency} -> {to_currency} "
+                    f"currency exchange fee currency: {fee.currency}."
+                )
             )
 
         if expected_to_amount and abs(to_amount - expected_to_amount) > Decimal(
             "0.001"
         ):
             raise InstitutionReportParserError(
-                "Incorrect currency exchange fee application."
+                message="Incorrect currency exchange fee application."
             )
 
         currency_sell_details = TransactionDetails(
@@ -302,7 +304,7 @@ class Trading212ReportParser(InstitutionReportParser):
             return self._transaction_type_by_action[row["Action"]]
         except KeyError as error:
             raise InstitutionReportParserError(
-                f"Unsupported report action: {row['Action']}."
+                message=f"Unsupported report action: {row['Action']}."
             ) from error
 
     def _parse_datetime(self, row: dict[str, Any]) -> datetime:

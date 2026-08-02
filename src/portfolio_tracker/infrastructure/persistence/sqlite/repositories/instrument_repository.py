@@ -44,8 +44,8 @@ class SqliteInstrumentRepository(InstrumentRepository):
         self._executor = executor
 
     def ensure(self, instrument: Instrument) -> None:
-        inserted = self._executor.insert_if_not_exists(
-            table="instrument",
+        inserted = self._executor.insert_on_conflict_do_nothing(
+            entity_reference="instrument",
             values={
                 "instrument_id": instrument.id,
                 "checksum": instrument.checksum,
@@ -57,7 +57,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
                 "currency": instrument.currency,
                 "last_synced_at": instrument.last_synced_at,
             },
-            conflict_columns=["checksum"],
+            conflict_fields=["checksum"],
         )
 
         if not inserted:
@@ -145,11 +145,22 @@ class SqliteInstrumentRepository(InstrumentRepository):
             filter_=FilterNode("instrument_id", Operator.IN, instrument_ids)
         )
 
+    def get_ids_by_symbols(self, symbols: set[str]) -> set[str]:
+        if not symbols:
+            return set()
+
+        rows = self._executor.select(
+            table="instrument",
+            columns=["instrument_id"],
+            filter_=FilterNode("symbol", Operator.IN, symbols),
+        )
+        return {row["instrument_id"] for row in rows}
+
     def update_last_synced_at(
         self, instrument_id: str, last_synced_at: datetime
     ) -> None:
         self._executor.update(
-            table="instrument",
+            entity_reference="instrument",
             values={"last_synced_at": last_synced_at},
             filter_=FilterNode("instrument_id", Operator.EQ, instrument_id),
         )

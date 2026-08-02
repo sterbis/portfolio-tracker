@@ -6,7 +6,8 @@ from decimal import Decimal
 
 import requests
 
-from portfolio_tracker.application.fx import FxClient, FxClientError
+from portfolio_tracker.application.fx import FxClient
+from portfolio_tracker.application.shared.exceptions import FxClientError
 from portfolio_tracker.domain.fx import FxRates
 
 
@@ -51,6 +52,30 @@ class FrankfurterClient(FxClient):
             {date.isoformat() for date in only_dates} if only_dates else set()
         )
 
+        try:
+            yield from self._process_response_stream(
+                response,
+                required_base_currency,
+                required_quote_currencies,
+                required_dates,
+            )
+
+        except requests.exceptions.RequestException as error:
+            raise FxClientError("Connection interrupted while streaming FX rates.") from error
+
+        except json.JSONDecodeError as error:
+            raise FxClientError("Corrupted JSON data received from FX API.") from error
+
+        finally:
+            response.close()
+
+    def _process_response_stream(
+        self,
+        response: requests.Response,
+        required_base_currency: str,
+        required_quote_currencies: set[str],
+        required_dates: set[str],
+    ) -> Iterator[FxRates]:
         buffer: dict[str, dict[str, str]] = defaultdict(dict)
 
         for line in response.iter_lines(decode_unicode=True):
@@ -146,10 +171,10 @@ class FrankfurterClient(FxClient):
 
         except requests.HTTPError as error:
             raise FxClientError(
-                f"FX client API request '{url}' failed: {response.status_code} {response.reason}"
+                f"FX API request '{url}' failed: {response.status_code} {response.reason}"
             ) from error
 
         except Exception as error:
             raise FxClientError(
-                f"FX client API request '{url}' failed: '{error}'"
+                f"FX API request '{url}' failed: '{error}'"
             ) from error

@@ -1,24 +1,23 @@
 import bcrypt
 
-from portfolio_tracker.application.contracts.commands import (
-    LogInUserCommand,
-    RegisterUserCommand,
+from portfolio_tracker.application.shared.exceptions import (
+    InvalidUsernameOrPasswordError,
+    UsernameAlreadyExistsError,
 )
-from portfolio_tracker.application.contracts.dtos import UserDto
-from portfolio_tracker.application.persistence import SessionFactory
+from portfolio_tracker.application.shared.service import ApplicationService
 from portfolio_tracker.domain.user import User
 
-from .exceptions import InvalidUsernameOrPasswordError, UserAlreadyExistsError
+from .commands import (
+    AuthenticateUserCommand,
+    RegisterUserCommand,
+)
 
 
-class AuthService:
-    def __init__(self, session_factory: SessionFactory):
-        self._session_factory = session_factory
-
-    def register_user(self, command: RegisterUserCommand) -> UserDto:
-        with self._session_factory.create() as session, session.unit_of_work() as uow:
+class UserService(ApplicationService):
+    def register(self, command: RegisterUserCommand) -> str:
+        with self._unit_of_work() as uow:
             if uow.users.get_by_username(command.username):
-                raise UserAlreadyExistsError(command.username)
+                raise UsernameAlreadyExistsError(command.username)
 
             salt = bcrypt.gensalt(rounds=12)
             password_bytes = command.password.encode("utf-8")
@@ -28,18 +27,18 @@ class AuthService:
             uow.users.add(user)
             uow.commit()
 
-            return UserDto.from_domain(user)
+            return user.id
 
-    def authenticate_user(self, command: LogInUserCommand) -> UserDto:
-        with self._session_factory.create() as session, session.unit_of_work() as uow:
+    def authenticate(self, command: AuthenticateUserCommand) -> str:
+        with self._unit_of_work() as uow:
             user = uow.users.get_by_username(command.username)
+
             if not user:
                 raise InvalidUsernameOrPasswordError()
 
             password_bytes = command.password.encode("utf-8")
             stored_password_bytes = user.password_hash.encode("utf-8")
-
             if not bcrypt.checkpw(password_bytes, stored_password_bytes):
                 raise InvalidUsernameOrPasswordError()
 
-            return UserDto.from_domain(user)
+            return user.id

@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 from datetime import date
 
+from portfolio_tracker.domain.account import UserAccountsMap
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.transaction import Transaction, TransactionType
 
@@ -98,7 +99,7 @@ class PortfolioBuilder:
         self,
         portfolios: list[Portfolio],
         scope: ConsolidationScope,
-        account_id_map: dict[str, str],
+        accounts_map: UserAccountsMap,
     ) -> list[Portfolio]:
         if scope == ConsolidationScope.ASSET_ACCOUNT:
             return portfolios
@@ -107,7 +108,7 @@ class PortfolioBuilder:
             consolidated_portfolios: dict[str, Portfolio] = {}
             for portfolio in portfolios:
                 assert portfolio.account_id is not None
-                institution_account_id = account_id_map[portfolio.account_id]
+                institution_account_id = accounts_map.asset_to_institution_account_id[portfolio.account_id]
 
                 if institution_account_id not in consolidated_portfolios:
                     consolidated_portfolios[institution_account_id] = Portfolio(

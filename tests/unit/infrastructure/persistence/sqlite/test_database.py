@@ -46,7 +46,7 @@ def test_database_initialization(
         "future",
         "option",
         "stock",
-        "ledger_entry",
+        "ledger",
         "fx_rate",
         "stock_split",
     ]

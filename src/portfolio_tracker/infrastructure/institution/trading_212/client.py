@@ -11,10 +11,10 @@ from portfolio_tracker.application.institution import (
     ApiEndpoint,
     HttpMethod,
     InstitutionClient,
-    InstitutionClientError,
     RateLimit,
     ReportChunk,
 )
+from portfolio_tracker.application.shared.exceptions import InstitutionClientError
 from portfolio_tracker.domain.institution import Credentials
 
 

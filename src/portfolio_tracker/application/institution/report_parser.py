@@ -10,7 +10,7 @@ from portfolio_tracker.domain.instrument import InstrumentType
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import TransactionType
 
-from .exceptions import InstitutionReportParserError
+from portfolio_tracker.application.shared.exceptions import InstitutionReportParserError
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ class InstitutionReportParser(ABC):
             return self._CASH_IMPACT_DIRECTION[transaction_type]
         except KeyError as error:
             raise InstitutionReportParserError(
-                f"Cash impact direction not available for transaction type: {transaction_type}."
+                message=f"Cash impact direction not available for transaction type: {transaction_type}."
             ) from error
 
     def _generate_correlation_id(self) -> str:
