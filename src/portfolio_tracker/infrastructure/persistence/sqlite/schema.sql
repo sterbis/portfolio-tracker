@@ -20,11 +20,8 @@ CREATE TABLE IF NOT EXISTS  institution_account (
 CREATE TABLE IF NOT EXISTS credentials (
     id INTEGER PRIMARY KEY,
     institution_account_id TEXT NOT NULL UNIQUE,
+    institution_id TEXT NOT NULL,
     encrypted_value TEXT NOT NULL,
-    key_id TEXT,
-    version INTEGER NOT NULL DEFAULT 1,
-    created_on DATE NOT NULL,
-    rotated_on DATE,
 
     FOREIGN KEY (institution_account_id) REFERENCES institution_account(institution_account_id)
 );

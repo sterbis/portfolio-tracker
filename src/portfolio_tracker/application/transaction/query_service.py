@@ -70,7 +70,7 @@ class TransactionQueryService(ApplicationService):
                 }
             )
             institutions = [
-                self._institution_registry.get(institution_account.institution_id)
+                self._institution_registry.get_institution(institution_account.institution_id)
                 for institution_account in institution_accounts
             ]
             

@@ -14,18 +14,18 @@ class FxRates:
             return Decimal("1.0")
 
         if base_currency == self.base_currency:
-            return self._lookup_base_rate(quote_currency)
+            return self._get_base_rate(quote_currency)
 
         if quote_currency == self.base_currency:
-            rate = Decimal("1.0") / self._lookup_base_rate(base_currency)
+            rate = Decimal("1.0") / self._get_base_rate(base_currency)
             return rate.quantize(Decimal("1.00000000"), rounding=ROUND_HALF_UP)
 
-        rate = self._lookup_base_rate(quote_currency) / self._lookup_base_rate(
+        rate = self._get_base_rate(quote_currency) / self._get_base_rate(
             base_currency
         )
         return rate.quantize(Decimal("1.00000000"), rounding=ROUND_HALF_UP)
 
-    def _lookup_base_rate(self, currency: str) -> Decimal:
+    def _get_base_rate(self, currency: str) -> Decimal:
         try:
             return self.base_rates[currency]
         except KeyError as error:

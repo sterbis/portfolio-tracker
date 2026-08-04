@@ -22,9 +22,9 @@ class SqliteTransactionRepository(TransactionRepository):
 
     def ensure(self, transaction: Transaction) -> None:
         self._executor.insert_on_conflict_do_nothing(
-            entity_reference="ledger",
+            entity="ledger",
             values=self._transaction_to_values(transaction),
-            conflict_fields=["checksum"],
+            conflict_field_names=["checksum"],
         )
 
     def get(
@@ -98,14 +98,14 @@ class SqliteTransactionRepository(TransactionRepository):
 
     def update(self, transaction: Transaction) -> None:
         self._executor.update(
-            entity_reference="ledger",
+            entity="ledger",
             values=self._transaction_to_values(transaction),
             filter_=FilterNode("transaction_id", Operator.EQ, transaction.id),
         )
 
     def remove(self, filter_: Filter) -> None:
         self._executor.delete(
-            entity_reference="ledger",
+            entity="ledger",
             filter_=filter_,
         )
 

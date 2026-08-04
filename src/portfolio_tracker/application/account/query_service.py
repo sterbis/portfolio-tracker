@@ -27,7 +27,7 @@ class AccountQueryService(ApplicationService):
                 user_id
             )
             for institution_account in institution_accounts:
-                institution = self._institution_registry.get(
+                institution = self._institution_registry.get_institution(
                     institution_account.institution_id
                 )
                 asset_accounts = (
@@ -51,7 +51,7 @@ class AccountQueryService(ApplicationService):
     def get_institution_account(self, user_id: str, account_id: str) -> InstitutionAccountDto:
         with self._user_unit_of_work(user_id, read_only=True) as uow:
             institution_account = uow.accounts.get_institution_account_by_id(account_id)
-            institution = self._institution_registry.get(
+            institution = self._institution_registry.get_institution(
                 institution_account.institution_id
             )
             credentials = uow.credentials.retrieve(institution_account.id)

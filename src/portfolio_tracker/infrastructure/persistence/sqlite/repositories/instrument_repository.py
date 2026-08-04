@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from filterutils import Filter, FilterNode, Operator
 
-from portfolio_tracker.application.persistence import InstrumentRepository
+from portfolio_tracker.application.persistence import InstrumentRepository, OrderBy
 from portfolio_tracker.domain.instrument import (
     AssetClass,
     Bond,
@@ -24,8 +24,8 @@ from portfolio_tracker.domain.instrument import (
     Stock,
     create_instrument,
 )
-
-from ..executor import SqliteExecutor
+from portfolio_tracker.infrastructure.persistence.sqlite.executor import Row, SqliteExecutor
+from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
 
 
 class SqliteInstrumentRepository(InstrumentRepository):
@@ -45,7 +45,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
 
     def ensure(self, instrument: Instrument) -> None:
         inserted = self._executor.insert_on_conflict_do_nothing(
-            entity_reference="instrument",
+            entity=Instrument,
             values={
                 "instrument_id": instrument.id,
                 "checksum": instrument.checksum,
@@ -57,7 +57,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
                 "currency": instrument.currency,
                 "last_synced_at": instrument.last_synced_at,
             },
-            conflict_fields=["checksum"],
+            conflict_field_names=["checksum"],
         )
 
         if not inserted:
@@ -67,7 +67,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         details["instrument_id"] = instrument.id
 
         self._executor.insert(
-            table=self._table_by_type[instrument.type],
+            entity=type(instrument),
             values=details,
         )
 
@@ -75,14 +75,14 @@ class SqliteInstrumentRepository(InstrumentRepository):
         self,
         *,
         filter_: Filter | None = None,
-        order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
+        order_by_list: list[OrderBy] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[InstrumentMetadata]:
         rows = self._executor.select(
-            table="instrument",
+            entity=Instrument,
             filter_=filter_,
-            order_by=order_by,
+            order_by_list=order_by_list,
             limit=limit,
             offset=offset,
         )
@@ -98,7 +98,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
     ) -> list[Instrument]:
         metadata_list = self.get_metadata(
             filter_=filter_,
-            order_by=order_by,
+            order_by_list=order_by,
             limit=limit,
             offset=offset,
         )
@@ -160,7 +160,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         self, instrument_id: str, last_synced_at: datetime
     ) -> None:
         self._executor.update(
-            entity_reference="instrument",
+            entity="instrument",
             values={"last_synced_at": last_synced_at},
             filter_=FilterNode("instrument_id", Operator.EQ, instrument_id),
         )

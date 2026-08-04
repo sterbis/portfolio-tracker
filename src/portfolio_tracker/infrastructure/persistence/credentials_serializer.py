@@ -1,13 +1,14 @@
 import json
 from dataclasses import asdict
+from typing import Any
 
-from portfolio_tracker.domain.institution import Credentials, Institution
+from portfolio_tracker.domain.institution import Credentials
 
 
 def serialize_credentials(credentials: Credentials) -> str:
     return json.dumps(asdict(credentials))
 
 
-def deserialize_credentials(institution: Institution, plain_text: str) -> Credentials:
-    credentials_cls = institution.credentials_cls
-    return credentials_cls(**json.loads(plain_text))
+def deserialize_credentials(plain_text: str) -> dict[str, Any]:
+    data: dict[str, Any] = json.loads(plain_text)
+    return data

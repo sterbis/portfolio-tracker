@@ -1,17 +1,16 @@
-from datetime import datetime, timezone
+import json
+from dataclasses import asdict
+from typing import Any
 
 from filterutils import FilterNode, Operator
 
 from portfolio_tracker.application.encryption import Encryptor
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import CredentialsStore
+from portfolio_tracker.domain.account import InstitutionAccount
 from portfolio_tracker.domain.institution import Credentials
-from portfolio_tracker.infrastructure.persistence.credentials_serializer import (
-    deserialize_credentials,
-    serialize_credentials,
-)
-
-from ..executor import SqliteExecutor
+from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
+from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
 
 
 class SqliteCredentialsRepository(CredentialsStore):
@@ -26,68 +25,56 @@ class SqliteCredentialsRepository(CredentialsStore):
         self._executor = executor
 
     def store(self, institution_account_id: str, credentials: Credentials) -> None:
-        plain_text = serialize_credentials(credentials)
-        encrypted_text = self._encryptor.encrypt(plain_text)
-
-        values = {
-            "institution_account_id": institution_account_id,
-            "encrypted_value": encrypted_text,
-            "key_id": None,
-            "version": 1,
-            "created_on": datetime.now(tz=timezone.utc).isoformat(),
-            "rotated_on": None,
-        }
+        json_string = json.dumps(asdict(credentials))
+        encrypted_value = self._encryptor.encrypt(json_string)
 
         inserted = self._executor.insert_on_conflict_do_nothing(
-            entity_reference="credentials",
-            values=values,
-            conflict_fields=["institution_account_id"],
+            entity=Credentials,
+            values={
+                "institution_account_id": institution_account_id,
+                "encrypted_value": encrypted_value,
+            },
+            conflict_field_names=["institution_account_id"],
         )
 
         if not inserted:
-            update_values = {
-                "encrypted_value": encrypted_text,
-                "key_id": None,
-                "version": 1,
-                "rotated_on": None,
-            }
-
             self._executor.update(
-                entity_reference="credentials",
-                values=update_values,
+                entity=Credentials,
+                values={
+                    "encrypted_value": encrypted_value,
+                },
                 filter_=FilterNode(
-                    "institution_account_id", Operator.EQ, institution_account_id
+                    "id", Operator.EQ, institution_account_id, InstitutionAccount
                 ),
             )
 
     def retrieve(self, institution_account_id: str) -> Credentials | None:
-        cursor = self._executor.execute(
-            sql="""
-                SELECT c.encrypted_value, ia.institution_id
-                FROM credentials c
-                JOIN institution_account ia ON ia.institution_account_id = c.institution_account_id
-                WHERE ia.institution_account_id = :institution_account_id;
-            """,
-            parameters={"institution_account_id": institution_account_id},
+        references = [
+            FieldReference("institution_id", Credentials),
+            FieldReference("encrypted_value", Credentials),
+        ]
+
+        row = self._executor.select_one(
+            entity=Credentials,
+            fields=references,
+            filter_=FilterNode(
+                "id", Operator.EQ, institution_account_id, InstitutionAccount
+            ),
         )
-        row = cursor.fetchone()
 
         if not row:
             return None
 
-        encrypted_text = row["encrypted_value"]
-        institution_id = row["institution_id"]
+        institution_id, encrypted_value = row.unpack(*references)
+        json_string = self._encryptor.decrypt(encrypted_value)
+        data: dict[str, Any] = json.loads(json_string)
 
-        institution = self._institution_registry.get(institution_id)
-        plain_text = self._encryptor.decrypt(encrypted_text)
-        credentials = deserialize_credentials(institution, plain_text)
-
-        return credentials
+        return self._institution_registry.create_credentials(institution_id, data)
 
     def remove(self, institution_account_id: str) -> None:
         self._executor.delete(
-            entity_reference="credentials",
+            entity=Credentials,
             filter_=FilterNode(
-                "institution_account_id", Operator.EQ, institution_account_id
+                "id", Operator.EQ, institution_account_id, InstitutionAccount
             ),
         )

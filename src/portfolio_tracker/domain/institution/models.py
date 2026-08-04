@@ -7,12 +7,12 @@ class InstitutionId(StrEnum): ...
 
 
 @dataclass(frozen=True)
-class Credentials(ABC): ...
-
-
-@dataclass(frozen=True)
 class Institution:
     id: InstitutionId
     name: str
     log_in_url: str
-    credentials_cls: type[Credentials]
+
+
+@dataclass(frozen=True)
+class Credentials(ABC):
+    institution_id: InstitutionId

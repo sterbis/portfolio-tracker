@@ -106,7 +106,7 @@ class InstrumentRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by: list[OrderBy] | None = None,
+        order_by_list: list[OrderBy] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Instrument]: ...
@@ -116,7 +116,7 @@ class InstrumentRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by: list[OrderBy] | None = None,
+        order_by_list: list[OrderBy] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[InstrumentMetadata]: ...
@@ -145,7 +145,7 @@ class TransactionRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by: list[OrderBy] | None = None,
+        order_by_list: list[OrderBy] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Transaction]: ...

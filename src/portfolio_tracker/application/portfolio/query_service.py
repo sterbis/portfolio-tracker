@@ -52,7 +52,7 @@ class PortfolioQueryService(ApplicationService):
     ) -> list[PortfolioDto]:
         institution_accounts, asset_accounts, instruments, portfolios = self._get_portfolios(user_id, query)
         institutions = [
-            self._institution_registry.get(institution_account.institution_id)
+            self._institution_registry.get_institution(institution_account.institution_id)
             for institution_account in institution_accounts
         ]
         return DtoAssembler.assemble_portfolios(
@@ -79,7 +79,7 @@ class PortfolioQueryService(ApplicationService):
     ) -> list[ValuedPortfolioDto]:
         institution_accounts, asset_accounts, instruments, portfolios = self._get_portfolios(user_id, query)
         institutions = [
-            self._institution_registry.get(institution_account.institution_id)
+            self._institution_registry.get_institution(institution_account.institution_id)
             for institution_account in institution_accounts
         ]
         portfolio_valuations = self._value_portfolios(portfolios, instruments)

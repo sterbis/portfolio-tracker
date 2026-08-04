@@ -43,7 +43,7 @@ def test_serialize_credentials_round_trip(
     serialized_credetials = serialize_credentials(credentials)
     assert serialized_credetials == expected_serialized_credetials
 
-    institution = sample_institution_registry.get(instituion_id)
+    institution = sample_institution_registry.get_institution(instituion_id)
 
     deserialized_credentials = deserialize_credentials(
         institution, serialized_credetials

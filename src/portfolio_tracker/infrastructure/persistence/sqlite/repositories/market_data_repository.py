@@ -18,13 +18,13 @@ class SqliteMarketDataRepository(MarketDataRepository):
     def ensure_stock_splits(self, splits: StockSplits) -> None:
         for executed_at, ratio in splits.splits.items():
             self._executor.insert_on_conflict_do_nothing(
-                entity_reference="stock_split",
+                entity="stock_split",
                 values={
                     "instrument_id": splits.instrument_id,
                     "executed_at": executed_at,
                     "ratio": ratio,
                 },
-                conflict_fields=["instrument_id", "executed_at"],
+                conflict_field_names=["instrument_id", "executed_at"],
             )
 
     def get_stock_splits(

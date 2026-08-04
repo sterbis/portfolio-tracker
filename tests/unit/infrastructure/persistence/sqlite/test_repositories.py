@@ -66,7 +66,7 @@ def test_credentials_repository_round_trips_credentials(
     sample_user: User,
     sample_institution_account: InstitutionAccount,
 ) -> None:
-    institution = sample_institution_registry.get(
+    institution = sample_institution_registry.get_institution(
         sample_institution_account.institution_id
     )
     credentials_parameters = {
