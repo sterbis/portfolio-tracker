@@ -4,7 +4,8 @@ from decimal import Decimal
 
 from filterutils import Filter, FilterNode, Operator
 
-from portfolio_tracker.application.persistence import FxRatesRepository, OrderBy
+from portfolio_tracker.application.persistence import FxRatesRepository
+from portfolio_tracker.application.shared.order_by import OrderBy
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
 from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
@@ -33,10 +34,10 @@ class SqliteFxRatesRepository(FxRatesRepository):
         filter_: Filter | None = None,
     ) -> Iterator[FxRates]:
         references = [
-            FieldReference("effective_on", FxRates),
-            FieldReference("base_currency", FxRates),
-            FieldReference("quote_currency", FxRates),
-            FieldReference("rate", FxRates)
+            FieldReference(FxRates, "effective_on"),
+            FieldReference(FxRates, "base_currency"),
+            FieldReference(FxRates, "quote_currency"),
+            FieldReference(FxRates, "rate")
         ]
         
         rows = self._executor.select(
@@ -83,24 +84,24 @@ class SqliteFxRatesRepository(FxRatesRepository):
         return list(self.get(filter_=FilterNode("effective_on", Operator.IN, dates, FxRates)))
 
     def get_latest(self) -> FxRates | None:
-        effective_on_ref = FieldReference("effective_on", FxRates)
+        effective_on_field = FieldReference(FxRates, "effective_on")
 
         row = self._executor.select_one(
             entity=FxRates,
-            fields=[effective_on_ref],
+            fields=[effective_on_field],
             order_by_list=[OrderBy("effective_on", FxRates, "DESC")],
         )
         if not row:
             return None
 
-        return self.get_by_date(row[effective_on_ref])
+        return self.get_by_date(row[effective_on_field])
 
     def get_distinct_dates(self) -> set[date]:
-        effective_on_ref = FieldReference("effective_on", FxRates)
+        effective_on_field = FieldReference(FxRates, "effective_on")
     
         rows = self._executor.select(
             entity=FxRates,
-            fields=[effective_on_ref],
+            fields=[effective_on_field],
             distinct=True,
         )
-        return {row[effective_on_ref].date() for row in rows}
+        return {row[effective_on_field].date() for row in rows}

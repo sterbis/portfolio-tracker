@@ -20,6 +20,7 @@ class ReportInstrument:
     symbol: str
     currency: str
     exchange: str | None = None
+    underlying_instrument: ReportInstrument | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
 

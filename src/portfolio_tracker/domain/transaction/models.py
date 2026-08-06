@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
@@ -27,7 +27,8 @@ class TransactionType(StrEnum):
 class Transaction:
     id: str = field(default_factory=lambda: f"tr_{uuid.uuid4().hex[:16]}")
     correlation_id: str | None = None
-    checksum: str | None = None
+    checksum: str = field(init=False)
+    provided_checksum: InitVar[str | None] = None
     asset_account_id: str
     executed_at: datetime
     type: TransactionType
@@ -38,7 +39,7 @@ class Transaction:
     tax: Money
     cash_impact: Money
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, provided_checksum: str | None) -> None:
         if (
             self.executed_at.tzinfo is None
             or self.executed_at.utcoffset() != timezone.utc.utcoffset(None)
@@ -70,10 +71,9 @@ class Transaction:
         )
         checksum = hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()[:16]
 
-        if self.checksum is None:
-            object.__setattr__(self, "_checksum", checksum)
-
-        elif self.checksum != checksum:
+        if provided_checksum and provided_checksum != checksum:
             raise ValueError(
-                f"Provided transaction checksum '{self.checksum}' does not match computed checksum '{checksum}'."
+                f"Provided transaction checksum '{provided_checksum}' does not match computed checksum '{checksum}'."
             )
+
+        object.__setattr__(self, "checksum", checksum)

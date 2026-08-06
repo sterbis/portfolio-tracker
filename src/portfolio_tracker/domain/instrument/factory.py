@@ -1,11 +1,13 @@
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from .models import (
+    AssetClass,
     Bond,
     Cfd,
     Commodity,
     Crypto,
+    DerivativeInstrument,
     Etf,
     Future,
     Instrument,
@@ -15,72 +17,57 @@ from .models import (
 )
 
 
+INSTRUMENT_CLS_BY_TYPE: dict[InstrumentType, type[Instrument]] = {
+    InstrumentType.BOND: Bond,
+    InstrumentType.COMMODITY: Commodity,
+    InstrumentType.CRYPTO: Crypto,
+    InstrumentType.ETF: Etf,
+    InstrumentType.STOCK: Stock,
+}
+
+DERIVATIVE_INSTRUMENT_CLS_BY_TYPE: dict[InstrumentType, type[DerivativeInstrument]] = {
+    InstrumentType.CFD: Cfd,
+    InstrumentType.FUTURE: Future,
+    InstrumentType.OPTION: Option,
+}
+
+
 class InstrumentBaseData(TypedDict):
-    id: str | None
-    checksum: str | None
+    id: NotRequired[str]
+    provided_checksum: NotRequired[str]
     name: str
     symbol: str
     exchange: str | None
     currency: str
-    last_synced_at: datetime | None
+    last_synced_at: NotRequired[datetime | None]
+
+
+class DerivativeInstrumentBaseData(TypedDict):
+    underlying_instrument_id: str
+    asset_class: AssetClass
 
 
 def create_instrument(
-    type_: InstrumentType, base_data: InstrumentBaseData, details: dict[str, Any]
+    type_: InstrumentType,
+    base_data: InstrumentBaseData,
+    details: dict[str, Any],
+    derivative_base_data: DerivativeInstrumentBaseData | None = None,
 ) -> Instrument:
-    match type_:
-        case InstrumentType.STOCK:
-            return Stock(**base_data, isin=details["isin"])
-
-        case InstrumentType.ETF:
-            return Etf(**base_data, isin=details["isin"])
-
-        case InstrumentType.CRYPTO:
-            return Crypto(**base_data)
-
-        case InstrumentType.COMMODITY:
-            return Commodity(**base_data, unit=details["unit"])
-
-        case InstrumentType.BOND:
-            return Bond(
-                **base_data,
-                isin=details["isin"],
-                face_value=details["face_value"],
-                coupon_rate=details["coupon_rate"],
-                coupon_frequency=details["coupon_frequency"],
-                maturity_on=details["maturity_date"],
+    if type_.is_derivative:
+        if derivative_base_data is None:
+            raise ValueError(
+                f"No derivative instrument base data provided for instrument type {type_}."
             )
 
-        case InstrumentType.CFD:
-            return Cfd(
-                **base_data,
-                underlying_instrument_id=details["underlying_instrument_id"],
-                _asset_class=details["asset_class"],
-                institution_id=details["institution_id"],
-                leverage=details["leverage"],
-            )
+        derivative_instrument_cls = DERIVATIVE_INSTRUMENT_CLS_BY_TYPE[type_]
+        return derivative_instrument_cls(
+            **base_data,
+            **derivative_base_data,
+            **details,
+        )
 
-        case InstrumentType.FUTURE:
-            return Future(
-                **base_data,
-                underlying_instrument_id=details["underlying_instrument_id"],
-                _asset_class=details["asset_class"],
-                isin=details["isin"],
-                expiration_on=details["expiration_date"],
-                multiplier=details["multiplier"],
-            )
-
-        case InstrumentType.OPTION:
-            return Option(
-                **base_data,
-                underlying_instrument_id=details["underlying_instrument_id"],
-                _asset_class=details["asset_class"],
-                isin=details["isin"],
-                expiration_on=details["expiration_date"],
-                option_type=details["option_type"],
-                strike_price=details["strike_price"],
-                multiplier=details["multiplier"],
-            )
-
-        case _:
-            raise ValueError(f"Unsupported instrument type: {type_}")
+    instrument_cls = INSTRUMENT_CLS_BY_TYPE[type_]
+    return instrument_cls(
+        **base_data,
+        **details,
+    )

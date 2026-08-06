@@ -7,7 +7,7 @@ from typing import Any
 import sqlparse
 from filterutils import Filter
 
-from portfolio_tracker.application.persistence import OrderBy
+from portfolio_tracker.application.shared.order_by import OrderBy
 
 from .builder import SqliteStatementBuilder
 from .registry import ColumnReference, Entity, FieldReference
@@ -81,6 +81,7 @@ class SqliteExecutor:
         entity: Entity,
         *,
         fields: list[FieldReference] | None = None,
+        include_parents: bool = False,
         distinct: bool = False,
         filter_: Filter | None = None,
         order_by_list: list[OrderBy] | None = None,
@@ -90,6 +91,7 @@ class SqliteExecutor:
         sql, parameters, column_map = self._builder.select(
             entity,
             fields=fields,
+            include_parents=include_parents,
             distinct=distinct,
             filter_=filter_,
             order_by_list=order_by_list,
@@ -104,6 +106,7 @@ class SqliteExecutor:
         entity: Entity,
         *,
         fields: list[FieldReference] | None = None,
+        include_parents: bool = False,
         distinct: bool = False,
         filter_: Filter | None = None,
         order_by_list: list[OrderBy] | None = None,
@@ -112,6 +115,7 @@ class SqliteExecutor:
         rows: list[Row] = self.select(
             entity,
             fields=fields,
+            include_parents=include_parents,
             distinct=distinct,
             filter_=filter_,
             order_by_list=order_by_list,

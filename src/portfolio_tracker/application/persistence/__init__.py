@@ -4,7 +4,6 @@ from .repositories import (
     FxRatesRepository,
     InstrumentRepository,
     MarketDataRepository,
-    OrderBy,
     TransactionRepository,
     UserRepository,
 )
@@ -18,7 +17,6 @@ __all__ = [
     "FxRatesRepository",
     "InstrumentRepository",
     "MarketDataRepository",
-    "OrderBy",
     "Session",
     "SessionFactory",
     "TransactionRepository",

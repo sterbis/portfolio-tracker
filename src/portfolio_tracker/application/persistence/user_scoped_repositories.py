@@ -1,6 +1,5 @@
 from abc import ABC
 from datetime import date
-from typing import Literal
 
 from filterutils import Filter, FilterNode, FilterTree, Operator
 
@@ -8,6 +7,7 @@ from portfolio_tracker.application.shared.exceptions import (
     AssetAccountNotFoundError,
     InstitutionAccountNotFoundError,
 )
+from portfolio_tracker.application.shared.order_by import OrderBy
 from portfolio_tracker.domain.account import (
     AssetAccount,
     InstitutionAccount,
@@ -15,10 +15,7 @@ from portfolio_tracker.domain.account import (
 )
 from portfolio_tracker.domain.transaction import Transaction
 
-from .repositories import (
-    AccountRepository,
-    TransactionRepository,
-)
+from .repositories import AccountRepository, TransactionRepository
 
 
 class UserScopedRepository(ABC):
@@ -155,17 +152,19 @@ class UserScopedTransactionRepository(UserScopedRepository):
         institution_account_ids: set[str] | None = None,
         asset_account_ids: set[str] | None = None,
         filter_: Filter | None = None,
-        order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None,
+        order_by_list: list[OrderBy] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Transaction]:
+        filter_ = self._get_user_scoped_filter(
+            institution_account_ids=institution_account_ids,
+            asset_account_ids=asset_account_ids,
+            filter_=filter_,
+        )
+
         return self._transaction_repository.get(
-            filter_=self._get_user_scoped_filter(
-                institution_account_ids=institution_account_ids,
-                asset_account_ids=asset_account_ids,
-                filter_=filter_,
-            ),
-            order_by=order_by,
+            filter_=filter_,
+            order_by_list=order_by_list,
             limit=limit,
             offset=offset,
         )
@@ -254,7 +253,7 @@ class UserScopedTransactionRepository(UserScopedRepository):
         )
         if transaction_id:
             scoped_filter.add_child(
-                FilterNode("transaction_id", Operator.EQ, transaction_id, Transaction)
+                FilterNode("id", Operator.EQ, transaction_id, Transaction)
             )
         if checksum:
             scoped_filter.add_child(

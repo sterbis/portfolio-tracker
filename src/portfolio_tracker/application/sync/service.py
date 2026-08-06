@@ -34,10 +34,10 @@ from portfolio_tracker.domain.account import (
 )
 from portfolio_tracker.domain.institution import Credentials, InstitutionId
 from portfolio_tracker.domain.instrument import (
+    DerivativeInstrumentBaseData,
     Instrument,
-    InstrumentBaseData,
     InstrumentMetadata,
-    InstrumentType,
+    InstrumentBaseData,
     create_instrument,
 )
 from portfolio_tracker.domain.transaction import Transaction
@@ -492,6 +492,7 @@ class SyncService(ApplicationService):
             instruments = [main_instrument] + underlying_instruments
 
         transaction = Transaction(
+            correlation_id=report_transaction.correlation_id,
             executed_at=report_transaction.executed_at,
             asset_account_id=asset_account_id,
             type=report_transaction.type,
@@ -501,7 +502,6 @@ class SyncService(ApplicationService):
             fee=report_transaction.fee,
             tax=report_transaction.tax,
             cash_impact=report_transaction.cash_impact,
-            correlation_id=report_transaction.correlation_id,
         )
 
         return transaction, instruments
@@ -514,25 +514,31 @@ class SyncService(ApplicationService):
             "symbol": report_instrument.symbol,
             "exchange": report_instrument.exchange,
             "currency": report_instrument.currency,
-            "last_synced_at": None,
-            "_id": None,
-            "_checksum": None,
         }
-        details = report_instrument.details
-
         underlying_instruments: list[Instrument] = []
+        derivative_base_data: DerivativeInstrumentBaseData | None = None
 
         if report_instrument.type.is_derivative:
+            if report_instrument.underlying_instrument is None:
+                raise ValueError(
+                    "No underlying instrument provided for "
+                    f"derivative instrument type {report_instrument.type}."
+                )
+
             underlying_instrument, other_instruments = self._resolve_instrument(
-                details["underlying_instrument"], institution_id
+                report_instrument.underlying_instrument, institution_id
             )
             underlying_instruments = [underlying_instrument] + other_instruments
+            derivative_base_data = {
+                "underlying_instrument_id": underlying_instrument.id,
+                "asset_class": underlying_instrument.asset_class,
+            }
 
-            details["underlying_instrument_id"] = underlying_instrument.id
-            details["asset_class"] = underlying_instrument.asset_class
-            if report_instrument.type == InstrumentType.CFD:
-                details["institution_id"] = institution_id
-
-        main_instrument = create_instrument(report_instrument.type, base_data, details)
+        main_instrument = create_instrument(
+            report_instrument.type,
+            base_data,
+            report_instrument.details,
+            derivative_base_data,
+        )
 
         return main_instrument, underlying_instruments

@@ -53,10 +53,6 @@ class Trading212ReportParser(InstitutionReportParser):
             "Withdrawal": self._parse_cash_movement_action,
         }
 
-    @property
-    def _external_account_id(self) -> str:
-        return self._institution_account_id
-
     def parse_report(self, report: Iterator[str]) -> Iterator[ReportTransaction]:
         reader = csv.DictReader(report)
 
@@ -70,7 +66,8 @@ class Trading212ReportParser(InstitutionReportParser):
 
             for details in parser(row):
                 yield ReportTransaction(
-                    external_asset_account_id=self._external_account_id,
+                    correlation_id=details.correlation_id,
+                    external_asset_account_id=self._institution_account_id,
                     external_transaction_id=row["ID"],
                     executed_at=self._parse_datetime(row),
                     type=details.type,
@@ -80,7 +77,6 @@ class Trading212ReportParser(InstitutionReportParser):
                     fee=details.fee,
                     tax=details.tax,
                     cash_impact=details.cash_impact,
-                    correlation_id=details.correlation_id,
                 )
 
     def _add_currency_conversion_details(

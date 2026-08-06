@@ -3,7 +3,8 @@ from filterutils import FilterNode, Operator
 from portfolio_tracker.application.persistence import UserRepository
 from portfolio_tracker.domain.user import User
 
-from ..executor import SqliteExecutor
+from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor, Row
+from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
 
 
 class SqliteUserRepository(UserRepository):
@@ -12,7 +13,7 @@ class SqliteUserRepository(UserRepository):
 
     def add(self, user: User) -> None:
         self._executor.insert(
-            table="user",
+            entity=User,
             values={
                 "user_id": user.id,
                 "username": user.username,
@@ -22,15 +23,20 @@ class SqliteUserRepository(UserRepository):
 
     def get_by_username(self, username: str) -> User | None:
         row = self._executor.select_one(
-            table="user",
-            columns=["user_id", "username", "password_hash"],
-            filter_=FilterNode("username", Operator.EQ, username),
+            entity=User,
+            filter_=FilterNode("username", Operator.EQ, username, User),
         )
         if not row:
             return None
 
+        return self._row_to_user(row)
+
+    def _row_to_user(self, row: Row) -> User:
+        def field(name: str) -> FieldReference:
+            return FieldReference(User, name)
+
         return User(
-            id=row["user_id"],
-            username=row["username"],
-            password_hash=row["password_hash"],
+            id=row[field("user_id")],
+            username=row[field("username")],
+            password_hash=row[field("password_hash")],
         )

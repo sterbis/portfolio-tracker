@@ -1,4 +1,8 @@
-from .factory import InstrumentBaseData, create_instrument
+from .factory import (
+    DerivativeInstrumentBaseData,
+    InstrumentBaseData,
+    create_instrument,
+)
 from .models import (
     AssetClass,
     Bond,
@@ -25,6 +29,7 @@ __all__ = [
     "CouponFrequency",
     "Crypto",
     "DerivativeInstrument",
+    "DerivativeInstrumentBaseData",
     "Etf",
     "Future",
     "Instrument",

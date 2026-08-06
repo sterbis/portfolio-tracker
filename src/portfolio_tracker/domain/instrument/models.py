@@ -1,7 +1,7 @@
 import hashlib
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, fields
+from dataclasses import InitVar, dataclass, field, fields
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -67,7 +67,8 @@ class InstrumentMetadata:
 @dataclass(frozen=True, kw_only=True)
 class Instrument(ABC):
     id: str = field(default_factory=lambda: f"instr_{uuid.uuid4().hex[:16]}")
-    checksum: str | None = None
+    checksum: str = field(init=False)
+    provided_checksum: InitVar[str | None] = None
     type: InstrumentType
     asset_class: AssetClass
     name: str
@@ -89,17 +90,16 @@ class Instrument(ABC):
             }
         )
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, provided_checksum: str | None) -> None:
         checksum_string = f"{self.type.value}|{self._identifier}"
         checksum = hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()[:16]
 
-        if self.checksum is None:
-            object.__setattr__(self, "checksum", checksum)
-
-        elif self.checksum != checksum:
+        if provided_checksum and provided_checksum != checksum:
             raise ValueError(
-                f"Provided instrument checksum {self.checksum} does not match computed checksum {checksum}."
+                f"Provided instrument checksum {provided_checksum} does not match computed checksum {checksum}."
             )
+
+        object.__setattr__(self, "checksum", checksum)
 
 
 @dataclass(frozen=True, kw_only=True)

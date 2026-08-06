@@ -3,7 +3,8 @@ from typing import Any
 from filterutils import Filter, FilterNode, FilterTree, Operator
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import AccountRepository, OrderBy
+from portfolio_tracker.application.persistence import AccountRepository
+from portfolio_tracker.application.shared.order_by import OrderBy
 from portfolio_tracker.domain.account import UserAccountsMap, AssetAccount, InstitutionAccount
 
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
@@ -150,10 +151,10 @@ class SqliteAccountRepository(AccountRepository):
 
     def get_user_accounts_map(self, user_id: str) -> UserAccountsMap:
         references = [
-            FieldReference("institution_account_id", AssetAccount),
-            FieldReference("id", AssetAccount),
-            FieldReference("external_id", AssetAccount),
-            FieldReference("is_active", AssetAccount),
+            FieldReference(AssetAccount, "institution_account_id"),
+            FieldReference(AssetAccount, "id"),
+            FieldReference(AssetAccount, "external_id"),
+            FieldReference(AssetAccount, "is_active"),
         ]
 
         rows = self._executor.select(
@@ -211,28 +212,28 @@ class SqliteAccountRepository(AccountRepository):
         }
 
     def _row_to_institution_account(self, row: dict[FieldReference, Any]) -> InstitutionAccount:
-        def field_referece(field: str) -> FieldReference:
-            return FieldReference(field, InstitutionAccount)
+        def field(field: str) -> FieldReference:
+            return FieldReference(InstitutionAccount, field)
 
         return InstitutionAccount(
-            id=row[field_referece("id")],
-            user_id=row[field_referece("user_id")],
+            id=row[field("id")],
+            user_id=row[field("user_id")],
             institution_id=self._institution_registry.get_institution_id(
-                row[field_referece("institution_id")]
+                row[field("institution_id")]
             ),
-            name=row[field_referece("name")],
-            created_on=row[field_referece("created_on")],
-            last_synced_at=row[field_referece("last_synced_at")],
+            name=row[field("name")],
+            created_on=row[field("created_on")],
+            last_synced_at=row[field("last_synced_at")],
         )
 
     def _row_to_asset_account(self, row: dict[FieldReference, Any]) -> AssetAccount:
-        def field_referece(field: str) -> FieldReference:
-            return FieldReference(field, AssetAccount)
+        def field(field: str) -> FieldReference:
+            return FieldReference(AssetAccount, field)
         
         return AssetAccount(
-            id=row[field_referece("id")],
-            external_id=row[field_referece("external_id")],
-            institution_account_id=row[field_referece("institution_account_id")],
-            name=row[field_referece("name")],
-            is_active=bool(row[field_referece("is_active")]),
+            id=row[field("id")],
+            external_id=row[field("external_id")],
+            institution_account_id=row[field("institution_account_id")],
+            name=row[field("name")],
+            is_active=bool(row[field("is_active")]),
         )

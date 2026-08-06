@@ -50,8 +50,8 @@ class SqliteCredentialsRepository(CredentialsStore):
 
     def retrieve(self, institution_account_id: str) -> Credentials | None:
         references = [
-            FieldReference("institution_id", Credentials),
-            FieldReference("encrypted_value", Credentials),
+            FieldReference(Credentials, "institution_id"),
+            FieldReference(Credentials, "encrypted_value"),
         ]
 
         row = self._executor.select_one(

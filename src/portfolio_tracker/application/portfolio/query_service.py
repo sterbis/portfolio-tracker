@@ -107,7 +107,7 @@ class PortfolioQueryService(ApplicationService):
                 institution_account_ids=query.institution_account_ids,
                 asset_account_ids=query.asset_account_ids,
                 filter_=query.filter,
-                order_by=self.REQUIRED_ORDER_BY,
+                order_by_list=self.REQUIRED_ORDER_BY,
             )
             instrument_ids = uow.transactions.get_distinct_instrument_ids(
                 institution_account_ids=query.institution_account_ids,

@@ -14,6 +14,7 @@ class TransactionCommandService(ApplicationService):
         payload = command.payload
 
         transaction = Transaction(
+            correlation_id=payload.correlation_id,
             executed_at=payload.executed_at,
             asset_account_id=payload.asset_account_id,
             type=payload.type,
@@ -23,7 +24,6 @@ class TransactionCommandService(ApplicationService):
             fee=Money(payload.fee.amount, payload.fee.currency),
             tax=Money(payload.tax.amount, payload.tax.currency),
             cash_impact=Money(payload.cash_impact.amount, payload.cash_impact.currency),
-            correlation_id=payload.correlation_id,
         )
 
         with self._user_unit_of_work(user_id) as uow:
@@ -44,6 +44,7 @@ class TransactionCommandService(ApplicationService):
             payload = command.payload
             updated_transaction = Transaction(
                 id=command.transaction_id,
+                correlation_id=payload.correlation_id,
                 executed_at=payload.executed_at,
                 asset_account_id=payload.asset_account_id,
                 type=payload.type,
@@ -53,7 +54,6 @@ class TransactionCommandService(ApplicationService):
                 fee=Money(payload.fee.amount, payload.fee.currency),
                 tax=Money(payload.tax.amount, payload.tax.currency),
                 cash_impact=Money(payload.cash_impact.amount, payload.cash_impact.currency),
-                correlation_id=payload.correlation_id,
             )
 
             if updated_transaction.checksum == transaction.checksum:

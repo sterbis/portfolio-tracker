@@ -34,7 +34,7 @@ class TransactionQueryService(ApplicationService):
                 institution_account_ids=query.institution_account_ids,
                 asset_account_ids=query.asset_account_ids,
                 filter_=query.filter,
-                order_by=query.order_by or self.DEFAULT_ORDER_BY,
+                order_by_list=query.order_by or self.DEFAULT_ORDER_BY,
                 limit=query.limit,
                 offset=query.offset,
             )

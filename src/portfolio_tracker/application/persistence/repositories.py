@@ -1,39 +1,20 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal
 
 from filterutils import Filter
 
 from portfolio_tracker.application.shared.exceptions import FxDataIntegrityError
-from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount, UserAccountsMap
+from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.domain.account import (
+    AssetAccount,
+    InstitutionAccount,
+    UserAccountsMap,
+)
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.instrument import Instrument, InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
-
-
-@dataclass(frozen=True)
-class Join:
-    table: str
-    left_column: str
-    right_column: str
-    alias: str | None = None
-    type: Literal["INNER", "LEFT", "RIGHT", "FULL"] = "INNER"
-
-    def to_sql(self) -> str:
-        alias_clause = f" AS {self.alias}" if self.alias else ""
-        target_table = f"{self.table}{alias_clause}"
-        return f"{self.type} JOIN {target_table} ON {self.left_column} = {self.right_column}"
-
-
-
-@dataclass(frozen=True)
-class OrderBy:
-    field: str
-    item_type: type
-    direction: Literal["ASC", "DESC"] = "ASC"
 
 
 class UserRepository(ABC):

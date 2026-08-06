@@ -8,7 +8,10 @@ from .repositories import (
     UserRepository,
 )
 from .unit_of_work import UnitOfWork
-from .user_scoped_repositories import UserScopedAccountRepository, UserScopedTransactionRepository
+from .user_scoped_repositories import (
+    UserScopedAccountRepository,
+    UserScopedTransactionRepository,
+)
 
 
 class UserScopedUnitOfWork:
@@ -19,8 +22,12 @@ class UserScopedUnitOfWork:
     ) -> None:
         self._uow = uow
         self.accounts_map = accounts_map
-        self.accounts = UserScopedAccountRepository(self.accounts_map, self._uow.accounts)
-        self.transactions = UserScopedTransactionRepository(self.accounts_map, self._uow.transactions)
+        self.accounts = UserScopedAccountRepository(
+            self.accounts_map, self._uow.accounts
+        )
+        self.transactions = UserScopedTransactionRepository(
+            self.accounts_map, self._uow.transactions
+        )
 
     @property
     def credentials(self) -> CredentialsStore:

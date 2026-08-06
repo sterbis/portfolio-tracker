@@ -3,7 +3,7 @@ from typing import Any
 
 from filterutils import ColumnMap, Filter, UniqueNameGenerator
 
-from portfolio_tracker.application.persistence import OrderBy
+from portfolio_tracker.application.shared.order_by import OrderBy
 
 from .registry import ColumnReference, Entity, EntityResolver, FieldReference
 
@@ -113,7 +113,7 @@ class SqliteStatementBuilder:
         if require_join:
             sql += f"FROM {root_table.name} AS {root_table.alias} "
 
-            for left_table, right_table in self._resolver.resolve_table_relations(
+            for left_table, right_table in self._resolver.resolve_relations(
                 root_table, joined_tables
             ):
                 left_column, right_column = self._resolver.get_related_columns(
