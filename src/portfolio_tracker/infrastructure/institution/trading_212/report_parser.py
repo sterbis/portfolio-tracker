@@ -250,7 +250,7 @@ class Trading212ReportParser(InstitutionReportParser):
             to_amount = (from_amount * rate) - fee.amount
         else:
             raise InstitutionReportParserError(
-                message =(
+                message=(
                     f"Unexpected {from_currency} -> {to_currency} "
                     f"currency exchange fee currency: {fee.currency}."
                 )

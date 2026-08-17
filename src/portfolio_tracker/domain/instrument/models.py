@@ -193,7 +193,7 @@ class Option(DerivativeInstrument):
 
 @dataclass(frozen=True, kw_only=True)
 class Stock(Instrument):
-    type: InstrumentType = field(init=False, default=InstrumentType.ETF)
+    type: InstrumentType = field(init=False, default=InstrumentType.STOCK)
     asset_class: AssetClass = field(init=False, default=AssetClass.EQUITY)
     isin: str
 

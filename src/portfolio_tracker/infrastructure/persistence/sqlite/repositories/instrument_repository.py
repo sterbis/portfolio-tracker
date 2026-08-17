@@ -48,7 +48,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
 
     def ensure(self, instrument: Instrument) -> None:
         inserted = self._executor.insert_on_conflict_do_nothing(
-            entity=Instrument,
+            model=Instrument,
             values={
                 "id": instrument.id,
                 "checksum": instrument.checksum,
@@ -70,7 +70,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         details["id"] = instrument.id
 
         self._executor.insert(
-            entity=type(instrument),
+            model=type(instrument),
             values=details,
         )
 
@@ -83,7 +83,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         offset: int | None = None,
     ) -> list[InstrumentMetadata]:
         rows = self._executor.select(
-            entity=InstrumentMetadata,
+            model=InstrumentMetadata,
             filter_=filter_,
             order_by_list=order_by_list,
             limit=limit,
@@ -115,18 +115,18 @@ class SqliteInstrumentRepository(InstrumentRepository):
         instruments: list[Instrument] = []
 
         for instrument_type, instrument_ids in instrument_ids_by_type.items():
-            entity = self._cls_by_type[instrument_type]
+            model = self._cls_by_type[instrument_type]
 
             rows = self._executor.select(
-                entity=entity,
+                model=model,
                 include_parents=False,
-                filter_=FilterNode("id", Operator.IN, instrument_ids, entity),
+                filter_=FilterNode("id", Operator.IN, instrument_ids, model),
             )
 
             for row in rows:
-                instrument_id = row[FieldReference(entity, "id")]
+                instrument_id = row[FieldReference(model, "id")]
                 metadata = metadata_by_id[instrument_id]
-                instruments.append(self._row_to_instrument(row, entity, metadata))
+                instruments.append(self._row_to_instrument(row, model, metadata))
 
         if order_by_list:
             instruments = OrderBy.apply_many(instruments, order_by_list)
@@ -148,7 +148,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         symbol_field = FieldReference(Instrument, "symbol")
 
         rows = self._executor.select(
-            entity=Instrument,
+            model=Instrument,
             fields=[symbol_field],
             filter_=FilterNode("symbol", Operator.IN, symbols, Instrument),
         )
@@ -158,7 +158,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         self, instrument_id: str, last_synced_at: datetime
     ) -> None:
         self._executor.update(
-            entity=Instrument,
+            model=Instrument,
             values={"last_synced_at": last_synced_at},
             filter_=FilterNode("id", Operator.EQ, instrument_id, Instrument),
         )
@@ -237,10 +237,10 @@ class SqliteInstrumentRepository(InstrumentRepository):
         )
 
     def _row_to_instrument(
-        self, row: Row, entity: type[Instrument], metadata: InstrumentMetadata
+        self, row: Row, model: type[Instrument], metadata: InstrumentMetadata
     ) -> Instrument:
         def field(name: str) -> FieldReference:
-            return FieldReference(entity, name)
+            return FieldReference(model, name)
 
         base_data: InstrumentBaseData = {
             "id": metadata.id,
@@ -274,27 +274,27 @@ class SqliteInstrumentRepository(InstrumentRepository):
                     "institution_id": row[field("institution_id")],
                     "leverage": row[field("leverage")],
                 }
-    
+
             case InstrumentType.COMMODITY:
                 details = {
                     "unit": row[field("unit")],
                 }
-    
+
             case InstrumentType.CRYPTO:
                 details = {}
-    
+
             case InstrumentType.ETF:
                 details = {
                     "isin": row[field("isin")],
                 }
-    
+
             case InstrumentType.FUTURE:
                 details = {
                     "isin": row[field("isin")],
                     "expiration_on": row[field("expiration_on")],
                     "multiplier": row[field("multiplier")],
                 }
-    
+
             case InstrumentType.OPTION:
                 details = {
                     "isin": row[field("isin")],
@@ -303,12 +303,12 @@ class SqliteInstrumentRepository(InstrumentRepository):
                     "strike_price": row[field("strike_price")],
                     "multiplier": row[field("multiplier")],
                 }
-    
+
             case InstrumentType.STOCK:
                 details = {
                     "isin": row[field("isin")],
                 }
-    
+
             case _:
                 raise ValueError(f"Unsupported instrument type: {metadata.type}.")
 

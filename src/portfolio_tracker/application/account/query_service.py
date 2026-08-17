@@ -1,28 +1,35 @@
-from portfolio_tracker.application.institution import InstitutionRegistry
+from portfolio_tracker.application.institution import (
+    InstitutionRegistry,
+    InstitutionView,
+)
 from portfolio_tracker.application.persistence import SessionFactory
-from portfolio_tracker.application.shared.service import ApplicationService
-from portfolio_tracker.application.shared.dtos import (
-    AssetAccountOverviewDto,
-    InstitutionAccountDto,
-    InstitutionAccountOverviewDto,
-    InstitutionDto,
+from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
+from portfolio_tracker.application.shared.service import ApplicationQueryService
+from portfolio_tracker.application.views import (
+    AssetAccountOverviewView,
+    InstitutionAccountOverviewView,
+    InstitutionAccountView,
+    ViewBuilder,
 )
 
 
-class AccountQueryService(ApplicationService):
+class AccountQueryService(ApplicationQueryService):
     def __init__(
         self,
         session_factory: SessionFactory,
-        institution_registry: InstitutionRegistry
+        filter_mapper: FilterMapper,
+        filter_splitter: FilterSplitter,
+        view_builder: ViewBuilder,
+        institution_registry: InstitutionRegistry,
     ) -> None:
-        super().__init__(session_factory)
+        super().__init__(session_factory, filter_mapper, filter_splitter, view_builder)
         self._institution_registry = institution_registry
 
     def get_accounts_overview(
         self, user_id: str
-    ) -> list[InstitutionAccountOverviewDto]:
+    ) -> list[InstitutionAccountOverviewView]:
         with self._user_unit_of_work(user_id, read_only=True) as uow:
-            accounts_overview: list[InstitutionAccountOverviewDto] = []
+            accounts_overview: list[InstitutionAccountOverviewView] = []
             institution_accounts = uow.accounts.get_institution_accounts_by_user_id(
                 user_id
             )
@@ -36,11 +43,11 @@ class AccountQueryService(ApplicationService):
                     )
                 )
                 accounts_overview.append(
-                    InstitutionAccountOverviewDto.from_domain(
+                    InstitutionAccountOverviewView.from_domain(
                         institution_account=institution_account,
-                        institution_dto=InstitutionDto.from_domain(institution),
-                        asset_account_overviews=[
-                            AssetAccountOverviewDto.from_domain(asset_account)
+                        institution_view=InstitutionView.from_domain(institution),
+                        asset_account_overview_views=[
+                            AssetAccountOverviewView.from_domain(asset_account)
                             for asset_account in asset_accounts
                         ],
                     )
@@ -48,7 +55,9 @@ class AccountQueryService(ApplicationService):
 
             return accounts_overview
 
-    def get_institution_account(self, user_id: str, account_id: str) -> InstitutionAccountDto:
+    def get_institution_account(
+        self, user_id: str, account_id: str
+    ) -> InstitutionAccountView:
         with self._user_unit_of_work(user_id, read_only=True) as uow:
             institution_account = uow.accounts.get_institution_account_by_id(account_id)
             institution = self._institution_registry.get_institution(
@@ -56,13 +65,15 @@ class AccountQueryService(ApplicationService):
             )
             credentials = uow.credentials.retrieve(institution_account.id)
 
-            return InstitutionAccountDto.from_domain(
+            return InstitutionAccountView.from_domain(
                 institution_account=institution_account,
-                institution_dto=InstitutionDto.from_domain(institution),
+                institution_view=InstitutionView.from_domain(institution),
                 credentials=credentials,
             )
 
-    def get_asset_account_overview(self, user_id: str, account_id: str) -> AssetAccountOverviewDto:
+    def get_asset_account_overview(
+        self, user_id: str, account_id: str
+    ) -> AssetAccountOverviewView:
         with self._user_unit_of_work(user_id, read_only=True) as uow:
             asset_account = uow.accounts.get_asset_account_by_id(account_id)
-            return AssetAccountOverviewDto.from_domain(asset_account)
+            return AssetAccountOverviewView.from_domain(asset_account)

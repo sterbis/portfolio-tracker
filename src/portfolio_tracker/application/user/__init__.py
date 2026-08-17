@@ -1,3 +1,4 @@
+from ..views.user import UserView
 from .commands import (
     AuthenticateUserCommand,
     RegisterUserCommand,
@@ -8,4 +9,5 @@ __all__ = [
     "AuthenticateUserCommand",
     "RegisterUserCommand",
     "UserService",
+    "UserView",
 ]

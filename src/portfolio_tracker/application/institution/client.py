@@ -12,7 +12,6 @@ import requests
 from portfolio_tracker.application.shared.exceptions import InstitutionClientError
 from portfolio_tracker.domain.institution import Credentials
 
-
 ReportChunk = Iterator[str]
 TCredentials = TypeVar("TCredentials", bound=Credentials)
 

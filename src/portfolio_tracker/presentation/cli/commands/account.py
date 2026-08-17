@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import click
 import typer
@@ -8,20 +8,16 @@ from rich.tree import Tree
 from portfolio_tracker.application.account import (
     AccountCommandService,
     AccountQueryService,
+    AssetAccountOverviewView,
     ConnectInstitutionAccountCommand,
+    InstitutionAccountView,
     UpdateAssetAccountCommand,
     UpdateInstitutionAccountCommand,
 )
-from portfolio_tracker.application.shared.dtos import (
-    AssetAccountOverviewDto,
-    InstitutionAccountDto,
-)
 from portfolio_tracker.bootstrap import ApplicationContext
-from portfolio_tracker.domain.institution import Credentials
-from portfolio_tracker.infrastructure.institution import (
-    IbkrCredentials,
-    InstitutionCode,
-)
+from portfolio_tracker.domain.institution import InstitutionId
+from portfolio_tracker.infrastructure.institution import InstitutionCode
+from portfolio_tracker.infrastructure.institution.ibkr import IbkrCredentials
 from portfolio_tracker.infrastructure.institution.trading_212 import (
     Trading212Credentials,
 )
@@ -71,7 +67,7 @@ def add_institution_account(
 ) -> None:
     context: ApplicationContext = ctx.obj
     service = context.get(AccountCommandService)
-    name, created_on, credentials = _prompt_institution_account_data(
+    name, created_on, credentials_data = _prompt_institution_account_data(
         context, institution
     )
     service.connect_institution_account(
@@ -80,7 +76,7 @@ def add_institution_account(
             institution_id=institution,
             name=name,
             created_on=created_on,
-            credentials=credentials,
+            credentials_data=credentials_data,
         ),
     )
     console.print(f"{institution} '{name}' institution account successfully connected.")
@@ -95,8 +91,10 @@ def edit_institution_account(
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
 
-    institution_account = query_service.get_institution_account(context.active_user_id, account_id)
-    name, created_on, credentials = _prompt_institution_account_data(
+    institution_account = query_service.get_institution_account(
+        context.active_user_id, account_id
+    )
+    name, created_on, credentials_data = _prompt_institution_account_data(
         context, institution_account.institution.id, institution_account
     )
     command_service.update_institution_account(
@@ -105,7 +103,7 @@ def edit_institution_account(
             institution_account_id=institution_account.id,
             name=name,
             created_on=created_on,
-            credentials=credentials,
+            credentials_data=credentials_data,
         ),
     )
     console.print(
@@ -122,7 +120,9 @@ def remove_institution_account(
     context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
-    institution_account = query_service.get_institution_account(context.active_user_id, account_id)
+    institution_account = query_service.get_institution_account(
+        context.active_user_id, account_id
+    )
 
     if not force:
         remove = typer.confirm(
@@ -149,7 +149,9 @@ def edit_asset_account(
     context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
-    asset_account = query_service.get_asset_account_overview(context.active_user_id, account_id)
+    asset_account = query_service.get_asset_account_overview(
+        context.active_user_id, account_id
+    )
     name, external_id = _prompt_asset_account_data(asset_account)
     command_service.update_asset_account(
         context.active_user_id,
@@ -157,7 +159,7 @@ def edit_asset_account(
             asset_account_id=account_id,
             name=name,
             external_id=external_id,
-        )
+        ),
     )
     console.print(f"Asset account '{name}' ({account_id}) successfully updated.")
 
@@ -171,7 +173,9 @@ def activate_asset_account(
     context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
-    asset_account = query_service.get_asset_account_overview(context.active_user_id, account_id)
+    asset_account = query_service.get_asset_account_overview(
+        context.active_user_id, account_id
+    )
 
     if not force:
         activate = typer.confirm(
@@ -206,7 +210,9 @@ def deactivate_asset_account(
     context: ApplicationContext = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
-    asset_account = query_service.get_asset_account_overview(context.active_user_id, account_id)
+    asset_account = query_service.get_asset_account_overview(
+        context.active_user_id, account_id
+    )
 
     if not force:
         deactivate = typer.confirm(
@@ -224,9 +230,9 @@ def deactivate_asset_account(
 
 def _prompt_institution_account_data(
     context: ApplicationContext,
-    institution_id: str,
-    current_institution_account: InstitutionAccountDto | None = None,
-) -> tuple[str, date, Credentials]:
+    institution_id: InstitutionId,
+    current_institution_account: InstitutionAccountView | None = None,
+) -> tuple[str, date, dict[str, Any]]:
     current_name = current_created_on = None
     if current_institution_account:
         current_name = current_institution_account.name
@@ -245,7 +251,7 @@ def _prompt_institution_account_data(
     )
 
     match institution_id:
-        case "IBKR":
+        case InstitutionCode.INTERACTIVE_BROKERS:
             current_token = current_query_ids = None
 
             if isinstance(current_credentials, IbkrCredentials):
@@ -262,11 +268,12 @@ def _prompt_institution_account_data(
                     if query_id.strip()
                 ],
             )
-            credentials: Credentials = IbkrCredentials(
-                flex_web_service_token=token, flex_query_ids=query_ids
-            )
+            credentials_data = {
+                "flex_web_service_token": token,
+                "flex_query_ids": query_ids,
+            }
 
-        case "T212":
+        case InstitutionCode.TRADING_212:
             current_api_key = current_api_secret = None
             if isinstance(current_credentials, Trading212Credentials):
                 current_api_key = current_credentials.api_key
@@ -274,16 +281,19 @@ def _prompt_institution_account_data(
 
             api_key = typer.prompt("API key", default=current_api_key)
             api_secret = typer.prompt("API secret", default=current_api_secret)
-            credentials = Trading212Credentials(api_key, api_secret)
+            credentials_data = {
+                "api_key": api_key,
+                "api_secret": api_secret,
+            }
 
         case _:
             raise ValueError(f"Unexpected institution id: {institution_id}")
 
-    return name, created_on.date(), credentials
+    return name, created_on.date(), credentials_data
 
 
 def _prompt_asset_account_data(
-    current_asset_account: AssetAccountOverviewDto | None = None,
+    current_asset_account: AssetAccountOverviewView | None = None,
 ) -> tuple[str, str]:
     current_name = current_external_id = None
     if current_asset_account:

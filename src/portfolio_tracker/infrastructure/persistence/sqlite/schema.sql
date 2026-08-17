@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS  institution_account (
 CREATE TABLE IF NOT EXISTS credentials (
     institution_account_id TEXT PRIMARY KEY REFERENCES institution_account(id) ON DELETE CASCADE,
     institution_id TEXT NOT NULL,
-    encrypted_value TEXT NOT NULL
+    encrypted_parameters TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS asset_account (

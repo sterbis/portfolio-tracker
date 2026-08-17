@@ -3,9 +3,8 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
-from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.shared import DualMoney, Money
-from portfolio_tracker.domain.transaction import Transaction, TransactionType
+from portfolio_tracker.domain.shared import DualMoney
+from portfolio_tracker.domain.transaction import ConvertedTransaction, TransactionType
 
 from .models import Position, TaxLot
 
@@ -63,7 +62,7 @@ class PositionBuilder:
     def lots(self) -> list[TaxLot]:
         return self._lots
 
-    def add(self, transaction: Transaction, rates: FxRates) -> None:
+    def add(self, transaction: ConvertedTransaction) -> None:
         if not transaction.instrument_id:
             raise ValueError("Missing transaction instrument.")
         if transaction.instrument_id != self.instrument_id:
@@ -83,7 +82,7 @@ class PositionBuilder:
         if transaction.type == TransactionType.BUY:
             self._last_buy_at = transaction.executed_at
             self._closed_at = None
-            self._process_buy(transaction, rates)
+            self._process_buy(transaction)
 
         elif transaction.type == TransactionType.SELL:
             self._process_sell(transaction)
@@ -96,41 +95,18 @@ class PositionBuilder:
                 f"Only {TransactionType.BUY} and {TransactionType.SELL} transactions allowed."
             )
 
-    def _process_buy(self, transaction: Transaction, rates: FxRates) -> None:
-        price_reporting_rate = rates.get_rate(
-            transaction.price.currency, self.reporting_currency
-        )
-        fee_native_rate = rates.get_rate(
-            transaction.fee.currency, transaction.price.currency
-        )
-        fee_reporting_rate = rates.get_rate(
-            transaction.fee.currency, self.reporting_currency
-        )
-
+    def _process_buy(self, transaction: ConvertedTransaction) -> None:
         lot = TaxLot(
             transaction_id=transaction.id,
             executed_at=transaction.executed_at,
             original_quantity=transaction.quantity,
             remaining_quantity=transaction.quantity,
-            price=DualMoney(
-                native=transaction.price,
-                reporting=Money(
-                    transaction.price.amount * price_reporting_rate,
-                    self.reporting_currency,
-                ),
-            ),
-            fee=DualMoney(
-                native=Money(
-                    transaction.fee.amount * fee_native_rate, self.native_currency
-                ),
-                reporting=Money(
-                    transaction.fee.amount * fee_reporting_rate, self.reporting_currency
-                ),
-            ),
+            price=transaction.price,
+            fee=transaction.fee,
         )
         self._lots.append(lot)
 
-    def _process_sell(self, transaction: Transaction) -> None:
+    def _process_sell(self, transaction: ConvertedTransaction) -> None:
         if transaction.quantity > self.quantity:
             raise ValueError(
                 f"Short selling protection: Selling {transaction.quantity} but only holding {self.quantity}"

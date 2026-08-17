@@ -2,9 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from portfolio_tracker.application.views.shared import MoneyView
 from portfolio_tracker.domain.transaction import TransactionType
-
-from portfolio_tracker.application.shared.dtos import MoneyDto
 
 
 @dataclass(frozen=True)
@@ -14,10 +13,10 @@ class TransactionPayloadDto:
     type: TransactionType
     instrument_id: str | None
     quantity: Decimal
-    price: MoneyDto
-    fee: MoneyDto
-    tax: MoneyDto
-    cash_impact: MoneyDto
+    price: MoneyView
+    fee: MoneyView
+    tax: MoneyView
+    cash_impact: MoneyView
     correlation_id: str | None
 
 

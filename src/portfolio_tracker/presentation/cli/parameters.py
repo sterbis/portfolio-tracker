@@ -1,9 +1,9 @@
-from datetime import datetime, date, timezone
+from datetime import date, datetime, timezone
 from enum import StrEnum
 from typing import Any, Callable
 
 import click
-from filterutils import Filter, FilterExpressionParser, FilterError
+from filterutils import Filter, FilterError, FilterExpressionParser
 
 from portfolio_tracker.bootstrap import ApplicationContext
 
@@ -71,7 +71,9 @@ class DateParameterType(click.ParamType[date]):
         if formats:
             mesage = f"Invalid date format '{value}'. Supported formats: {', '.join(formats)} or ISO 8601 format (YYYY-MM-DD)."
         else:
-            mesage = f"Invalid date format '{value}'. Expected ISO 8601 format (YYYY-MM-DD)."
+            mesage = (
+                f"Invalid date format '{value}'. Expected ISO 8601 format (YYYY-MM-DD)."
+            )
 
         self.fail(mesage, param, ctx)
 
@@ -83,8 +85,14 @@ class DateParameterType(click.ParamType[date]):
 class FilterParameterType(click.ParamType[Filter]):
     name = "filter"
 
-    def __init__(self, field: str, value_parser: Callable[[str], Any] | None = None) -> None:
-        self._field = field
+    def __init__(
+        self,
+        model: type,
+        field_name: str,
+        value_parser: Callable[[str], Any] | None = None,
+    ) -> None:
+        self._model = model
+        self._field_name = field_name
         self._value_parser = value_parser
 
     def convert(
@@ -93,13 +101,24 @@ class FilterParameterType(click.ParamType[Filter]):
         if isinstance(value, Filter):
             return value
 
+        value = str(value)
+        if isinstance(self._value_parser, StrEnum):
+            value = value.upper()
+
         try:
-            return FilterExpressionParser.parse(self._field, str(value), self._value_parser)
+            return FilterExpressionParser.parse(
+                field=self._field_name,
+                expression=value,
+                item_type=self._model,
+                value_parser=self._value_parser,
+            )
         except FilterError as error:
             self.fail(str(error), param, ctx)
 
     def get_metavar(self, param: click.Parameter, ctx: click.Context) -> str:
-        if isinstance(self._value_parser, type) and issubclass(self._value_parser, StrEnum):
+        if isinstance(self._value_parser, type) and issubclass(
+            self._value_parser, StrEnum
+        ):
             return f"[{'|'.join(value.upper() for value in self._value_parser)}]"
 
-        return f"[{self._field.upper()} EXPRESSION]"
+        return f"[{self._field_name.upper()} EXPRESSION]"

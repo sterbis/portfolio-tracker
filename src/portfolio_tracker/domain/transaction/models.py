@@ -1,11 +1,11 @@
 import hashlib
 import uuid
-from dataclasses import dataclass, field, InitVar
+from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
 
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import DualMoney, Money
 
 
 class TransactionType(StrEnum):
@@ -23,7 +23,7 @@ class TransactionType(StrEnum):
     WITHDRAWAL = "WITHDRAWAL"
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class Transaction:
     id: str = field(default_factory=lambda: f"tr_{uuid.uuid4().hex[:16]}")
     correlation_id: str | None = None
@@ -77,3 +77,19 @@ class Transaction:
             )
 
         object.__setattr__(self, "checksum", checksum)
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ConvertedTransaction:
+    id: str
+    correlation_id: str | None
+    checksum: str
+    asset_account_id: str
+    executed_at: datetime
+    type: TransactionType
+    instrument_id: str | None
+    quantity: Decimal
+    price: DualMoney
+    fee: DualMoney
+    tax: DualMoney
+    cash_impact: DualMoney

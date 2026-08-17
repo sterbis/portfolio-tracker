@@ -7,8 +7,10 @@ from filterutils import Filter, FilterNode, Operator
 from portfolio_tracker.application.persistence import MarketDataRepository
 from portfolio_tracker.application.shared.order_by import OrderBy
 from portfolio_tracker.domain.market_data import StockSplits
-
-from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor, Row
+from portfolio_tracker.infrastructure.persistence.sqlite.executor import (
+    Row,
+    SqliteExecutor,
+)
 from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
 
 
@@ -19,7 +21,7 @@ class SqliteMarketDataRepository(MarketDataRepository):
     def ensure_stock_splits(self, splits: StockSplits) -> None:
         for executed_at, ratio in splits.splits.items():
             self._executor.insert_on_conflict_do_nothing(
-                entity=StockSplits,
+                model=StockSplits,
                 values={
                     "instrument_id": splits.instrument_id,
                     "executed_at": executed_at,
@@ -38,9 +40,9 @@ class SqliteMarketDataRepository(MarketDataRepository):
             FieldReference(StockSplits, "executed_at"),
             FieldReference(StockSplits, "ratio"),
         ]
-        
+
         rows = self._executor.select(
-            entity=StockSplits,
+            model=StockSplits,
             fields=fields,
             filter_=filter_,
             order_by_list=[
@@ -58,7 +60,9 @@ class SqliteMarketDataRepository(MarketDataRepository):
 
         return list(
             self.get_stock_splits(
-                filter_=FilterNode("instrument_id", Operator.IN, instrument_ids),
+                filter_=FilterNode(
+                    "instrument_id", Operator.IN, instrument_ids, StockSplits
+                ),
             )
         )
 
@@ -68,7 +72,7 @@ class SqliteMarketDataRepository(MarketDataRepository):
             FieldReference(StockSplits, "executed_at"),
             FieldReference(StockSplits, "ratio"),
         ]
-        
+
         current_instrument_id = None
         accumulated_splits: dict[datetime, Decimal] = {}
 

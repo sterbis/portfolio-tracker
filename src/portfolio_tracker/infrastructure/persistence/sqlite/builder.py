@@ -5,18 +5,18 @@ from filterutils import ColumnMap, Filter, UniqueNameGenerator
 
 from portfolio_tracker.application.shared.order_by import OrderBy
 
-from .registry import ColumnReference, Entity, EntityResolver, FieldReference
+from .registry import ColumnReference, FieldReference, Model, SchemaResolver
 
 
 class SqliteStatementBuilder:
-    def __init__(self, resolver: EntityResolver) -> None:
+    def __init__(self, resolver: SchemaResolver) -> None:
         self._resolver = resolver
 
     def insert(
-        self, entity: Entity, values: dict[str, Any]
+        self, model: Model, values: dict[str, Any]
     ) -> tuple[str, dict[str, Any]]:
-        table = self._resolver.get_table_name(entity)
-        parameters = self._values_to_parameters(entity, values)
+        table = self._resolver.get_table_name(model)
+        parameters = self._values_to_parameters(model, values)
         columns = parameters.keys()
 
         sql = f"""
@@ -28,16 +28,16 @@ class SqliteStatementBuilder:
 
     def insert_on_conflict_do_nothing(
         self,
-        entity: Entity,
+        model: Model,
         values: dict[str, Any],
         conflict_field_names: Iterable[str],
     ) -> tuple[str, dict[str, Any]]:
-        table_name = self._resolver.get_table_name(entity)
-        parameters = self._values_to_parameters(entity, values)
+        table_name = self._resolver.get_table_name(model)
+        parameters = self._values_to_parameters(model, values)
 
         insert_column_names = parameters.keys()
         conflict_column_names = [
-            self._field_to_column_name(entity, field_name)
+            self._field_to_column_name(model, field_name)
             for field_name in conflict_field_names
         ]
 
@@ -51,7 +51,7 @@ class SqliteStatementBuilder:
 
     def select(
         self,
-        entity: Entity,
+        model: Model,
         *,
         fields: list[FieldReference] | None = None,
         include_parents: bool = False,
@@ -61,8 +61,8 @@ class SqliteStatementBuilder:
         limit: int | None = None,
         offset: int | None = None,
     ) -> tuple[str, dict[str, Any], dict[ColumnReference, list[FieldReference]]]:
-        select_fields = fields or self._resolver.get_entity_fields(
-            entity, include_parents
+        select_fields = fields or self._resolver.get_model_fields(
+            model, include_parents
         )
 
         select_columns: dict[ColumnReference, list[FieldReference]] = {}
@@ -74,7 +74,7 @@ class SqliteStatementBuilder:
         if filter_:
             for filter_node in filter_.iter_children():
                 if filter_node.item_type is None:
-                    raise ValueError(f"Missing filter entity reference. {filter_node}")
+                    raise ValueError(f"Missing filter model reference. {filter_node}")
 
                 field = FieldReference(filter_node.item_type, filter_node.field)
                 column = self._resolver.get_column(field)
@@ -87,10 +87,14 @@ class SqliteStatementBuilder:
                 column = self._resolver.get_column(field)
                 order_by_columns[column] = order_by.direction
 
-        all_columns = select_columns.keys() | filter_columns.keys() | order_by_columns.keys()
+        all_columns = (
+            select_columns.keys() | filter_columns.keys() | order_by_columns.keys()
+        )
 
-        root_table = self._resolver.get_table(entity)
-        joined_tables = {column.table for column in all_columns if column.table != root_table}
+        root_table = self._resolver.get_table(model)
+        joined_tables = {
+            column.table for column in all_columns if column.table != root_table
+        }
 
         require_join = bool(joined_tables)
 
@@ -129,7 +133,9 @@ class SqliteStatementBuilder:
 
         if filter_:
             column_map: ColumnMap = {
-                (field.entity, field.name): column.qualified_name if require_join else column.name
+                (field.model, field.name): (
+                    column.qualified_name if require_join else column.name
+                )
                 for column, fields in filter_columns.items()
                 for field in fields
             }
@@ -159,10 +165,10 @@ class SqliteStatementBuilder:
         return sql, parameters, select_columns
 
     def update(
-        self, entity: Entity, values: dict[str, Any], filter_: Filter
+        self, model: Model, values: dict[str, Any], filter_: Filter
     ) -> tuple[str, dict[str, Any]]:
-        table_name = self._resolver.get_table_name(entity)
-        value_parameters = self._values_to_parameters(entity, values)
+        table_name = self._resolver.get_table_name(model)
+        value_parameters = self._values_to_parameters(model, values)
         value_column_names = value_parameters.keys()
 
         filter_sql, filter_parameters = filter_.to_sql(
@@ -179,10 +185,8 @@ class SqliteStatementBuilder:
         parameters = value_parameters | filter_parameters
         return sql, parameters
 
-    def delete(
-        self, entity: Entity, filter_: Filter
-    ) -> tuple[str, dict[str, Any]]:
-        table_name = self._resolver.get_table_name(entity)
+    def delete(self, model: Model, filter_: Filter) -> tuple[str, dict[str, Any]]:
+        table_name = self._resolver.get_table_name(model)
         filter_sql, filter_parameters = filter_.to_sql(
             column_map=self._get_filter_column_map(filter_)
         )
@@ -201,7 +205,7 @@ class SqliteStatementBuilder:
 
         for filter_node in filter_.iter_children():
             if filter_node.item_type is None:
-                raise ValueError(f"Missing filter entity reference. {filter_node}")
+                raise ValueError(f"Missing filter model reference. {filter_node}")
 
             column_name = self._resolver.get_column_name(
                 field_=FieldReference(filter_node.item_type, filter_node.field),
@@ -213,18 +217,18 @@ class SqliteStatementBuilder:
 
     def _values_to_parameters(
         self,
-        entity: Entity,
+        model: Model,
         values: dict[str, Any],
         qualified: bool = False,
     ) -> dict[str, Any]:
         return {
-            self._field_to_column_name(entity, field_name, qualified): value
+            self._field_to_column_name(model, field_name, qualified): value
             for field_name, value in values.items()
         }
 
     def _field_to_column_name(
-        self, entity: Entity, field_name: str, qualified: bool = False
+        self, model: Model, field_name: str, qualified: bool = False
     ) -> str:
         return self._resolver.get_column_name(
-            FieldReference(entity, field_name), qualified=qualified
+            FieldReference(model, field_name), qualified=qualified
         )

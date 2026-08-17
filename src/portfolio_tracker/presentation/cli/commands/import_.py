@@ -9,7 +9,6 @@ from portfolio_tracker.bootstrap import ApplicationContext
 from portfolio_tracker.presentation.cli.ui.progress import render_sync_progress
 from portfolio_tracker.shared.async_utils import as_async_generator
 
-
 import_app = typer.Typer()
 
 
@@ -27,4 +26,9 @@ def import_report(
     command = ImportReportCommand(
         institution_account_id=account_id, report_path=report_path
     )
-    asyncio.run(render_sync_progress(as_async_generator, sync_service.import_report(context.active_user_id, command)))
+    asyncio.run(
+        render_sync_progress(
+            as_async_generator,
+            sync_service.import_report(context.active_user_id, command),
+        )
+    )

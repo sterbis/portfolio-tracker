@@ -12,7 +12,7 @@ class InstitutionAccount:
     institution_id: InstitutionId
     name: str
     created_on: date
-    last_synced_at: datetime | None
+    last_synced_at: datetime | None = None
     id: str = field(default_factory=lambda: f"inst_acc_{uuid.uuid4().hex[:16]}")
 
     def with_last_synced_at(self, last_synced_at: datetime) -> InstitutionAccount:
@@ -72,12 +72,16 @@ class UserAccountsMap:
         return self.all_asset_account_ids - self.deactivated_asset_account_ids
 
     def add_asset_account(self, account: AssetAccount) -> None:
-        self.asset_to_institution_account_id[account.id] = account.institution_account_id
+        self.asset_to_institution_account_id[account.id] = (
+            account.institution_account_id
+        )
         self.asset_to_external_account_id[account.id] = account.external_id
         self.institution_to_asset_account_ids[account.institution_account_id].add(
             account.id
         )
-        self.instituion_to_external_account_ids[account.institution_account_id].add(account.external_id)
+        self.instituion_to_external_account_ids[account.institution_account_id].add(
+            account.external_id
+        )
         self.external_to_asset_account_id[account.external_id] = account.id
 
     def resolve_institution_account_ids(

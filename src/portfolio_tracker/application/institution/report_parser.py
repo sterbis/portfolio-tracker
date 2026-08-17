@@ -6,11 +6,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from portfolio_tracker.application.shared.exceptions import InstitutionReportParserError
 from portfolio_tracker.domain.instrument import InstrumentType
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import TransactionType
-
-from portfolio_tracker.application.shared.exceptions import InstitutionReportParserError
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,16 @@ from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
 
+PERSISTED_MODEL_TYPES = (
+    User,
+    InstitutionAccount,
+    AssetAccount,
+    Instrument,
+    Transaction,
+    FxRates,
+    StockSplits,
+)
+
 
 class UserRepository(ABC):
     @abstractmethod

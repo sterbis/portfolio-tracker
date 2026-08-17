@@ -7,16 +7,19 @@ from portfolio_tracker.application.account import (
     AccountCommandService,
     AccountQueryService,
 )
-from portfolio_tracker.application.shared.exceptions import UserNotLoggedInError
 from portfolio_tracker.application.fx import FxService
 from portfolio_tracker.application.market_data import MarketDataService
+from portfolio_tracker.application.persistence import PERSISTED_MODEL_TYPES
 from portfolio_tracker.application.portfolio import PortfolioQueryService
+from portfolio_tracker.application.shared.exceptions import UserNotLoggedInError
+from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.sync import SyncService
 from portfolio_tracker.application.transaction import (
     TransactionCommandService,
     TransactionQueryService,
 )
 from portfolio_tracker.application.user import UserService
+from portfolio_tracker.application.views import VIEW_REGISTRY, ViewBuilder
 from portfolio_tracker.domain.portfolio import PortfolioBuilder, PortfolioEvaluator
 from portfolio_tracker.domain.portfolio.cash_balance import CashBalanceEvaluator
 from portfolio_tracker.domain.portfolio.position import PositionEvaluator
@@ -24,9 +27,7 @@ from portfolio_tracker.domain.transaction import TransactionAdjuster
 from portfolio_tracker.infrastructure.encryption import FernetEncryptor
 from portfolio_tracker.infrastructure.fx import FrankfurterClient
 from portfolio_tracker.infrastructure.institution import (
-    create_client,
-    create_parser,
-    create_registry,
+    create_institution_registry,
 )
 from portfolio_tracker.infrastructure.market_data import YahooFinanceClient
 from portfolio_tracker.infrastructure.persistence.sqlite import SqliteSessionFactory
@@ -76,10 +77,12 @@ def bootstrap_app(active_user_id: str | None = None) -> ApplicationContext:
 
     encryptor = FernetEncryptor(encryption_key)
 
-    institution_registry = create_registry()
+    institution_registry = create_institution_registry()
 
     session_factory = SqliteSessionFactory(
-        sqlite_db_path, encryptor, institution_registry
+        database=sqlite_db_path,
+        encryptor=encryptor,
+        institution_registry=institution_registry,
     )
 
     fx_client = FrankfurterClient()
@@ -92,7 +95,10 @@ def bootstrap_app(active_user_id: str | None = None) -> ApplicationContext:
     market_data_client = YahooFinanceClient()
     market_data_service = MarketDataService(market_data_client)
 
+    filter_mapper = FilterMapper(registry=VIEW_REGISTRY)
+    filter_splitter = FilterSplitter(persisted_model_types=PERSISTED_MODEL_TYPES)
     transaction_adjuster = TransactionAdjuster()
+    view_builder = ViewBuilder()
 
     context = ApplicationContext(active_user_id)
     context.register(
@@ -100,13 +106,15 @@ def bootstrap_app(active_user_id: str | None = None) -> ApplicationContext:
         AccountCommandService(
             session_factory=session_factory,
             institution_registry=institution_registry,
-            client_factory=create_client,
         ),
     )
     context.register(
         AccountQueryService,
         AccountQueryService(
             session_factory=session_factory,
+            filter_mapper=filter_mapper,
+            filter_splitter=filter_splitter,
+            view_builder=view_builder,
             institution_registry=institution_registry,
         ),
     )
@@ -114,8 +122,11 @@ def bootstrap_app(active_user_id: str | None = None) -> ApplicationContext:
     context.register(
         PortfolioQueryService,
         PortfolioQueryService(
-            institution_registry=institution_registry,
             session_factory=session_factory,
+            filter_mapper=filter_mapper,
+            filter_splitter=filter_splitter,
+            view_builder=view_builder,
+            institution_registry=institution_registry,
             transaction_adjuster=transaction_adjuster,
             portfolio_builder=PortfolioBuilder(),
             portfolio_evaluator=PortfolioEvaluator(
@@ -130,10 +141,9 @@ def bootstrap_app(active_user_id: str | None = None) -> ApplicationContext:
         SyncService,
         SyncService(
             session_factory=session_factory,
+            institution_registry=institution_registry,
             fx_service=fx_service,
             market_data_service=market_data_service,
-            client_factory=create_client,
-            parser_factory=create_parser,
         ),
     )
     context.register(
@@ -145,8 +155,11 @@ def bootstrap_app(active_user_id: str | None = None) -> ApplicationContext:
     context.register(
         TransactionQueryService,
         TransactionQueryService(
-            institution_registry=institution_registry,
             session_factory=session_factory,
+            filter_mapper=filter_mapper,
+            filter_splitter=filter_splitter,
+            view_builder=view_builder,
+            institution_registry=institution_registry,
             transaction_adjuster=transaction_adjuster,
         ),
     )

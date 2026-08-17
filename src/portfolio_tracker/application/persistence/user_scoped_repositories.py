@@ -182,7 +182,7 @@ class UserScopedTransactionRepository(UserScopedRepository):
         self,
         institution_account_ids: set[str] | None = None,
         asset_account_ids: set[str] | None = None,
-        filter_: Filter | None = None
+        filter_: Filter | None = None,
     ) -> set[date]:
         return self._transaction_repository.get_distinct_dates(
             filter_=self._get_user_scoped_filter(
@@ -196,7 +196,7 @@ class UserScopedTransactionRepository(UserScopedRepository):
         self,
         institution_account_ids: set[str] | None = None,
         asset_account_ids: set[str] | None = None,
-        filter_: Filter | None = None
+        filter_: Filter | None = None,
     ) -> set[str]:
         return self._transaction_repository.get_distinct_instrument_ids(
             filter_=self._get_user_scoped_filter(

@@ -1,16 +1,11 @@
 import json
-from dataclasses import asdict
 from typing import Any
-
-from filterutils import FilterNode, Operator
 
 from portfolio_tracker.application.encryption import Encryptor
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import CredentialsStore
-from portfolio_tracker.domain.account import InstitutionAccount
 from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
-from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
 
 
 class SqliteCredentialsRepository(CredentialsStore):
@@ -24,57 +19,52 @@ class SqliteCredentialsRepository(CredentialsStore):
         self._encryptor = encryptor
         self._executor = executor
 
-    def store(self, institution_account_id: str, credentials: Credentials) -> None:
-        json_string = json.dumps(asdict(credentials))
-        encrypted_value = self._encryptor.encrypt(json_string)
+    def store(self, credentials: Credentials) -> None:
+        json_string = json.dumps(credentials.parameters)
+        encrypted_parameters = self._encryptor.encrypt(json_string)
 
-        inserted = self._executor.insert_on_conflict_do_nothing(
-            entity=Credentials,
-            values={
-                "institution_account_id": institution_account_id,
-                "encrypted_value": encrypted_value,
+        self._executor.execute(
+            sql="""
+                INSERT INTO credentials (institution_id, institution_account_id, encrypted_parameters)
+                VALUES (:institution_id, :institution_account_id, :encrypted_parameters)
+                ON CONFLICT(institution_account_id) DO UPDATE SET
+                encrypted_parameters = EXCLUDED.encrypted_parameters;
+            """,
+            parameters={
+                "institution_id": credentials.institution_id,
+                "institution_account_id": credentials.institution_account_id,
+                "encrypted_parameters": encrypted_parameters,
             },
-            conflict_field_names=["institution_account_id"],
         )
-
-        if not inserted:
-            self._executor.update(
-                entity=Credentials,
-                values={
-                    "encrypted_value": encrypted_value,
-                },
-                filter_=FilterNode(
-                    "id", Operator.EQ, institution_account_id, InstitutionAccount
-                ),
-            )
 
     def retrieve(self, institution_account_id: str) -> Credentials | None:
-        references = [
-            FieldReference(Credentials, "institution_id"),
-            FieldReference(Credentials, "encrypted_value"),
-        ]
-
-        row = self._executor.select_one(
-            entity=Credentials,
-            fields=references,
-            filter_=FilterNode(
-                "id", Operator.EQ, institution_account_id, InstitutionAccount
-            ),
+        cursor = self._executor.execute(
+            sql="""
+                SELECT institution_id, encrypted_parameters FROM credentials
+                WHERE institution_account_id = :institution_account_id;
+            """,
+            parameters={"institution_account_id": institution_account_id},
         )
 
-        if not row:
+        row = cursor.fetchone()
+        if row is None:
             return None
 
-        institution_id, encrypted_value = row.unpack(*references)
-        json_string = self._encryptor.decrypt(encrypted_value)
-        data: dict[str, Any] = json.loads(json_string)
+        institution_id = self._institution_registry.get_institution_id(row[0])
+        encrypted_parameters = row[1]
 
-        return self._institution_registry.create_credentials(institution_id, data)
+        json_string = self._encryptor.decrypt(encrypted_parameters)
+        parameters: dict[str, Any] = json.loads(json_string)
+
+        return self._institution_registry.create_credentials(
+            institution_id, institution_account_id, parameters
+        )
 
     def remove(self, institution_account_id: str) -> None:
-        self._executor.delete(
-            entity=Credentials,
-            filter_=FilterNode(
-                "id", Operator.EQ, institution_account_id, InstitutionAccount
-            ),
+        self._executor.execute(
+            sql="""
+                DELETE FROM credentials
+                WHERE institution_account_id = :institution_account_id;
+            """,
+            parameters={"institution_account_id": institution_account_id},
         )

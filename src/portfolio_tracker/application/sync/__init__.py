@@ -1,12 +1,17 @@
-from .commands import ImportReportCommand, SyncInstitutionAccountsCommand, SyncFxRatesCommand, SyncInstrumentsCommand
+from .commands import (
+    ImportReportCommand,
+    SyncFxRatesCommand,
+    SyncInstitutionAccountsCommand,
+    SyncInstrumentsCommand,
+)
 from .events import (
-    InstitutionAccountSyncCompleted,
-    InstitutionAccountSyncFailed,
-    InstitutionAccountSyncStarted,
     FxSyncCompleted,
     FxSyncFailed,
     FxSyncProgress,
     FxSyncStarted,
+    InstitutionAccountSyncCompleted,
+    InstitutionAccountSyncFailed,
+    InstitutionAccountSyncStarted,
     InstrumentsSyncCompleted,
     InstrumentsSyncFailed,
     InstrumentsSyncProgress,

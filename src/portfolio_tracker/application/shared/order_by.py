@@ -2,7 +2,6 @@ import operator
 from dataclasses import dataclass
 from typing import Literal, Sequence, TypeVar
 
-
 TItem = TypeVar("TItem")
 
 

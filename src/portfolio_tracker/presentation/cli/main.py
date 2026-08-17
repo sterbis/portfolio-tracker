@@ -6,7 +6,7 @@ from types import TracebackType
 import typer
 
 from portfolio_tracker.application.shared.exceptions import ApplicationError
-from portfolio_tracker.bootstrap import bootstrap_app, ApplicationContext
+from portfolio_tracker.bootstrap import ApplicationContext, bootstrap_app
 
 from .commands import (
     account_app,

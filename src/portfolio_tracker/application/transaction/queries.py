@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
-from typing import Literal
 
 from filterutils import Filter
+
+from portfolio_tracker.application.shared.order_by import OrderBy
 
 
 @dataclass(frozen=True)
@@ -13,4 +14,4 @@ class GetTransactionsQuery:
     filter: Filter | None = None
     limit: int | None = None
     offset: int | None = None
-    order_by: list[tuple[str, Literal["ASC", "DESC"]]] | None = None
+    order_by_list: list[OrderBy] | None = None

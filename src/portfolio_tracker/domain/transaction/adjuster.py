@@ -46,5 +46,4 @@ class TransactionAdjuster:
             transaction,
             quantity=transaction.quantity * multiplier,
             price=transaction.price / multiplier,
-            _checksum=None,
         )

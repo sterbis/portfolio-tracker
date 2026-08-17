@@ -9,7 +9,9 @@ class ApplicationError(Exception):
     _message_template = "{message}"
 
     def __init__(self, **kwargs: Any) -> None:
-        self.metadata = kwargs or {"message": "An undefined application error occurred."}
+        self.metadata = kwargs or {
+            "message": "An undefined application error occurred."
+        }
         super().__init__(self.message)
 
     @property
@@ -30,19 +32,23 @@ class ClientError(ApplicationError):
 class DataIntegrityError(ApplicationError): ...
 
 
-class EntityNotFoundError(ApplicationError):
-    _message_template = "{entity_name} with ID {entity_id} not found."
-
-    def __init__(self, entity_name: str, entity_id: str | set[str]) -> None:
-        if isinstance(entity_id, set):
-            entity_id = ", ".join(entity_id)
-
-        super().__init__(entity_name=entity_name, entity_id=entity_id)
+class InvalidFilterError(ApplicationError):
+    _message_template = "Cannot split OR filter tree combining persisted fields and in-memory computed fields."
 
 
-class AssetAccountNotFoundError(EntityNotFoundError):
+class ModelNotFoundError(ApplicationError):
+    _message_template = "{model_name} with ID {model_id} not found."
+
+    def __init__(self, model_name: str, model_id: str | set[str]) -> None:
+        if isinstance(model_id, set):
+            model_id = ", ".join(model_id)
+
+        super().__init__(model_name=model_name, model_id=model_id)
+
+
+class AssetAccountNotFoundError(ModelNotFoundError):
     def __init__(self, account_id: str | set[str]) -> None:
-        super().__init__(entity_name="Asset account", entity_id=account_id)
+        super().__init__(model_name="Asset account", model_id=account_id)
 
 
 class AssetAccountAlreadyHasStatusError(ApplicationError):
@@ -61,9 +67,9 @@ class AssetAccountAlreadyDeactivatedError(AssetAccountAlreadyHasStatusError):
     _status = "deactivated"
 
 
-class InstitutionAccountNotFoundError(EntityNotFoundError):
+class InstitutionAccountNotFoundError(ModelNotFoundError):
     def __init__(self, account_id: str | set[str]) -> None:
-        super().__init__(entity_name="Institution account", entity_id=account_id)
+        super().__init__(model_name="Institution account", model_id=account_id)
 
 
 class CredentialsNotFoundError(ApplicationError):
@@ -76,11 +82,12 @@ class CredentialsNotFoundError(ApplicationError):
 class InvalidCredentialsError(ApplicationError):
     _message_template = "Cannot connect to institution {institution_id} API with provided credentials:\n{credentials}."
 
-    def __init__(self, institution_id: InstitutionId, credentials: Credentials) -> None:
+    def __init__(self, credentials: Credentials) -> None:
         super().__init__(
-            institution_id=institution_id,
+            institution_id=credentials.institution_id,
             credentials=pformat(asdict(credentials), sort_dicts=False),
         )
+
 
 class InvalidUsernameOrPasswordError(ApplicationError):
     _message_template = "Invalid username or password."
@@ -113,10 +120,9 @@ class InstitutionReportNotFoundError(ApplicationError): ...
 class InstitutionReportParserError(ApplicationError): ...
 
 
-class InstitutionNotFoundError(EntityNotFoundError):
+class InstitutionNotFoundError(ModelNotFoundError):
     def __init__(self, institution_id: InstitutionId | set[str]) -> None:
-        entity_id = institution_id.value if isinstance(institution_id, InstitutionId) else institution_id
-        super().__init__(entity_name="Institution", entity_id=entity_id)
+        super().__init__(model_name="Institution", model_id=institution_id)
 
 
 class MarketDataClientError(ClientError): ...
@@ -133,9 +139,9 @@ class TransactionAlreadyExistsError(ApplicationError):
     _message_template = "Transaction with ID {transaction_id} already exists."
 
 
-class TransactionNotFoundError(EntityNotFoundError):
+class TransactionNotFoundError(ModelNotFoundError):
     def __init__(self, transaction_id: str | set[str]) -> None:
-        super().__init__(entity_name="Transaction", entity_id=transaction_id)
+        super().__init__(model_name="Transaction", model_id=transaction_id)
 
 
 class UsernameAlreadyExistsError(ApplicationError):

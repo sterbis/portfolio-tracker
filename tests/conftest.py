@@ -11,8 +11,6 @@ from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.institution import Institution
 from portfolio_tracker.domain.instrument import Stock
 from portfolio_tracker.domain.market_data import StockSplits
-from portfolio_tracker.domain.shared import Money
-from portfolio_tracker.domain.transaction import Transaction, TransactionType
 from portfolio_tracker.domain.user import User
 
 from .mocks import (
@@ -25,21 +23,25 @@ from .mocks import (
 @pytest.fixture(scope="session")
 def sample_institution_registry() -> InstitutionRegistry:
     return InstitutionRegistry(
+        institution_id_cls=MockInstitutionCode,
         institution_map={
             MockInstitutionCode.TRADING_321: Institution(
                 id=MockInstitutionCode.TRADING_321,
                 name="Trading 321",
                 log_in_url="https:\\trading321.com",
-                credentials_cls=Trading321Credentials,
             ),
             MockInstitutionCode.HYPERACTIVE_BROKERS: Institution(
                 id=MockInstitutionCode.HYPERACTIVE_BROKERS,
                 name="Hyperactive Brokers",
                 log_in_url="https:\\hbkr.com",
-                credentials_cls=HyperactiveBrokersCredentials,
             ),
         },
-        institution_id_cls=MockInstitutionCode,
+        credentials_map={
+            MockInstitutionCode.TRADING_321: Trading321Credentials,
+            MockInstitutionCode.HYPERACTIVE_BROKERS: HyperactiveBrokersCredentials,
+        },
+        client_map={},
+        parser_map={},
     )
 
 
@@ -91,9 +93,6 @@ def googl_stock() -> Stock:
         exchange="NASDAQ",
         currency="USD",
         isin="US02079K3059",
-        last_synced_at=None,
-        _id=None,
-        _checksum=None,
     )
 
 
@@ -105,9 +104,6 @@ def msft_stock() -> Stock:
         exchange="NASDAQ",
         currency="USD",
         isin="US5949181045",
-        last_synced_at=None,
-        _id=None,
-        _checksum=None,
     )
 
 
@@ -119,9 +115,6 @@ def aapl_stock() -> Stock:
         exchange="NASDAQ",
         currency="USD",
         isin="US0378331005",
-        last_synced_at=None,
-        _id=None,
-        _checksum=None,
     )
 
 
@@ -133,24 +126,6 @@ def nvda_stock() -> Stock:
         exchange="NASDAQ",
         currency="USD",
         isin="US67066G1040",
-        last_synced_at=None,
-        _id=None,
-        _checksum=None,
-    )
-
-
-@pytest.fixture(scope="session")
-def sample_buy_transaction() -> Transaction:
-    return Transaction(
-        executed_at=datetime(2026, 6, 1, 9, 15, 0, tzinfo=timezone.utc),
-        asset_account_id="ast_acc_001",
-        type=TransactionType.BUY,
-        instrument_id="instr_001",
-        quantity=Decimal("10"),
-        price=Money(Decimal("100.50"), "USD"),
-        fee=Money(Decimal("5"), "USD"),
-        tax=Money.zero("USD"),
-        cash_impact=Money(Decimal("-1010.00"), "USD"),
     )
 
 
@@ -159,7 +134,7 @@ def sample_rates() -> FxRates:
     return FxRates(
         effective_on=date(2026, 6, 1),
         base_currency="USD",
-        base_rates={
+        rates={
             "EUR": Decimal("0.90"),
             "CZK": Decimal("23.00"),
         },

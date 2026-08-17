@@ -1,8 +1,7 @@
 from typing import Any, TypeVar
 
-from portfolio_tracker.domain.institution import Credentials, Institution, InstitutionId
-
 from portfolio_tracker.application.shared.exceptions import InstitutionNotFoundError
+from portfolio_tracker.domain.institution import Credentials, Institution, InstitutionId
 
 from .client import InstitutionClient
 from .report_parser import InstitutionReportParser
@@ -28,21 +27,23 @@ class InstitutionRegistry:
     def get_institution(self, institution_id: InstitutionId) -> Institution:
         return self._get(self._institutions, institution_id)
 
-    def get_institution_id(self, institution_code: str) -> InstitutionId:
-        return self._institution_id_cls(institution_code)
+    def get_institution_id(self, institution_id_string: str) -> InstitutionId:
+        return self._institution_id_cls(institution_id_string)
 
     def create_credentials(
-        self, institution_id: InstitutionId, data: dict[str, Any]
+        self,
+        institution_id: InstitutionId,
+        institution_account_id: str,
+        parameters: dict[str, Any],
     ) -> Credentials:
         return self._get(self._credentials_map, institution_id)(
             institution_id=institution_id,
-            **data,
+            institution_account_id=institution_account_id,
+            **parameters,
         )
 
-    def create_client(
-        self, institution_id: InstitutionId, credentials: Credentials
-    ) -> InstitutionClient[Any]:
-        credentials_cls = self._get(self._credentials_map, institution_id)
+    def create_client(self, credentials: Credentials) -> InstitutionClient[Any]:
+        credentials_cls = self._get(self._credentials_map, credentials.institution_id)
 
         if not isinstance(credentials, credentials_cls):
             raise TypeError(
@@ -50,7 +51,7 @@ class InstitutionRegistry:
                 f"Expected {credentials_cls.__name__}, got {type(credentials).__name__}."
             )
 
-        return self._get(self._client_map, institution_id)(credentials)
+        return self._get(self._client_map, credentials.institution_id)(credentials)
 
     def create_parser(
         self, institution_id: InstitutionId, institution_account_id: str

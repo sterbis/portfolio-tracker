@@ -1,4 +1,7 @@
-from portfolio_tracker.application.shared.exceptions import TransactionAlreadyExistsError, TransactionNotFoundError
+from portfolio_tracker.application.shared.exceptions import (
+    TransactionAlreadyExistsError,
+    TransactionNotFoundError,
+)
 from portfolio_tracker.application.shared.service import ApplicationService
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction
@@ -10,7 +13,9 @@ from .commands import (
 
 
 class TransactionCommandService(ApplicationService):
-    def create_transaction(self, user_id: str, command: CreateTransactionCommand) -> str:
+    def create_transaction(
+        self, user_id: str, command: CreateTransactionCommand
+    ) -> str:
         payload = command.payload
 
         transaction = Transaction(
@@ -35,7 +40,9 @@ class TransactionCommandService(ApplicationService):
 
         return transaction.id
 
-    def update_transaction(self, user_id: str, command: UpdateTransactionCommand) -> None:
+    def update_transaction(
+        self, user_id: str, command: UpdateTransactionCommand
+    ) -> None:
         with self._user_unit_of_work(user_id) as uow:
             transaction = uow.transactions.get_by_id(command.transaction_id)
             if not transaction:
@@ -53,7 +60,9 @@ class TransactionCommandService(ApplicationService):
                 price=Money(payload.price.amount, payload.price.currency),
                 fee=Money(payload.fee.amount, payload.fee.currency),
                 tax=Money(payload.tax.amount, payload.tax.currency),
-                cash_impact=Money(payload.cash_impact.amount, payload.cash_impact.currency),
+                cash_impact=Money(
+                    payload.cash_impact.amount, payload.cash_impact.currency
+                ),
             )
 
             if updated_transaction.checksum == transaction.checksum:
@@ -62,7 +71,9 @@ class TransactionCommandService(ApplicationService):
                 return
 
             if uow.transactions.exists(updated_transaction):
-                raise TransactionAlreadyExistsError(transaction_id=updated_transaction.id)
+                raise TransactionAlreadyExistsError(
+                    transaction_id=updated_transaction.id
+                )
 
             uow.transactions.remove_by_id(transaction.id)
             uow.transactions.add(updated_transaction)

@@ -13,10 +13,14 @@ from portfolio_tracker.domain.portfolio.position import (
     PositionBuilder,
 )
 from portfolio_tracker.domain.shared import DualMoney, Money
-from portfolio_tracker.domain.transaction import Transaction, TransactionType
+from portfolio_tracker.domain.transaction import (
+    Transaction,
+    TransactionConverter,
+    TransactionType,
+)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def aapl_transactions(
     aapl_stock: Stock, sample_asset_account: AssetAccount
 ) -> list[Transaction]:
@@ -91,16 +95,20 @@ def test_execute_fifo_sell(
     aapl_transactions: list[Transaction],
     rates_by_date: dict[date, FxRates],
 ) -> None:
+    native_currency = "USD"
+    reporting_currency = "CZK"
+
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
-        native_currency="USD",
-        reporting_currency="CZK",
+        native_currency=native_currency,
+        reporting_currency=reporting_currency,
         accounting_method=AccountingMethod.FIFO,
     )
+    converter = TransactionConverter(rates_by_date)
 
     for transaction in aapl_transactions:
-        rates = rates_by_date[transaction.executed_at.date()]
-        builder.add(transaction, rates)
+        converted_transaction = converter.convert(transaction, reporting_currency)
+        builder.add(converted_transaction)
 
     # A. Check remaining volume metrics
     assert builder.quantity == Decimal("10")
@@ -132,16 +140,20 @@ def test_execute_average_cost_sell(
     aapl_transactions: list[Transaction],
     rates_by_date: dict[date, FxRates],
 ) -> None:
+    native_currency = "USD"
+    reporting_currency = "CZK"
+
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
-        native_currency="USD",
-        reporting_currency="CZK",
+        native_currency=native_currency,
+        reporting_currency=reporting_currency,
         accounting_method=AccountingMethod.AVERAGE_COST,
     )
+    converter = TransactionConverter(rates_by_date)
 
     for transaction in aapl_transactions:
-        rates = rates_by_date[transaction.executed_at.date()]
-        builder.add(transaction, rates)
+        converted_transaction = converter.convert(transaction, reporting_currency)
+        builder.add(converted_transaction)
 
     # A. Check remaining volume metrics
     assert builder.quantity == Decimal("10")
@@ -166,17 +178,22 @@ def test_execute_average_cost_sell(
 
 
 def test_position_builder_chronological_order_enforced(
-    aapl_stock: Stock, sample_asset_account: AssetAccount
+    aapl_stock: Stock,
+    sample_asset_account: AssetAccount,
+    rates_by_date: dict[date, FxRates],
 ) -> None:
+    native_currency = "USD"
+    reporting_currency = "CZK"
+
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
-        native_currency="USD",
-        reporting_currency="CZK",
+        native_currency=native_currency,
+        reporting_currency=reporting_currency,
     )
-    rates = FxRates(date(2026, 1, 2), "USD", {"CZK": Decimal("20.0")})
+    converter = TransactionConverter(rates_by_date)
 
     # Add first tx
-    tx1 = Transaction(
+    transaction_1 = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -188,10 +205,11 @@ def test_position_builder_chronological_order_enforced(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("-900"), "USD"),
     )
-    builder.add(tx1, rates)
+    converted_transaction_1 = converter.convert(transaction_1, reporting_currency)
+    builder.add(converted_transaction_1)
 
     # Add out-of-order tx (executed before tx1)
-    tx2 = Transaction(
+    transaction_2 = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -203,23 +221,30 @@ def test_position_builder_chronological_order_enforced(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("-900"), "USD"),
     )
+    converted_transaction_2 = converter.convert(transaction_2, reporting_currency)
+
     with pytest.raises(
         ValueError, match="Tracked transactions must be sorted by datetime"
     ):
-        builder.add(tx2, rates)
+        builder.add(converted_transaction_2)
 
 
 def test_position_builder_instrument_mismatch_raises_error(
-    aapl_stock: Stock, sample_asset_account: AssetAccount
+    aapl_stock: Stock,
+    sample_asset_account: AssetAccount,
+    rates_by_date: dict[date, FxRates],
 ) -> None:
+    native_currency = "USD"
+    reporting_currency = "CZK"
+
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
-        native_currency="USD",
-        reporting_currency="CZK",
+        native_currency=native_currency,
+        reporting_currency=reporting_currency,
     )
-    rates = FxRates(date(2026, 1, 1), "USD", {"CZK": Decimal("20.0")})
+    converter = TransactionConverter(rates_by_date)
 
-    tx = Transaction(
+    transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -231,22 +256,29 @@ def test_position_builder_instrument_mismatch_raises_error(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("-900"), "USD"),
     )
+    converted_transaction = converter.convert(transaction, reporting_currency)
+
     with pytest.raises(ValueError, match="Invalid transaction instrument"):
-        builder.add(tx, rates)
+        builder.add(converted_transaction)
 
 
 def test_position_builder_short_selling_protection(
-    aapl_stock: Stock, sample_asset_account: AssetAccount
+    aapl_stock: Stock,
+    sample_asset_account: AssetAccount,
+    rates_by_date: dict[date, FxRates],
 ) -> None:
+    native_currency = "USD"
+    reporting_currency = "CZK"
+
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
-        native_currency="USD",
-        reporting_currency="CZK",
+        native_currency=native_currency,
+        reporting_currency=reporting_currency,
     )
-    rates = FxRates(date(2026, 1, 1), "USD", {"CZK": Decimal("20.0")})
+    converter = TransactionConverter(rates_by_date)
 
     # 1. Try selling when having 0 holdings
-    tx_sell = Transaction(
+    sell_transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -258,16 +290,18 @@ def test_position_builder_short_selling_protection(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("900"), "USD"),
     )
+    converted_sell_transaction = converter.convert(sell_transaction, reporting_currency)
+
     with pytest.raises(ValueError, match="Short selling protection"):
-        builder.add(tx_sell, rates)
+        builder.add(converted_sell_transaction)
 
     # 2. Buy 5, try to sell 6 (use a fresh builder since the previous failed add mutated self._last_trade_at)
-    builder2 = PositionBuilder(
+    builder_2 = PositionBuilder(
         instrument_id=aapl_stock.id,
-        native_currency="USD",
-        reporting_currency="CZK",
+        native_currency=native_currency,
+        reporting_currency=reporting_currency,
     )
-    tx_buy = Transaction(
+    buy_transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 9, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -279,9 +313,10 @@ def test_position_builder_short_selling_protection(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("-900"), "USD"),
     )
-    builder2.add(tx_buy, rates)
+    converted_buy_transaction = converter.convert(buy_transaction, reporting_currency)
+    builder_2.add(converted_buy_transaction)
 
-    tx_sell_excess = Transaction(
+    excessive_sell_transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 11, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -293,22 +328,31 @@ def test_position_builder_short_selling_protection(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("1080"), "USD"),
     )
+    converted_excessive_sell_transaction = converter.convert(
+        excessive_sell_transaction, reporting_currency
+    )
+
     with pytest.raises(ValueError, match="Short selling protection"):
-        builder2.add(tx_sell_excess, rates)
+        builder_2.add(converted_excessive_sell_transaction)
 
 
 def test_position_builder_closure_and_reopening(
-    aapl_stock: Stock, sample_asset_account: AssetAccount
+    aapl_stock: Stock,
+    sample_asset_account: AssetAccount,
+    rates_by_date: dict[date, FxRates],
 ) -> None:
+    native_currency = "USD"
+    reporting_currency = "CZK"
+
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
-        native_currency="USD",
-        reporting_currency="CZK",
+        native_currency=native_currency,
+        reporting_currency=reporting_currency,
     )
-    rates = FxRates(date(2026, 1, 1), "USD", {"CZK": Decimal("20.0")})
+    converter = TransactionConverter(rates_by_date)
 
     # Buy 5
-    tx_buy = Transaction(
+    buy_transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -320,10 +364,11 @@ def test_position_builder_closure_and_reopening(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("-500"), "USD"),
     )
-    builder.add(tx_buy, rates)
+    converted_buy_transaction = converter.convert(buy_transaction, reporting_currency)
+    builder.add(converted_buy_transaction)
 
     # Sell 5 (Fully closes)
-    tx_sell = Transaction(
+    sell_transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 11, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -335,14 +380,15 @@ def test_position_builder_closure_and_reopening(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("600"), "USD"),
     )
-    builder.add(tx_sell, rates)
+    converted_sell_transaction = converter.convert(sell_transaction, reporting_currency)
+    builder.add(converted_sell_transaction)
 
     snapshot = builder.get_position_snapshot()
     assert snapshot.quantity == Decimal("0")
     assert snapshot.closed_at == datetime(2026, 1, 1, 11, 0, tzinfo=timezone.utc)
 
     # Buy 10 (Reopens)
-    tx_buy2 = Transaction(
+    buy_transaction_2 = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -354,7 +400,10 @@ def test_position_builder_closure_and_reopening(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("-1100"), "USD"),
     )
-    builder.add(tx_buy2, rates)
+    converted_buy_transaction_2 = converter.convert(
+        buy_transaction_2, reporting_currency
+    )
+    builder.add(converted_buy_transaction_2)
 
     snapshot2 = builder.get_position_snapshot()
     assert snapshot2.quantity == Decimal("10")
@@ -365,16 +414,21 @@ def test_position_builder_closure_and_reopening(
 
 
 def test_position_builder_unsupported_tx_type_raises_error(
-    aapl_stock: Stock, sample_asset_account: AssetAccount
+    aapl_stock: Stock,
+    sample_asset_account: AssetAccount,
+    rates_by_date: dict[date, FxRates],
 ) -> None:
+    native_currency = "USD"
+    reporting_currency = "CZK"
+
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
-        native_currency="USD",
-        reporting_currency="CZK",
+        native_currency=native_currency,
+        reporting_currency=reporting_currency,
     )
-    rates = FxRates(date(2026, 1, 1), "USD", {"CZK": Decimal("20.0")})
+    converter = TransactionConverter(rates_by_date)
 
-    tx = Transaction(
+    transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
         asset_account_id=sample_asset_account.id,
@@ -386,5 +440,7 @@ def test_position_builder_unsupported_tx_type_raises_error(
         tax=Money(Decimal("0"), "USD"),
         cash_impact=Money(Decimal("100"), "USD"),
     )
+    converted_transaction = converter.convert(transaction, reporting_currency)
+
     with pytest.raises(ValueError, match="Invalid transaction type"):
-        builder.add(tx, rates)
+        builder.add(converted_transaction)

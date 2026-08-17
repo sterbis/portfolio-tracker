@@ -61,7 +61,9 @@ class FrankfurterClient(FxClient):
             )
 
         except requests.exceptions.RequestException as error:
-            raise FxClientError("Connection interrupted while streaming FX rates.") from error
+            raise FxClientError(
+                "Connection interrupted while streaming FX rates."
+            ) from error
 
         except json.JSONDecodeError as error:
             raise FxClientError("Corrupted JSON data received from FX API.") from error
@@ -101,7 +103,7 @@ class FrankfurterClient(FxClient):
                 yield FxRates(
                     effective_on=date.fromisoformat(date_),
                     base_currency=base_currency,
-                    base_rates={
+                    rates={
                         quote_currency: Decimal(rate)
                         for quote_currency, rate in buffer.pop(date_).items()
                     },
@@ -111,7 +113,7 @@ class FrankfurterClient(FxClient):
             yield FxRates(
                 effective_on=date.fromisoformat(date_),
                 base_currency=base_currency,
-                base_rates={
+                rates={
                     quote_currency: Decimal(rate)
                     for quote_currency, rate in rates.items()
                 },
@@ -131,7 +133,7 @@ class FrankfurterClient(FxClient):
         return FxRates(
             effective_on=date_ or datetime.now(tz=timezone.utc).date(),
             base_currency=base_currency.upper(),
-            base_rates={
+            rates={
                 data["quote"].upper(): Decimal(str(data["rate"]))
                 for data in response.json()
             },
@@ -175,6 +177,4 @@ class FrankfurterClient(FxClient):
             ) from error
 
         except Exception as error:
-            raise FxClientError(
-                f"FX API request '{url}' failed: '{error}'"
-            ) from error
+            raise FxClientError(f"FX API request '{url}' failed: '{error}'") from error

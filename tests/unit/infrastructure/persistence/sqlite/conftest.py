@@ -12,6 +12,13 @@ from portfolio_tracker.infrastructure.persistence.sqlite import (
     open_connection,
     register_mappers,
 )
+from portfolio_tracker.infrastructure.persistence.sqlite.builder import (
+    SqliteStatementBuilder,
+)
+from portfolio_tracker.infrastructure.persistence.sqlite.registry import (
+    SCHEMA_REGISTRY,
+    SchemaResolver,
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -117,3 +124,12 @@ def open_initialized_tmp_db_connection(
             connection.close()
         except sqlite3.Error:
             pass
+
+
+@pytest.fixture
+def statement_builder() -> SqliteStatementBuilder:
+    return SqliteStatementBuilder(
+        resolver=SchemaResolver(
+            registry=SCHEMA_REGISTRY,
+        )
+    )

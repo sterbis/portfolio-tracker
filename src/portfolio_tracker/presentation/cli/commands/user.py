@@ -2,16 +2,18 @@ from typing import Annotated
 
 import typer
 
+from portfolio_tracker.application.shared.exceptions import UserAlreadyLoggedOutError
 from portfolio_tracker.application.user import (
     AuthenticateUserCommand,
-    UserService,
     RegisterUserCommand,
+    UserService,
 )
-from portfolio_tracker.application.shared.exceptions import UserAlreadyLoggedOutError
 from portfolio_tracker.bootstrap import ApplicationContext
 from portfolio_tracker.presentation.cli.console import console
-from portfolio_tracker.presentation.cli.session import delete_login_session, set_login_session
-
+from portfolio_tracker.presentation.cli.session import (
+    delete_login_session,
+    set_login_session,
+)
 
 user_app = typer.Typer()
 
@@ -26,9 +28,7 @@ def register_user(
 ) -> None:
     context: ApplicationContext = ctx.obj
     service = context.get(UserService)
-    service.register(
-        RegisterUserCommand(username=username, password=password)
-    )
+    service.register(RegisterUserCommand(username=username, password=password))
     console.print(f"User '{username}' successfully registered.")
     ctx.invoke(
         login,

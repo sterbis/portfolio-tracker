@@ -6,7 +6,10 @@ from filterutils import Filter, FilterNode, Operator
 from portfolio_tracker.application.persistence import TransactionRepository
 from portfolio_tracker.application.shared.order_by import OrderBy
 from portfolio_tracker.domain.transaction import Transaction, TransactionType
-from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor, Row
+from portfolio_tracker.infrastructure.persistence.sqlite.executor import (
+    Row,
+    SqliteExecutor,
+)
 from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
 
 
@@ -16,13 +19,13 @@ class SqliteTransactionRepository(TransactionRepository):
 
     def add(self, transaction: Transaction) -> None:
         self._executor.insert(
-            entity=Transaction,
+            model=Transaction,
             values=self._transaction_to_values(transaction),
         )
 
     def ensure(self, transaction: Transaction) -> None:
         self._executor.insert_on_conflict_do_nothing(
-            entity=Transaction,
+            model=Transaction,
             values=self._transaction_to_values(transaction),
             conflict_field_names=["checksum"],
         )
@@ -36,7 +39,7 @@ class SqliteTransactionRepository(TransactionRepository):
         offset: int | None = None,
     ) -> list[Transaction]:
         rows = self._executor.select(
-            entity=Transaction,
+            model=Transaction,
             filter_=filter_,
             order_by_list=order_by_list,
             limit=limit,
@@ -46,7 +49,7 @@ class SqliteTransactionRepository(TransactionRepository):
 
     def get_by_id(self, transaction_id: str) -> Transaction | None:
         row = self._executor.select_one(
-            entity=Transaction,
+            model=Transaction,
             filter_=FilterNode("id", Operator.EQ, transaction_id, Transaction),
         )
         return self._row_to_transaction(row) if row else None
@@ -54,7 +57,7 @@ class SqliteTransactionRepository(TransactionRepository):
     def get_distinct_dates(self, filter_: Filter | None = None) -> set[date]:
         executed_at_field = FieldReference(Transaction, "executed_at")
         rows = self._executor.select(
-            entity=Transaction,
+            model=Transaction,
             fields=[executed_at_field],
             distinct=True,
             filter_=filter_,
@@ -64,7 +67,7 @@ class SqliteTransactionRepository(TransactionRepository):
     def get_distinct_instrument_ids(self, filter_: Filter | None = None) -> set[str]:
         instrument_id_field = FieldReference(Transaction, "instrument_id")
         rows = self._executor.select(
-            entity=Transaction,
+            model=Transaction,
             fields=[instrument_id_field],
             distinct=True,
             filter_=filter_,
@@ -73,14 +76,14 @@ class SqliteTransactionRepository(TransactionRepository):
 
     def update(self, transaction: Transaction) -> None:
         self._executor.update(
-            entity=Transaction,
+            model=Transaction,
             values=self._transaction_to_values(transaction),
             filter_=FilterNode("id", Operator.EQ, transaction.id, Transaction),
         )
 
     def remove(self, filter_: Filter) -> None:
         self._executor.delete(
-            entity=Transaction,
+            model=Transaction,
             filter_=filter_,
         )
 
@@ -88,18 +91,22 @@ class SqliteTransactionRepository(TransactionRepository):
         self.remove(filter_=FilterNode("id", Operator.EQ, transaction_id, Transaction))
 
     def remove_by_asset_account_id(self, account_id: str) -> None:
-        self.remove(filter_=FilterNode("asset_account_id", Operator.EQ, account_id, Transaction))
+        self.remove(
+            filter_=FilterNode("asset_account_id", Operator.EQ, account_id, Transaction)
+        )
 
     def exists(self, filter_: Filter) -> bool:
         row = self._executor.select_one(
-            entity=Transaction,
+            model=Transaction,
             fields=[FieldReference(Transaction, "id")],
             filter_=filter_,
         )
         return row is not None
 
     def exists_by_checksum(self, checksum: str) -> bool:
-        return self.exists(filter_=FilterNode("checksum", Operator.EQ, checksum))
+        return self.exists(
+            filter_=FilterNode("checksum", Operator.EQ, checksum, Transaction)
+        )
 
     def _transaction_to_values(self, transaction: Transaction) -> dict[str, Any]:
         return {

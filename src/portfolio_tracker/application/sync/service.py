@@ -2,12 +2,25 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
-from typing import AsyncGenerator, Callable, Generator, Iterator
+from typing import AsyncGenerator, Generator, Iterator
 
-from filterutils import FilterNode, Operator
+from filterutils import Filter, FilterNode, FilterTree, LogicalOperator, Operator
 
-from portfolio_tracker.application.persistence import UserScopedUnitOfWork
+from portfolio_tracker.application.fx import FxService
+from portfolio_tracker.application.institution import (
+    InstitutionRegistry,
+    ReportInstrument,
+    ReportTransaction,
+)
+from portfolio_tracker.application.market_data import (
+    MarketDataService,
+)
+from portfolio_tracker.application.persistence import (
+    SessionFactory,
+    UserScopedUnitOfWork,
+)
 from portfolio_tracker.application.shared.exceptions import (
+    ApplicationError,
     CredentialsNotFoundError,
     FxClientError,
     FxDataIntegrityError,
@@ -16,28 +29,16 @@ from portfolio_tracker.application.shared.exceptions import (
     MarketDataIntegrityError,
 )
 from portfolio_tracker.application.shared.service import ApplicationService
-from portfolio_tracker.application.shared.exceptions import ApplicationError
-from portfolio_tracker.application.fx import FxService
-from portfolio_tracker.application.institution import (
-    InstitutionClient,
-    InstitutionReportParser,
-    ReportInstrument,
-    ReportTransaction,
-)
-from portfolio_tracker.application.market_data import (
-    MarketDataService,
-)
-from portfolio_tracker.application.persistence import SessionFactory
 from portfolio_tracker.domain.account import (
     AssetAccount,
     InstitutionAccount,
 )
-from portfolio_tracker.domain.institution import Credentials, InstitutionId
+from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.domain.instrument import (
     DerivativeInstrumentBaseData,
     Instrument,
-    InstrumentMetadata,
     InstrumentBaseData,
+    InstrumentMetadata,
     create_instrument,
 )
 from portfolio_tracker.domain.transaction import Transaction
@@ -45,18 +46,18 @@ from portfolio_tracker.shared.async_utils import as_async_generator
 
 from .commands import (
     ImportReportCommand,
-    SyncInstitutionAccountsCommand,
     SyncFxRatesCommand,
+    SyncInstitutionAccountsCommand,
     SyncInstrumentsCommand,
 )
 from .events import (
-    InstitutionAccountSyncCompleted,
-    InstitutionAccountSyncFailed,
-    InstitutionAccountSyncStarted,
     FxSyncCompleted,
     FxSyncFailed,
     FxSyncProgress,
     FxSyncStarted,
+    InstitutionAccountSyncCompleted,
+    InstitutionAccountSyncFailed,
+    InstitutionAccountSyncStarted,
     InstrumentsSyncCompleted,
     InstrumentsSyncFailed,
     InstrumentsSyncProgress,
@@ -82,18 +83,14 @@ class SyncService(ApplicationService):
     def __init__(
         self,
         session_factory: SessionFactory,
+        institution_registry: InstitutionRegistry,
         fx_service: FxService,
         market_data_service: MarketDataService,
-        client_factory: Callable[
-            [InstitutionId, Credentials], InstitutionClient[Credentials]
-        ],
-        parser_factory: Callable[[InstitutionId, str], InstitutionReportParser],
     ) -> None:
         super().__init__(session_factory)
+        self._institution_registry = institution_registry
         self._fx_service = fx_service
         self._market_data_service = market_data_service
-        self._client_factory = client_factory
-        self._parser_factory = parser_factory
 
     def import_report(
         self, user_id: str, command: ImportReportCommand
@@ -111,20 +108,20 @@ class SyncService(ApplicationService):
         )
 
         try:
-            parser = self._parser_factory(
-                institution_account.institution_id, institution_account.id
-            )
-            report = command.report_path.open("r", encoding="utf-8")
-            report_transactions = parser.parse_report(report)
-
-            with self._user_unit_of_work(user_id) as uow:
-                transaction_dates = self._process_transactions(
-                    uow,
-                    institution_account,
-                    command.asset_account_ids,
-                    report_transactions,
+            with command.report_path.open("r", encoding="utf-8") as report:
+                parser = self._institution_registry.create_parser(
+                    institution_account.institution_id, institution_account.id
                 )
-                uow.commit()
+                report_transactions = parser.parse_report(report)
+
+                with self._user_unit_of_work(user_id) as uow:
+                    transaction_dates = self._process_transactions(
+                        uow,
+                        institution_account,
+                        command.asset_account_ids,
+                        report_transactions,
+                    )
+                    uow.commit()
 
             yield InstitutionAccountSyncCompleted(
                 account_id=institution_account.id,
@@ -215,28 +212,29 @@ class SyncService(ApplicationService):
         command: SyncInstitutionAccountsCommand,
     ) -> InstitutionAccountSyncResult:
         credentials = self._get_credentials(institution_account.id)
-        client = self._client_factory(institution_account.institution_id, credentials)
+        client = self._institution_registry.create_client(credentials)
 
         start, end = self._resolve_sync_interval(institution_account, command)
         report = client.fetch_report(start, end)
 
-        parser = self._parser_factory(
+        parser = self._institution_registry.create_parser(
             institution_account.institution_id, institution_account.id
         )
         transaction_dates: set[date] = set()
 
         with self._user_unit_of_work(institution_account.user_id) as uow:
             async for report_chunk in report:
-                asset_account_ids = command.asset_account_ids.intersection(
-                    uow.accounts_map.institution_to_asset_account_ids[
-                        institution_account.id
-                    ]
+                asset_account_ids = uow.accounts_map.institution_to_asset_account_ids[
+                    institution_account.id
+                ]
+                required_asset_account_ids = command.asset_account_ids.intersection(
+                    asset_account_ids
                 )
                 report_transactions = parser.parse_report(report_chunk)
                 report_transaction_dates = self._process_transactions(
                     uow,
                     institution_account,
-                    asset_account_ids,
+                    required_asset_account_ids,
                     report_transactions,
                 )
                 transaction_dates.update(report_transaction_dates)
@@ -299,7 +297,7 @@ class SyncService(ApplicationService):
                 asset_account_id,
                 institution_account.institution_id,
             )
-            for instrument in reversed(instruments):
+            for instrument in instruments:
                 if instrument.id not in instrument_ids:
                     uow.instruments.ensure(instrument)
                     instrument_ids.add(instrument.id)
@@ -354,7 +352,7 @@ class SyncService(ApplicationService):
             yield FxSyncFailed(error)
             return
 
-        if not_fetched_dates := (missing_dates - fetched_dates):
+        if not_fetched_dates := missing_dates - fetched_dates:
             formatted_dates = ", ".join(
                 not_fetched_date.isoformat()
                 for not_fetched_date in sorted(not_fetched_dates)
@@ -372,15 +370,22 @@ class SyncService(ApplicationService):
         self, command: SyncInstrumentsCommand
     ) -> Generator[SyncEvent, None, None]:
         now = datetime.now(tz=timezone.utc)
-        if command.all:
-            filter_ = None
-        elif command.new_only:
-            filter_ = FilterNode("last_synced_at", Operator.EQ, None)
-        elif command.symbols:
-            filter_ = FilterNode("symbol", Operator.IN, command.symbols)
-        else:
-            filter_ = FilterNode("last_synced_at", Operator.LT, now - timedelta(days=1))
+        not_synced_filter = FilterNode("last_synced_at", Operator.EQ, None, Instrument)
 
+        if command.all:
+            filter_: Filter | None = None
+        elif command.new_only:
+            filter_ = not_synced_filter
+        elif command.symbols:
+            filter_ = FilterNode("symbol", Operator.IN, command.symbols, Instrument)
+        else:
+            filter_ = FilterTree(LogicalOperator.OR)
+            filter_.add_child(not_synced_filter)
+            filter_.add_child(
+                FilterNode(
+                    "last_synced_at", Operator.LT, now - timedelta(days=1), Instrument
+                )
+            )
         with self._unit_of_work(read_only=True) as uow:
             metadata_list = uow.instruments.get_metadata(filter_=filter_)
 
@@ -489,7 +494,7 @@ class SyncService(ApplicationService):
                 institution_id,
             )
             main_instrument_id = main_instrument.id
-            instruments = [main_instrument] + underlying_instruments
+            instruments = list(reversed(underlying_instruments)) + [main_instrument]
 
         transaction = Transaction(
             correlation_id=report_transaction.correlation_id,

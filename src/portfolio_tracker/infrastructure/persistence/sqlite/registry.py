@@ -4,6 +4,7 @@ from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any
 
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
+from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.domain.instrument import (
     Bond,
@@ -17,18 +18,17 @@ from portfolio_tracker.domain.instrument import (
     Option,
     Stock,
 )
-from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
 
-type Entity = type[Any]
+type Model = type[Any]
 type TableRelation = tuple[str, str]
 
 
 @dataclass(frozen=True)
 class FieldReference:
-    entity: Entity
+    model: Model
     name: str
 
 
@@ -53,53 +53,87 @@ class ColumnReference:
 
 
 @dataclass(frozen=True)
-class EntityRegistry:
-    entities: dict[Entity, TableReference]
+class SchemaRegistry:
+    tables: dict[Model, TableReference]
     relations: dict[TableRelation, tuple[str, str]] = field(default_factory=dict)
-    fields: dict[Entity, dict[str, str]] = field(default_factory=dict)
+    column_names: dict[Model, dict[str, str]] = field(default_factory=dict)
+    column_maps: dict[Model, dict[FieldReference, ColumnReference]] = field(
+        default_factory=dict
+    )
 
 
-PORTFOLIO_TRACKER_ENTITY_REGISTRY = EntityRegistry(
-    entities={
-        User: TableReference(name="user", alias="u"),
-        InstitutionAccount: TableReference(name="institution_account", alias="ia"),
-        Credentials: TableReference(name="credentials", alias="c"),
-        AssetAccount: TableReference(name="asset_account", alias="aa"),
-        Instrument: TableReference(name="instrument", alias="i"),
-        InstrumentMetadata: TableReference(name="instrument", alias="i"),
-        Bond: TableReference(name="bond", alias="b"),
-        Cfd: TableReference(name="cfd", alias="cf"),
-        Commodity: TableReference(name="commodity", alias="co"),
-        Crypto: TableReference(name="crypto", alias="cc"),
-        Etf: TableReference(name="etf", alias="e"),
-        Future: TableReference(name="future", alias="f"),
-        Option: TableReference(name="option", alias="o"),
-        Stock: TableReference(name="stock", alias="s"),
-        Transaction: TableReference(name="ledger", alias="l"),
-        FxRates: TableReference(name="fx_rate", alias="fr"),
-        StockSplits: TableReference(name="stock_split", alias="ss"),
-    },
-    relations={
-        ("institution_account", "user"): ("user_id", "id"),
-        ("credentials", "institution_account"): (
-            "institution_account_id",
-            "id",
+TABLES = {
+    User: TableReference(name="user", alias="u"),
+    InstitutionAccount: TableReference(name="institution_account", alias="ia"),
+    Credentials: TableReference(name="credentials", alias="c"),
+    AssetAccount: TableReference(name="asset_account", alias="aa"),
+    Instrument: TableReference(name="instrument", alias="i"),
+    InstrumentMetadata: TableReference(name="instrument", alias="i"),
+    Bond: TableReference(name="bond", alias="b"),
+    Cfd: TableReference(name="cfd", alias="cf"),
+    Commodity: TableReference(name="commodity", alias="co"),
+    Crypto: TableReference(name="crypto", alias="cr"),
+    Etf: TableReference(name="etf", alias="e"),
+    Future: TableReference(name="future", alias="f"),
+    Option: TableReference(name="option", alias="o"),
+    Stock: TableReference(name="stock", alias="s"),
+    Transaction: TableReference(name="ledger", alias="l"),
+    FxRates: TableReference(name="fx_rate", alias="fr"),
+    StockSplits: TableReference(name="stock_split", alias="ss"),
+}
+
+RELATIONS = {
+    ("institution_account", "user"): ("user_id", "id"),
+    ("credentials", "institution_account"): (
+        "institution_account_id",
+        "id",
+    ),
+    ("asset_account", "institution_account"): (
+        "institution_account_id",
+        "id",
+    ),
+    ("transaction", "asset_account"): ("asset_account_id", "id"),
+    ("transaction", "instrument"): ("instrument_id", "id"),
+    ("bond", "instrument"): ("id", "id"),
+    ("cfd", "instrument"): ("id", "id"),
+    ("commodity", "instrument"): ("id", "id"),
+    ("crypto", "instrument"): ("id", "id"),
+    ("etf", "instrument"): ("id", "id"),
+    ("future", "instrument"): ("id", "id"),
+    ("option", "instrument"): ("id", "id"),
+    ("stock", "instrument"): ("id", "id"),
+}
+
+COLUMN_MAPS = {
+    FxRates: {
+        FieldReference(FxRates, "effective_on"): ColumnReference(
+            TABLES[FxRates], "effective_on"
         ),
-        ("asset_account", "institution_account"): (
-            "institution_account_id",
-            "id",
+        FieldReference(FxRates, "base_currency"): ColumnReference(
+            TABLES[FxRates], "base_currency"
         ),
-        ("transaction", "asset_account"): ("asset_account_id", "id"),
-        ("transaction", "instrument"): ("instrument_id", "id"),
-        ("bond", "instrument"): ("id", "id"),
-        ("cfd", "instrument"): ("id", "id"),
-        ("commodity", "instrument"): ("id", "id"),
-        ("crypto", "instrument"): ("id", "id"),
-        ("etf", "instrument"): ("id", "id"),
-        ("future", "instrument"): ("id", "id"),
-        ("option", "instrument"): ("id", "id"),
-        ("stock", "instrument"): ("id", "id"),
+        FieldReference(FxRates, "quote_currency"): ColumnReference(
+            TABLES[FxRates], "quote_currency"
+        ),
+        FieldReference(FxRates, "rate"): ColumnReference(TABLES[FxRates], "rate"),
     },
+    StockSplits: {
+        FieldReference(StockSplits, "instrument_id"): ColumnReference(
+            TABLES[StockSplits], "instrument_id"
+        ),
+        FieldReference(StockSplits, "executed_at"): ColumnReference(
+            TABLES[StockSplits], "executed_at"
+        ),
+        FieldReference(StockSplits, "ratio"): ColumnReference(
+            TABLES[StockSplits], "ratio"
+        ),
+    },
+}
+
+SCHEMA_REGISTRY = SchemaRegistry(
+    tables=TABLES,
+    relations=RELATIONS,
+    column_maps=COLUMN_MAPS,
 )
 
 
@@ -165,70 +199,73 @@ class TableRelationGraph:
         return relations
 
 
-class EntityResolver:
-    def __init__(self, registry: EntityRegistry):
+class SchemaResolver:
+    def __init__(self, registry: SchemaRegistry):
         self._registry = registry
-        self._graph = TableRelationGraph(self._registry.relations)
+        self._relation_graph = TableRelationGraph(self._registry.relations)
         self._column_map: dict[FieldReference, ColumnReference] = (
             self._build_column_map()
         )
 
     def _build_column_map(self) -> dict[FieldReference, ColumnReference]:
-        columns: dict[tuple[Entity, str], ColumnReference] = {}
+        columns: dict[tuple[Model, str], ColumnReference] = {}
         column_map: dict[FieldReference, ColumnReference] = {}
 
-        for entity in self._registry.entities:
-            for field_obj in fields(entity):
-                field_name = field_obj.name
+        for model in self._registry.tables:
+            if model in self._registry.column_maps:
+                column_map.update(self._registry.column_maps[model])
+                continue
+
+            for field_object in fields(model):
+                field_name = field_object.name
                 if field_name.startswith("_"):
                     continue
 
-                if self._is_primary_key_field(entity, field_name):
-                    owner_entity = entity
+                owner_model = self._resolve_owner_model(model, field_name)
+
+                if (owner_model, field_name) in columns:
+                    column = columns[(owner_model, field_name)]
 
                 else:
-                    owner_entity = self._resolve_owner_entity(entity, field_name)
-
-                if (owner_entity, field_name) in columns:
-                    column = columns[(owner_entity, field_name)]
-
-                else:
-                    table = self._registry.entities[owner_entity]
-                    column_name = self._registry.fields.get(owner_entity, {}).get(
+                    table = self._registry.tables[owner_model]
+                    column_name = self._registry.column_names.get(owner_model, {}).get(
                         field_name, field_name
                     )
                     column = ColumnReference(table, column_name)
-                    columns[(owner_entity, field_name)] = column
+                    columns[(owner_model, field_name)] = column
 
-                field_ = FieldReference(entity, field_name)
+                field_ = FieldReference(model, field_name)
                 column_map[field_] = column
 
         return column_map
 
-    def _resolve_owner_entity(self, entity: Entity, field_name: str) -> Entity:
+    def _resolve_owner_model(self, model: Model, field_name: str) -> Model:
+        if self._is_primary_key_field(model, field_name):
+            return model
+
         field_declared = False
-        for cls in reversed(entity.__mro__):
+        for cls in reversed(model.__mro__):
             if not is_dataclass(cls):
                 continue
 
             if not field_declared and field_name in cls.__annotations__:
                 field_declared = True
 
-            if field_declared and cls in self._registry.entities:
+            if field_declared and cls in self._registry.tables:
                 return cls
 
         raise ValueError(
-            f"'{field_name}' field not found in {entity.__name__} inheritance chain."
+            f"'{field_name}' field not found in {model.__name__} inheritance chain."
         )
 
-    def _is_primary_key_field(self, _: Entity, field_name: str) -> bool:
+    def _is_primary_key_field(self, _: Model, field_name: str) -> bool:
         return field_name == "id"
 
-    def get_table(self, entity: Entity) -> TableReference:
-        return self._registry.entities[entity]
+    def get_table(self, model: Model) -> TableReference:
+        return self._registry.tables[model]
 
-    def get_table_name(self, entity: Entity) -> str:
-        return self._registry.entities[entity].name
+    def get_table_name(self, model: Model) -> str:
+        return self._registry.tables[model].name
 
     def get_column(self, field_: FieldReference) -> ColumnReference:
         return self._column_map[field_]
@@ -258,14 +295,16 @@ class EntityResolver:
             right_table, right_column_name
         )
 
-    def get_entity_fields(
-        self, entity: Entity, include_parents: bool = True
+    def get_model_fields(
+        self, model: Model, include_parents: bool = True
     ) -> list[FieldReference]:
+        if model in self._registry.column_maps:
+            return list(self._registry.column_maps[model])
+
         return [
-            FieldReference(entity, field_.name)
-            for field_ in fields(entity)
-            if include_parents
-            or self._resolve_owner_entity(entity, field_.name) == entity
+            FieldReference(model, field_.name)
+            for field_ in fields(model)
+            if include_parents or self._resolve_owner_model(model, field_.name) == model
         ]
 
     def resolve_relations(
@@ -274,7 +313,7 @@ class EntityResolver:
         joined_tables: set[TableReference],
     ) -> list[tuple[TableReference, TableReference]]:
         tables = {table.name: table for table in {table} | joined_tables}
-        relations = self._graph.resolve_relations(
+        relations = self._relation_graph.resolve_relations(
             table.name, {joined_table.name for joined_table in joined_tables}
         )
         return [(tables[relation[0]], tables[relation[1]]) for relation in relations]

@@ -1,9 +1,7 @@
 from collections.abc import Iterable
-from datetime import date
 
 from portfolio_tracker.domain.account import UserAccountsMap
-from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.transaction import Transaction, TransactionType
+from portfolio_tracker.domain.transaction import ConvertedTransaction, TransactionType
 
 from .cash_balance import CashBalanceBuilder
 from .models import ConsolidationScope, Portfolio
@@ -19,12 +17,11 @@ class PortfolioBuilder:
 
     def build(
         self,
-        transactions: Iterable[Transaction],
-        rates_by_date: dict[date, FxRates],
+        transactions: Iterable[ConvertedTransaction],
         reporting_currency: str,
     ) -> list[Portfolio]:
         position_builders, cash_balance_builders = self._process_transactions(
-            transactions, rates_by_date, reporting_currency
+            transactions
         )
 
         portfolios: list[Portfolio] = []
@@ -57,9 +54,7 @@ class PortfolioBuilder:
 
     def _process_transactions(
         self,
-        transactions: Iterable[Transaction],
-        rates_by_date: dict[date, FxRates],
-        reporting_currency: str,
+        transactions: Iterable[ConvertedTransaction],
     ) -> tuple[dict[str, dict[str, PositionBuilder]], dict[str, CashBalanceBuilder]]:
         position_builders: dict[str, dict[str, PositionBuilder]] = {}
         cash_balance_builder: dict[str, CashBalanceBuilder] = {}
@@ -83,15 +78,13 @@ class PortfolioBuilder:
 
             if instrument_id not in position_builders[asset_account_id]:
                 position_builders[asset_account_id][instrument_id] = PositionBuilder(
-                    instrument_id=transaction.instrument_id,
-                    native_currency=transaction.price.currency,
-                    reporting_currency=reporting_currency,
+                    instrument_id=instrument_id,
+                    native_currency=transaction.price.native.currency,
+                    reporting_currency=transaction.price.reporting.currency,
                     accounting_method=self._accounting_method,
                 )
 
-            rates = rates_by_date[transaction.executed_at.date()]
-
-            position_builders[asset_account_id][instrument_id].add(transaction, rates)
+            position_builders[asset_account_id][instrument_id].add(transaction)
 
         return position_builders, cash_balance_builder
 
@@ -108,7 +101,9 @@ class PortfolioBuilder:
             consolidated_portfolios: dict[str, Portfolio] = {}
             for portfolio in portfolios:
                 assert portfolio.account_id is not None
-                institution_account_id = accounts_map.asset_to_institution_account_id[portfolio.account_id]
+                institution_account_id = accounts_map.asset_to_institution_account_id[
+                    portfolio.account_id
+                ]
 
                 if institution_account_id not in consolidated_portfolios:
                     consolidated_portfolios[institution_account_id] = Portfolio(

@@ -7,27 +7,25 @@ from decimal import ROUND_HALF_UP, Decimal
 class FxRates:
     effective_on: date
     base_currency: str
-    base_rates: dict[str, Decimal]
+    rates: dict[str, Decimal]
 
     def get_rate(self, base_currency: str, quote_currency: str) -> Decimal:
         if base_currency == quote_currency:
             return Decimal("1.0")
 
         if base_currency == self.base_currency:
-            return self._get_base_rate(quote_currency)
+            return self._get(quote_currency)
 
         if quote_currency == self.base_currency:
-            rate = Decimal("1.0") / self._get_base_rate(base_currency)
+            rate = Decimal("1.0") / self._get(base_currency)
             return rate.quantize(Decimal("1.00000000"), rounding=ROUND_HALF_UP)
 
-        rate = self._get_base_rate(quote_currency) / self._get_base_rate(
-            base_currency
-        )
+        rate = self._get(quote_currency) / self._get(base_currency)
         return rate.quantize(Decimal("1.00000000"), rounding=ROUND_HALF_UP)
 
-    def _get_base_rate(self, currency: str) -> Decimal:
+    def _get(self, currency: str) -> Decimal:
         try:
-            return self.base_rates[currency]
+            return self.rates[currency]
         except KeyError as error:
             raise ValueError(
                 f"Exchange rate for {self.base_currency}/{currency} "

@@ -16,7 +16,7 @@ class CashBalance:
                 currency: self.currencies.get(currency, Money.zero(currency))
                 + other.currencies.get(currency, Money.zero(currency))
                 for currency in self.currencies.keys() | other.currencies.keys()
-            }
+            },
         )
 
 

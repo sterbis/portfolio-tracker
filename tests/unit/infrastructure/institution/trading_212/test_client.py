@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 import requests
 
-from portfolio_tracker.application.institution import InstitutionClientError
+from portfolio_tracker.application.shared.exceptions import InstitutionClientError
+from portfolio_tracker.infrastructure.institution import InstitutionCode
 from portfolio_tracker.infrastructure.institution.trading_212.client import (
     Trading212ApiEndpoints,
     Trading212Client,
@@ -19,6 +20,8 @@ from portfolio_tracker.infrastructure.institution.trading_212.client import (
 def trading_212_client() -> Trading212Client:
     return Trading212Client(
         credentials=Trading212Credentials(
+            institution_id=InstitutionCode.TRADING_212,
+            institution_account_id="inst_acc_001",
             api_key="api_key",
             api_secret="api_secret",
         )

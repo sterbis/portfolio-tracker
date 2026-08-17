@@ -1,8 +1,9 @@
+from ..views.transaction import TransactionView
+from .command_service import TransactionCommandService
 from .commands import (
     CreateTransactionCommand,
     UpdateTransactionCommand,
 )
-from .command_service import TransactionCommandService
 from .queries import GetTransactionsQuery
 from .query_service import TransactionQueryService
 
@@ -12,4 +13,5 @@ __all__ = [
     "UpdateTransactionCommand",
     "TransactionQueryService",
     "TransactionCommandService",
+    "TransactionView",
 ]

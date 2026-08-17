@@ -1,3 +1,4 @@
+from ..views.institution import InstitutionView
 from .client import (
     ApiEndpoint,
     HttpMethod,
@@ -14,6 +15,7 @@ __all__ = [
     "InstitutionClient",
     "InstitutionRegistry",
     "InstitutionReportParser",
+    "InstitutionView",
     "RateLimit",
     "ReportChunk",
     "ReportInstrument",

@@ -1,5 +1,6 @@
-from .registry import create_registry
+from .registry import InstitutionCode, create_institution_registry
 
 __all__ = [
-    "create_registry",
+    "InstitutionCode",
+    "create_institution_registry",
 ]

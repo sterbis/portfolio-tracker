@@ -43,7 +43,7 @@ _PARSERS: dict[InstitutionId, type[InstitutionReportParser]] = {
 }
 
 
-def create_registry() -> InstitutionRegistry:
+def create_institution_registry() -> InstitutionRegistry:
     return InstitutionRegistry(
         institution_id_cls=InstitutionCode,
         institution_map=_INSTITUTIONS,

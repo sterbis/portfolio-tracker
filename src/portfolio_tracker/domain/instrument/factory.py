@@ -16,7 +16,6 @@ from .models import (
     Stock,
 )
 
-
 INSTRUMENT_CLS_BY_TYPE: dict[InstrumentType, type[Instrument]] = {
     InstrumentType.BOND: Bond,
     InstrumentType.COMMODITY: Commodity,

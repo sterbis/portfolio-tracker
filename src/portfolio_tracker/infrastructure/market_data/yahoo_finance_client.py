@@ -49,7 +49,7 @@ class YahooFinanceClient(MarketDataClient):
 
         if data.empty:
             return {}
-        
+
         if start:
             data = data[data.index >= start]
 

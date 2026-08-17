@@ -1,5 +1,5 @@
 from .client import IbkrCredentials
 
-__all__  = [
+__all__ = [
     "IbkrCredentials",
 ]

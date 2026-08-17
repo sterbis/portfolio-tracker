@@ -1,17 +1,21 @@
 from collections.abc import Iterable
-from typing import Literal
 
-from portfolio_tracker.application.shared.service import ApplicationService
-from portfolio_tracker.application.shared.dto_assembler import DtoAssembler
-from portfolio_tracker.application.shared.dtos import (
-    PortfolioDto,
-    PortfolioValuationDto,
-    ValuedPortfolioDto,
-)
 from portfolio_tracker.application.fx import FxService
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.market_data import MarketDataService
-from portfolio_tracker.application.persistence import SessionFactory, UserScopedUnitOfWork
+from portfolio_tracker.application.persistence import (
+    SessionFactory,
+    UserScopedUnitOfWork,
+)
+from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
+from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.service import ApplicationQueryService
+from portfolio_tracker.application.views import (
+    PortfolioValuationView,
+    PortfolioView,
+    ValuedPortfolioView,
+    ViewBuilder,
+)
 from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.instrument import Instrument
 from portfolio_tracker.domain.portfolio import (
@@ -21,17 +25,24 @@ from portfolio_tracker.domain.portfolio import (
     PortfolioEvaluator,
     PortfolioValuation,
 )
-from portfolio_tracker.domain.transaction import Transaction, TransactionAdjuster
+from portfolio_tracker.domain.transaction import (
+    Transaction,
+    TransactionAdjuster,
+    TransactionConverter,
+)
 
 from .queries import GetPortfoliosQuery
 
 
-class PortfolioQueryService(ApplicationService):
-    REQUIRED_ORDER_BY: list[tuple[str, Literal["ASC", "DESC"]]] = [("executed_at", "ASC")]
+class PortfolioQueryService(ApplicationQueryService):
+    REQUIRED_TRANSACTION_ORDER_BY: OrderBy = OrderBy("executed_at", Transaction, "ASC")
 
     def __init__(
         self,
         session_factory: SessionFactory,
+        filter_mapper: FilterMapper,
+        filter_splitter: FilterSplitter,
+        view_builder: ViewBuilder,
         institution_registry: InstitutionRegistry,
         transaction_adjuster: TransactionAdjuster,
         portfolio_builder: PortfolioBuilder,
@@ -39,7 +50,7 @@ class PortfolioQueryService(ApplicationService):
         fx_service: FxService,
         market_data_service: MarketDataService,
     ) -> None:
-        super().__init__(session_factory)
+        super().__init__(session_factory, filter_mapper, filter_splitter, view_builder)
         self._institution_registry = institution_registry
         self._market_data_service = market_data_service
         self._fx_service = fx_service
@@ -49,13 +60,17 @@ class PortfolioQueryService(ApplicationService):
 
     def get_portfolios(
         self, user_id: str, query: GetPortfoliosQuery
-    ) -> list[PortfolioDto]:
-        institution_accounts, asset_accounts, instruments, portfolios = self._get_portfolios(user_id, query)
+    ) -> list[PortfolioView]:
+        institution_accounts, asset_accounts, instruments, portfolios = (
+            self._get_portfolios(user_id, query)
+        )
         institutions = [
-            self._institution_registry.get_institution(institution_account.institution_id)
+            self._institution_registry.get_institution(
+                institution_account.institution_id
+            )
             for institution_account in institution_accounts
         ]
-        return DtoAssembler.assemble_portfolios(
+        return self._view_builder.build_portfolio_views(
             institutions,
             institution_accounts,
             asset_accounts,
@@ -65,25 +80,25 @@ class PortfolioQueryService(ApplicationService):
 
     def get_portfolio_valuations(
         self, user_id: str, query: GetPortfoliosQuery
-    ) -> (
-        list[PortfolioDto]
-        | dict[str | None, PortfolioValuationDto]
-        | list[ValuedPortfolioDto]
-    ):
+    ) -> dict[str | None, PortfolioValuationView]:
         _, _, instruments, portfolios = self._get_portfolios(user_id, query)
         portfolio_valuations = self._value_portfolios(portfolios, instruments)
-        return DtoAssembler.assemble_portfolio_valuations(portfolio_valuations)
+        return self._view_builder.build_portfolio_valuation_views(portfolio_valuations)
 
     def get_valued_portfolios(
         self, user_id: str, query: GetPortfoliosQuery
-    ) -> list[ValuedPortfolioDto]:
-        institution_accounts, asset_accounts, instruments, portfolios = self._get_portfolios(user_id, query)
+    ) -> list[ValuedPortfolioView]:
+        institution_accounts, asset_accounts, instruments, portfolios = (
+            self._get_portfolios(user_id, query)
+        )
         institutions = [
-            self._institution_registry.get_institution(institution_account.institution_id)
+            self._institution_registry.get_institution(
+                institution_account.institution_id
+            )
             for institution_account in institution_accounts
         ]
         portfolio_valuations = self._value_portfolios(portfolios, instruments)
-        return DtoAssembler.assemble_valued_portfolios(
+        return self._view_builder.build_valued_portfolio_views(
             institutions,
             institution_accounts,
             asset_accounts,
@@ -107,15 +122,19 @@ class PortfolioQueryService(ApplicationService):
                 institution_account_ids=query.institution_account_ids,
                 asset_account_ids=query.asset_account_ids,
                 filter_=query.filter,
-                order_by_list=self.REQUIRED_ORDER_BY,
+                order_by_list=[self.REQUIRED_TRANSACTION_ORDER_BY],
             )
             instrument_ids = uow.transactions.get_distinct_instrument_ids(
                 institution_account_ids=query.institution_account_ids,
                 asset_account_ids=query.asset_account_ids,
                 filter_=query.filter,
             )
-            splits_list = uow.market_data.get_stock_splits_by_instrument_ids(instrument_ids)
-            transactions = self._transaction_adjuster.adjust(transactions, splits_list)
+            splits_list = uow.market_data.get_stock_splits_by_instrument_ids(
+                instrument_ids
+            )
+            adjustied_transactions = self._transaction_adjuster.adjust(
+                transactions, splits_list
+            )
 
             transaction_dates = uow.transactions.get_distinct_dates(
                 institution_account_ids=query.institution_account_ids,
@@ -125,8 +144,13 @@ class PortfolioQueryService(ApplicationService):
             rates_by_date = uow.fx_rates.get_required_rates_by_date_map(
                 transaction_dates,
             )
+            converter = TransactionConverter(rates_by_date)
+            converted_transactions = converter.convert_many(
+                adjustied_transactions, query.reporting_currency
+            )
+
             portfolios = self._portfolio_builder.build(
-                transactions, rates_by_date, query.reporting_currency
+                converted_transactions, query.reporting_currency
             )
             portfolios = self._portfolio_builder.consolidate(
                 portfolios, query.scope, uow.accounts_map
@@ -144,7 +168,9 @@ class PortfolioQueryService(ApplicationService):
             return institution_accounts, asset_accounts, instruments, portfolios
 
     def _get_portfolio_accounts(
-        self, uow: UserScopedUnitOfWork, portfolios: list[Portfolio],
+        self,
+        uow: UserScopedUnitOfWork,
+        portfolios: list[Portfolio],
     ) -> tuple[list[InstitutionAccount], list[AssetAccount]]:
         institution_account_ids: set[str] = set()
         asset_account_ids: set[str] = set()
@@ -156,16 +182,14 @@ class PortfolioQueryService(ApplicationService):
             assert portfolio.account_id is not None
             if portfolio.scope == ConsolidationScope.INSTITUTION_ACCOUNT:
                 institution_account_ids.add(portfolio.account_id)
-    
+
             elif portfolio.scope == ConsolidationScope.ASSET_ACCOUNT:
                 asset_account_ids.add(portfolio.account_id)
 
         institution_accounts = uow.accounts.get_institution_accounts_by_ids(
             institution_account_ids
         )
-        asset_accounts = uow.accounts.get_asset_accounts_by_ids(
-            asset_account_ids
-        )
+        asset_accounts = uow.accounts.get_asset_accounts_by_ids(asset_account_ids)
 
         return institution_accounts, asset_accounts
 

@@ -12,8 +12,10 @@ from portfolio_tracker.application.persistence import (
     UnitOfWork,
 )
 
+from .builder import SqliteStatementBuilder
 from .database import open_connection
 from .executor import SqliteExecutor
+from .registry import SCHEMA_REGISTRY, SchemaRegistry, SchemaResolver
 from .repositories import (
     SqliteAccountRepository,
     SqliteCredentialsRepository,
@@ -32,6 +34,7 @@ class SqliteUnitOfWork(UnitOfWork):
         self,
         institution_registry: InstitutionRegistry,
         encryptor: Encryptor,
+        builder: SqliteStatementBuilder,
         connection: sqlite3.Connection,
         *,
         read_only: bool = False,
@@ -39,10 +42,11 @@ class SqliteUnitOfWork(UnitOfWork):
         super().__init__(institution_registry)
         self._connection = connection
         self._encryptor = encryptor
+        self._builder = builder
         self._read_only = read_only
         self._active = False
 
-        executor = SqliteExecutor(self._connection)
+        executor = SqliteExecutor(self._connection, self._builder)
 
         self.accounts = SqliteAccountRepository(self._institution_registry, executor)
         self.fx_rates = SqliteFxRatesRepository(executor)
@@ -87,6 +91,7 @@ class SqliteSession(Session):
         self,
         database: str | Path,
         encryptor: Encryptor,
+        builder: SqliteStatementBuilder,
         institution_registry: InstitutionRegistry,
         *,
         read_only: bool = False,
@@ -96,6 +101,7 @@ class SqliteSession(Session):
         self._institution_registry = institution_registry
         self._database = database
         self._encryptor = encryptor
+        self._builder = builder
         self._read_only = read_only
         self._timeout = timeout
         self._uri = uri
@@ -126,6 +132,7 @@ class SqliteSession(Session):
         return SqliteUnitOfWork(
             institution_registry=self._institution_registry,
             encryptor=self._encryptor,
+            builder=self._builder,
             connection=self._connection,
             read_only=self._read_only,
         )
@@ -138,6 +145,7 @@ class SqliteSessionFactory(SessionFactory):
         encryptor: Encryptor,
         institution_registry: InstitutionRegistry,
         *,
+        model_registry: SchemaRegistry | None = None,
         timeout: float = 5,
         uri: bool = False,
     ) -> None:
@@ -146,11 +154,16 @@ class SqliteSessionFactory(SessionFactory):
         self._encryptor = encryptor
         self._timeout = timeout
         self._uri = uri
+        model_registry = model_registry or SCHEMA_REGISTRY
+        self._builder = SqliteStatementBuilder(
+            resolver=SchemaResolver(registry=model_registry)
+        )
 
     def create(self, read_only: bool = False) -> SqliteSession:
         return SqliteSession(
             database=self._database,
             encryptor=self._encryptor,
+            builder=self._builder,
             institution_registry=self._institution_registry,
             timeout=self._timeout,
             uri=self._uri,

@@ -1,20 +1,20 @@
 from typing import Any, AsyncGenerator, Callable
 
 import typer
-from rich.progress import Progress, SpinnerColumn, TaskID, TextColumn, BarColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 
 from portfolio_tracker.application.sync import (
-    InstitutionAccountSyncCompleted,
-    InstitutionAccountSyncFailed,
-    InstitutionAccountSyncStarted,
     FxSyncCompleted,
     FxSyncFailed,
     FxSyncProgress,
     FxSyncStarted,
-    InstrumentsSyncFailed,
+    InstitutionAccountSyncCompleted,
+    InstitutionAccountSyncFailed,
+    InstitutionAccountSyncStarted,
     InstrumentsSyncCompleted,
-    InstrumentsSyncStarted,
+    InstrumentsSyncFailed,
     InstrumentsSyncProgress,
+    InstrumentsSyncStarted,
     SyncEvent,
 )
 

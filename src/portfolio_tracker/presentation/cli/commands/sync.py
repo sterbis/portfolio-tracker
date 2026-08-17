@@ -5,8 +5,8 @@ from typing import Annotated
 import typer
 
 from portfolio_tracker.application.sync import (
-    SyncInstitutionAccountsCommand,
     SyncFxRatesCommand,
+    SyncInstitutionAccountsCommand,
     SyncInstrumentsCommand,
     SyncService,
 )
@@ -62,7 +62,11 @@ def sync_accounts(
         end=end,
         restore=restore,
     )
-    asyncio.run(render_sync_progress(service.sync_institution_accounts, context.active_user_id, command))
+    asyncio.run(
+        render_sync_progress(
+            service.sync_institution_accounts, context.active_user_id, command
+        )
+    )
 
 
 @sync_app.command(name="fx")
