@@ -14,7 +14,7 @@ from portfolio_tracker.application.institution import (
     RateLimit,
     ReportChunk,
 )
-from portfolio_tracker.application.shared.exceptions import InstitutionClientError
+from portfolio_tracker.application.shared.errors import InstitutionClientError
 from portfolio_tracker.domain.institution import Credentials
 
 
@@ -22,6 +22,14 @@ from portfolio_tracker.domain.institution import Credentials
 class Trading212Credentials(Credentials):
     api_key: str
     api_secret: str
+
+    @classmethod
+    def parameter_names(cls) -> tuple[str, ...]:
+        return ("api_key", "api_secret")
+
+    @classmethod
+    def secret_parameter_names(cls) -> tuple[str, ...]:
+        return ("api_secret", )
 
 
 class Trading212ApiEndpoints:

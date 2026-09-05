@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 
 from .models import (
     CashBalance,
@@ -11,7 +11,7 @@ from .models import (
 
 class CashBalanceEvaluator:
     def evaluate(
-        self, cash_balance: CashBalance, reporting_currency: str, rates: FxRates
+        self, cash_balance: CashBalance, reporting_currency: Currency, rates: FxRates
     ) -> CashBalanceValuation:
         total_amount = Decimal("0.0")
         for currency, balance in cash_balance.currencies.items():

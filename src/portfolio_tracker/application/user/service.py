@@ -1,10 +1,10 @@
 import bcrypt
 
-from portfolio_tracker.application.shared.exceptions import (
+from portfolio_tracker.application.shared.errors import (
     InvalidUsernameOrPasswordError,
     UsernameAlreadyExistsError,
 )
-from portfolio_tracker.application.shared.service import ApplicationService
+from portfolio_tracker.application.shared.service import Service
 from portfolio_tracker.domain.user import User
 
 from .commands import (
@@ -13,17 +13,17 @@ from .commands import (
 )
 
 
-class UserService(ApplicationService):
+class UserService(Service):
     def register(self, command: RegisterUserCommand) -> str:
         with self._unit_of_work() as uow:
             if uow.users.get_by_username(command.username):
                 raise UsernameAlreadyExistsError(command.username)
 
-            salt = bcrypt.gensalt(rounds=12)
-            password_bytes = command.password.encode("utf-8")
-            password_hash = bcrypt.hashpw(password_bytes, salt).decode("utf-8")
+            user = User(
+                username=command.username,
+                password_hash=self._hash_password(command.password),
+            )
 
-            user = User(username=command.username, password_hash=password_hash)
             uow.users.add(user)
             uow.commit()
 
@@ -32,13 +32,18 @@ class UserService(ApplicationService):
     def authenticate(self, command: AuthenticateUserCommand) -> str:
         with self._unit_of_work() as uow:
             user = uow.users.get_by_username(command.username)
-
             if not user:
                 raise InvalidUsernameOrPasswordError()
 
-            password_bytes = command.password.encode("utf-8")
-            stored_password_bytes = user.password_hash.encode("utf-8")
-            if not bcrypt.checkpw(password_bytes, stored_password_bytes):
-                raise InvalidUsernameOrPasswordError()
-
+            self._check_password(command.password, user.password_hash)
             return user.id
+
+    @staticmethod
+    def _hash_password(password: str) -> str:
+        salt = bcrypt.gensalt(rounds=12)
+        return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+    @staticmethod
+    def _check_password(password: str, expected_password_hash: str) -> None:
+        if not bcrypt.checkpw(password.encode("utf-8"), expected_password_hash.encode("utf-8")):
+            raise InvalidUsernameOrPasswordError()

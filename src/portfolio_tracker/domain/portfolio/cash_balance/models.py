@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 
 
 @dataclass(frozen=True)
 class CashBalance:
-    currencies: dict[str, Money]
+    currencies: dict[Currency, Money]
 
     def __add__(self, other: CashBalance) -> CashBalance:
         if not isinstance(other, CashBalance):

@@ -1,7 +1,7 @@
 from portfolio_tracker.domain.account import UserAccountsMap
 
-from .credentials_store import CredentialsStore
 from .repositories import (
+    CredentialsRepository,
     FxRatesRepository,
     InstrumentRepository,
     MarketDataRepository,
@@ -30,7 +30,7 @@ class UserScopedUnitOfWork:
         )
 
     @property
-    def credentials(self) -> CredentialsStore:
+    def credentials(self) -> CredentialsRepository:
         return self._uow.credentials
 
     @property

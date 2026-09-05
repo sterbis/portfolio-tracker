@@ -7,15 +7,15 @@ from typing import Self
 from portfolio_tracker.application.encryption import Encryptor
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import (
-    Session,
-    SessionFactory,
+    StorageConnection,
+    StorageConnectionFactory,
     UnitOfWork,
 )
 
 from .builder import SqliteStatementBuilder
 from .database import open_connection
 from .executor import SqliteExecutor
-from .registry import SCHEMA_REGISTRY, SchemaRegistry, SchemaResolver
+from .registry import SchemaRegistry, SchemaResolver
 from .repositories import (
     SqliteAccountRepository,
     SqliteCredentialsRepository,
@@ -44,7 +44,7 @@ class SqliteUnitOfWork(UnitOfWork):
         self._encryptor = encryptor
         self._builder = builder
         self._read_only = read_only
-        self._active = False
+        self._is_active = False
 
         executor = SqliteExecutor(self._connection, self._builder)
 
@@ -62,8 +62,7 @@ class SqliteUnitOfWork(UnitOfWork):
         mode = "DEFERRED" if self._read_only else "IMMEDIATE"
         logger.debug("Begin %s database transaction.", mode.lower())
         self._connection.execute(f"BEGIN {mode} TRANSACTION;")
-        self._active = True
-
+        self._is_active = True
         return self
 
     def __exit__(
@@ -72,21 +71,21 @@ class SqliteUnitOfWork(UnitOfWork):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        if self._active:
+        if self._is_active:
             self.rollback()
 
     def commit(self) -> None:
         logger.debug("Commit database changes.")
         self._connection.execute("COMMIT;")
-        self._active = False
+        self._is_active = False
 
     def rollback(self) -> None:
         logger.debug("Rollback database changes.")
         self._connection.execute("ROLLBACK;")
-        self._active = False
+        self._is_active = False
 
 
-class SqliteSession(Session):
+class SqliteStorageConnection(StorageConnection):
     def __init__(
         self,
         database: str | Path,
@@ -98,10 +97,10 @@ class SqliteSession(Session):
         timeout: float = 5,
         uri: bool = False,
     ) -> None:
-        self._institution_registry = institution_registry
         self._database = database
         self._encryptor = encryptor
         self._builder = builder
+        self._institution_registry = institution_registry
         self._read_only = read_only
         self._timeout = timeout
         self._uri = uri
@@ -138,29 +137,31 @@ class SqliteSession(Session):
         )
 
 
-class SqliteSessionFactory(SessionFactory):
+class SqliteStorageConnectionFactory(StorageConnectionFactory):
     def __init__(
         self,
         database: str | Path,
         encryptor: Encryptor,
         institution_registry: InstitutionRegistry,
+        schema_registry: SchemaRegistry,
         *,
-        model_registry: SchemaRegistry | None = None,
         timeout: float = 5,
         uri: bool = False,
     ) -> None:
-        self._institution_registry = institution_registry
         self._database = database
         self._encryptor = encryptor
+        self._institution_registry = institution_registry
         self._timeout = timeout
         self._uri = uri
-        model_registry = model_registry or SCHEMA_REGISTRY
+
         self._builder = SqliteStatementBuilder(
-            resolver=SchemaResolver(registry=model_registry)
+            resolver=SchemaResolver(registry=schema_registry)
         )
 
-    def create(self, read_only: bool = False) -> SqliteSession:
-        return SqliteSession(
+    def create(
+        self, *, read_only: bool = False
+    ) -> SqliteStorageConnection:
+        return SqliteStorageConnection(
             database=self._database,
             encryptor=self._encryptor,
             builder=self._builder,

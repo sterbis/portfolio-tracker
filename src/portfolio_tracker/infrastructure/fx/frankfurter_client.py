@@ -7,8 +7,9 @@ from decimal import Decimal
 import requests
 
 from portfolio_tracker.application.fx import FxClient
-from portfolio_tracker.application.shared.exceptions import FxClientError
+from portfolio_tracker.application.shared.errors import FxClientError
 from portfolio_tracker.domain.fx import FxRates
+from portfolio_tracker.domain.shared import Currency
 
 
 class FrankfurterClient(FxClient):
@@ -16,23 +17,23 @@ class FrankfurterClient(FxClient):
 
     def fetch_historical_rates(
         self,
-        base_currency: str,
-        quote_currencies: set[str],
+        base_currency: Currency,
+        quote_currencies: set[Currency],
         date_: date,
     ) -> FxRates:
         return self._fetch_rates(base_currency, quote_currencies, date_)
 
     def fetch_spot_rates(
         self,
-        base_currency: str,
-        quote_currencies: set[str],
+        base_currency: Currency,
+        quote_currencies: set[Currency],
     ) -> FxRates:
         return self._fetch_rates(base_currency, quote_currencies)
 
     def fetch_rates_series(
         self,
-        base_currency: str,
-        quote_currencies: set[str],
+        base_currency: Currency,
+        quote_currencies: set[Currency],
         from_date: date,
         to_date: date,
         only_dates: set[date] | None = None,
@@ -46,18 +47,14 @@ class FrankfurterClient(FxClient):
             stream=True,
         )
 
-        required_base_currency = base_currency.upper()
-        required_quote_currencies = {currency.upper() for currency in quote_currencies}
-        required_dates = (
-            {date.isoformat() for date in only_dates} if only_dates else set()
-        )
-
         try:
             yield from self._process_response_stream(
                 response,
-                required_base_currency,
-                required_quote_currencies,
-                required_dates,
+                required_base_currency=base_currency.value.upper(),
+                required_quote_currencies={currency.value.upper() for currency in quote_currencies},
+                required_dates=(
+                    {date.isoformat() for date in only_dates} if only_dates else set()
+                ),
             )
 
         except requests.exceptions.RequestException as error:
@@ -121,8 +118,8 @@ class FrankfurterClient(FxClient):
 
     def _fetch_rates(
         self,
-        base_currency: str,
-        quote_currencies: set[str],
+        base_currency: Currency,
+        quote_currencies: set[Currency],
         date_: date | None = None,
     ) -> FxRates:
         response = self._fetch(
@@ -141,8 +138,8 @@ class FrankfurterClient(FxClient):
 
     def _fetch(
         self,
-        base_currency: str,
-        quote_currencies: set[str],
+        base_currency: Currency,
+        quote_currencies: set[Currency],
         date_: date | None = None,
         from_date: date | None = None,
         to_date: date | None = None,
@@ -152,8 +149,8 @@ class FrankfurterClient(FxClient):
         url = f"{self._BASE_URL}rates"
         headers = headers or {"Accept": "application/json"}
         parameters = {
-            "base": base_currency,
-            "quotes": ",".join(quote_currencies),
+            "base": base_currency.value,
+            "quotes": ",".join(quote_currency.value for quote_currency in quote_currencies),
         }
         if date_:
             parameters["date"] = date_.isoformat()

@@ -4,9 +4,9 @@ from typing import Self
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 
-from .credentials_store import CredentialsStore
 from .repositories import (
     AccountRepository,
+    CredentialsRepository,
     FxRatesRepository,
     InstrumentRepository,
     MarketDataRepository,
@@ -22,7 +22,7 @@ class UnitOfWork(ABC):
     market_data: MarketDataRepository
     transactions: TransactionRepository
     users: UserRepository
-    credentials: CredentialsStore
+    credentials: CredentialsRepository
 
     def __init__(
         self,
@@ -48,7 +48,7 @@ class UnitOfWork(ABC):
     def rollback(self) -> None: ...
 
 
-class Session(ABC):
+class StorageConnection(ABC):
     @abstractmethod
     def __enter__(self) -> Self: ...
 
@@ -64,6 +64,6 @@ class Session(ABC):
     def unit_of_work(self) -> UnitOfWork: ...
 
 
-class SessionFactory(ABC):
+class StorageConnectionFactory(ABC):
     @abstractmethod
-    def create(self, read_only: bool = False) -> Session: ...
+    def create(self, *, read_only: bool = False) -> StorageConnection: ...

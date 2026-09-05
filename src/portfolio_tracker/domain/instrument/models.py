@@ -6,6 +6,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from portfolio_tracker.domain.shared import Currency
+
 
 class AssetClass(StrEnum):
     BOND = "BOND"
@@ -60,7 +62,7 @@ class InstrumentMetadata:
     name: str
     symbol: str
     exchange: str | None
-    currency: str
+    currency: Currency
     last_synced_at: datetime | None
 
 
@@ -74,7 +76,7 @@ class Instrument(ABC):
     name: str
     symbol: str
     exchange: str | None = None
-    currency: str
+    currency: Currency
     last_synced_at: datetime | None = None
 
     @property

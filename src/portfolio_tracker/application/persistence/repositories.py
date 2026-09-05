@@ -3,14 +3,16 @@ from datetime import date, datetime
 
 from filterutils import Filter
 
-from portfolio_tracker.application.shared.exceptions import FxDataIntegrityError
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.institution import InstitutionRegistry
+from portfolio_tracker.application.shared.errors import FxDataIntegrityError
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.account import (
     AssetAccount,
     InstitutionAccount,
     UserAccountsMap,
 )
 from portfolio_tracker.domain.fx import FxRates
+from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.domain.instrument import Instrument, InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.transaction import Transaction
@@ -88,6 +90,20 @@ class AccountRepository(ABC):
     def get_user_accounts_map(self, user_id: str) -> UserAccountsMap: ...
 
 
+class CredentialsRepository(ABC):
+    def __init__(self, institution_registry: InstitutionRegistry) -> None:
+        self._institution_registry = institution_registry
+
+    @abstractmethod
+    def upsert(self, credentials: Credentials) -> None: ...
+
+    @abstractmethod
+    def get(self, institution_account_id: str) -> Credentials | None: ...
+
+    @abstractmethod
+    def remove(self, institution_account_id: str) -> None: ...
+
+
 class InstrumentRepository(ABC):
     @abstractmethod
     def ensure(self, instrument: Instrument) -> None: ...
@@ -97,7 +113,7 @@ class InstrumentRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Instrument]: ...
@@ -107,7 +123,7 @@ class InstrumentRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[InstrumentMetadata]: ...
@@ -136,7 +152,7 @@ class TransactionRepository(ABC):
         self,
         *,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Transaction]: ...

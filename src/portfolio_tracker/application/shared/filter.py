@@ -1,8 +1,11 @@
+from typing import Any
+
 from filterutils import Filter, FilterNode, FilterTree, LogicalOperator
 
-from portfolio_tracker.application.views import FieldMap
+from portfolio_tracker.application.views import DualMoneyView, FieldMap, MoneyView
+from portfolio_tracker.domain.shared import DualMoney, Money
 
-from .exceptions import InvalidFilterError
+from .errors import InvalidFilterError
 
 
 class FilterMapper:
@@ -31,13 +34,14 @@ class FilterMapper:
             )
 
         field = view_map[filter_.field]
+        value = self._map_filter_value(filter_.value)
         models = field.model if isinstance(field.model, tuple) else (field.model,)
 
         if len(models) == 1:
             return FilterNode(
                 field=field.name,
                 operator=filter_.operator,
-                value=filter_.value,
+                value=value,
                 item_type=models[0],
             )
 
@@ -47,7 +51,7 @@ class FilterMapper:
                 FilterNode(
                     field=field.name,
                     operator=filter_.operator,
-                    value=filter_.value,
+                    value=value,
                     item_type=model,
                 )
             )
@@ -72,6 +76,17 @@ class FilterMapper:
 
         return translated_filter
 
+    def _map_filter_value(self, value: Any) -> Any:
+        if isinstance(value, MoneyView):
+            return Money(amount=value.amount, currency=value.currency)
+
+        if isinstance(value, DualMoneyView):
+            return DualMoney(
+                native=Money(amount=value.native.amount, currency=value.native.currency),
+                reporting=Money(amount=value.reporting.amount, currency=value.reporting.currency),
+            )
+
+        return value
 
 class FilterSplitter:
     def __init__(self, persisted_model_types: tuple[type, ...]) -> None:

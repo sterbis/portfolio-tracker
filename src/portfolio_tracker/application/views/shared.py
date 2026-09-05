@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from portfolio_tracker.domain.shared import DualMoney, Money
+from portfolio_tracker.domain.shared import Currency, DualMoney, Money
 
 
 @dataclass(frozen=True)
 class MoneyView:
     amount: Decimal
-    currency: str
+    currency: Currency
 
     @classmethod
     def from_domain(cls, money: Money) -> MoneyView:

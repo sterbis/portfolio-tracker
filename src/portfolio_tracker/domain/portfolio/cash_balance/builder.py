@@ -1,4 +1,4 @@
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 from portfolio_tracker.domain.transaction import ConvertedTransaction
 
 from .models import CashBalance
@@ -6,7 +6,7 @@ from .models import CashBalance
 
 class CashBalanceBuilder:
     def __init__(self) -> None:
-        self._currency_balances: dict[str, Money] = {}
+        self._currency_balances: dict[Currency, Money] = {}
 
     def add(self, transaction: ConvertedTransaction) -> None:
         currency = transaction.cash_impact.native.currency

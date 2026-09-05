@@ -9,7 +9,7 @@ from typing import Any, AsyncIterator, Generic, TypeVar
 
 import requests
 
-from portfolio_tracker.application.shared.exceptions import InstitutionClientError
+from portfolio_tracker.application.shared.errors import InstitutionClientError
 from portfolio_tracker.domain.institution import Credentials
 
 ReportChunk = Iterator[str]

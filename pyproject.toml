@@ -64,5 +64,4 @@ audit = "pip-audit"
 test = "pytest tests -v"
 vulture = "vulture src .vulture_whitelist.py"
 secrets = "git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline"
-
-precommit = "task format && task lint && task audit && task test"
+precommit = "task lint && task format && task audit && task test"

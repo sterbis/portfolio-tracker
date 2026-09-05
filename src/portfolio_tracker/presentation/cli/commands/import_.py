@@ -5,7 +5,7 @@ from typing import Annotated
 import typer
 
 from portfolio_tracker.application.sync import ImportReportCommand, SyncService
-from portfolio_tracker.bootstrap import ApplicationContext
+from portfolio_tracker.bootstrap_desktop import Container
 from portfolio_tracker.presentation.cli.ui.progress import render_sync_progress
 from portfolio_tracker.shared.async_utils import as_async_generator
 
@@ -21,7 +21,7 @@ def import_report(
         typer.Option(exists=True, file_okay=True, readable=True, resolve_path=True),
     ],
 ) -> None:
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     sync_service = context.get(SyncService)
     command = ImportReportCommand(
         institution_account_id=account_id, report_path=report_path

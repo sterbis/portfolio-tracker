@@ -3,12 +3,12 @@ from typing import Any
 
 from portfolio_tracker.application.encryption import Encryptor
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import CredentialsStore
+from portfolio_tracker.application.persistence import CredentialsRepository
 from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
 
 
-class SqliteCredentialsRepository(CredentialsStore):
+class SqliteCredentialsRepository(CredentialsRepository):
     def __init__(
         self,
         institution_registry: InstitutionRegistry,
@@ -19,7 +19,7 @@ class SqliteCredentialsRepository(CredentialsStore):
         self._encryptor = encryptor
         self._executor = executor
 
-    def store(self, credentials: Credentials) -> None:
+    def upsert(self, credentials: Credentials) -> None:
         json_string = json.dumps(credentials.parameters)
         encrypted_parameters = self._encryptor.encrypt(json_string)
 
@@ -37,7 +37,7 @@ class SqliteCredentialsRepository(CredentialsStore):
             },
         )
 
-    def retrieve(self, institution_account_id: str) -> Credentials | None:
+    def get(self, institution_account_id: str) -> Credentials | None:
         cursor = self._executor.execute(
             sql="""
                 SELECT institution_id, encrypted_parameters FROM credentials
@@ -47,8 +47,10 @@ class SqliteCredentialsRepository(CredentialsStore):
         )
 
         row = cursor.fetchone()
+
         if row is None:
             return None
+
 
         institution_id = self._institution_registry.get_institution_id(row[0])
         encrypted_parameters = row[1]

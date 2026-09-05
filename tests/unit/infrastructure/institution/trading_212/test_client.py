@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 import requests
 
-from portfolio_tracker.application.shared.exceptions import InstitutionClientError
+from portfolio_tracker.application.shared.errors import InstitutionClientError
 from portfolio_tracker.infrastructure.institution import InstitutionCode
 from portfolio_tracker.infrastructure.institution.trading_212.client import (
     Trading212ApiEndpoints,

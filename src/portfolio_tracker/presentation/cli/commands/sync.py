@@ -10,10 +10,10 @@ from portfolio_tracker.application.sync import (
     SyncInstrumentsCommand,
     SyncService,
 )
-from portfolio_tracker.bootstrap import ApplicationContext
+from portfolio_tracker.bootstrap_desktop import Container
 from portfolio_tracker.presentation.cli.console import error_console
 from portfolio_tracker.presentation.cli.parsers import (
-    parse_date_parameter,
+    parse_date,
     parse_list_parameter,
 )
 from portfolio_tracker.presentation.cli.ui.progress import render_sync_progress
@@ -28,7 +28,7 @@ def sync_callback(ctx: typer.Context) -> None:
         ctx.invoke(sync_accounts)
 
 
-@sync_app.command(name="accounts")
+@sync_app.command(name="account")
 def sync_accounts(
     ctx: typer.Context,
     account_id: Annotated[list[str] | None, typer.Option()] = None,
@@ -52,7 +52,7 @@ def sync_accounts(
         )
         raise typer.Exit(code=1)
 
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     service = context.get(SyncService)
     command = SyncInstitutionAccountsCommand(
         user_id=context.active_user_id,
@@ -77,12 +77,12 @@ def sync_fx_rates(
     dates = set(
         parse_list_parameter(
             date,
-            converter=lambda value: parse_date_parameter(
-                value, formats=ApplicationContext.DATE_FORMATS
+            converter=lambda value: parse_date(
+                value, formats=Container.DATE_FORMATS
             ),
         )
     )
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     service = context.get(SyncService)
     command = SyncFxRatesCommand(
         dates=dates,
@@ -93,7 +93,7 @@ def sync_fx_rates(
     )
 
 
-@sync_app.command(name="instruments")
+@sync_app.command(name="instrument")
 def sync_instruments(
     ctx: typer.Context,
     symbol: Annotated[list[str] | None, typer.Option()] = None,
@@ -101,7 +101,7 @@ def sync_instruments(
     all_: Annotated[bool, typer.Option("--all")] = False,
 ) -> None:
     symbols = set(parse_list_parameter(symbol))
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     service = context.get(SyncService)
     command = SyncInstrumentsCommand(
         symbols=symbols,

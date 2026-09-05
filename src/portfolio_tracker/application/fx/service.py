@@ -2,11 +2,12 @@ from collections.abc import Iterator
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING
 
-from portfolio_tracker.application.shared.exceptions import (
+from portfolio_tracker.application.shared.errors import (
     FxClientError,
     FxDataIntegrityError,
 )
 from portfolio_tracker.domain.fx import FxRates
+from portfolio_tracker.domain.shared import Currency
 
 from .client import FxClient
 
@@ -15,16 +16,14 @@ if TYPE_CHECKING:
 
 
 class FxService:
+    _BASE_CURRENCY = Currency.USD
+
     def __init__(
         self,
         fx_client: FxClient,
-        app_base_currency: str,
-        app_supported_currencies: set[str],
     ):
         self._fx_client = fx_client
-        self._app_base_currency = app_base_currency
-        self._app_supported_currencies = app_supported_currencies
-
+        self._quote_currencies = {currency for currency in Currency if currency != self._BASE_CURRENCY}
         self._cached_spot_rates: FxRates | None = None
         self._cached_spot_rates_ttl: int = 300
         self._spot_rates_fetched_at: datetime | None = None
@@ -39,8 +38,7 @@ class FxService:
 
         try:
             rates = self._fx_client.fetch_spot_rates(
-                self._app_base_currency,
-                self._app_supported_currencies,
+                self._BASE_CURRENCY, self._quote_currencies
             )
 
         except FxClientError:
@@ -57,8 +55,8 @@ class FxService:
         self, from_date: date, to_date: date, only_dates: set[date] | None = None
     ) -> Iterator[FxRates]:
         return self._fx_client.fetch_rates_series(
-            self._app_base_currency,
-            self._app_supported_currencies,
+            self._BASE_CURRENCY,
+            self._quote_currencies,
             from_date=from_date,
             to_date=to_date,
             only_dates=only_dates,

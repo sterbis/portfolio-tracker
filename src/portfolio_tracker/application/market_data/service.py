@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-from portfolio_tracker.application.shared.exceptions import (
+from portfolio_tracker.application.shared.errors import (
     MarketDataClientError,
     MarketDataIntegrityError,
 )

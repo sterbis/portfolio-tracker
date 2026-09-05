@@ -1,17 +1,14 @@
-from dataclasses import asdict
 from pprint import pformat
 from typing import Any
 
 from portfolio_tracker.domain.institution import Credentials, InstitutionId
 
 
-class ApplicationError(Exception):
+class PortfolioTrackerError(Exception):
     _message_template = "{message}"
 
     def __init__(self, **kwargs: Any) -> None:
-        self.metadata = kwargs or {
-            "message": "An undefined application error occurred."
-        }
+        self.metadata = kwargs or {"message": "An undefined error occurred."}
         super().__init__(self.message)
 
     @property
@@ -19,7 +16,7 @@ class ApplicationError(Exception):
         return self._message_template.format(**self.metadata)
 
 
-class ClientError(ApplicationError):
+class ClientError(PortfolioTrackerError):
     def __init__(self, message: str) -> None:
         self._message = message
         super().__init__()
@@ -29,14 +26,14 @@ class ClientError(ApplicationError):
         return self._message
 
 
-class DataIntegrityError(ApplicationError): ...
+class DataIntegrityError(PortfolioTrackerError): ...
 
 
-class InvalidFilterError(ApplicationError):
+class InvalidFilterError(PortfolioTrackerError):
     _message_template = "Cannot split OR filter tree combining persisted fields and in-memory computed fields."
 
 
-class ModelNotFoundError(ApplicationError):
+class ModelNotFoundError(PortfolioTrackerError):
     _message_template = "{model_name} with ID {model_id} not found."
 
     def __init__(self, model_name: str, model_id: str | set[str]) -> None:
@@ -51,7 +48,7 @@ class AssetAccountNotFoundError(ModelNotFoundError):
         super().__init__(model_name="Asset account", model_id=account_id)
 
 
-class AssetAccountAlreadyHasStatusError(ApplicationError):
+class AssetAccountAlreadyHasStatusError(PortfolioTrackerError):
     _message_template = "Asset account with ID {account_id} is already {status}."
     _status = "unknow status"
 
@@ -72,32 +69,55 @@ class InstitutionAccountNotFoundError(ModelNotFoundError):
         super().__init__(model_name="Institution account", model_id=account_id)
 
 
-class CredentialsNotFoundError(ApplicationError):
+class CredentialsNotFoundError(PortfolioTrackerError):
     _message_template = "Credentials for institution account with ID {institution_account_id} not found."
 
     def __init__(self, institution_account_id: str) -> None:
         super().__init__(institution_account_id=institution_account_id)
 
 
-class InvalidCredentialsError(ApplicationError):
+class InvalidCredentialsError(PortfolioTrackerError):
     _message_template = "Cannot connect to institution {institution_id} API with provided credentials:\n{credentials}."
 
     def __init__(self, credentials: Credentials) -> None:
         super().__init__(
             institution_id=credentials.institution_id,
-            credentials=pformat(asdict(credentials), sort_dicts=False),
+            credentials=pformat(credentials.parameters, sort_dicts=False),
         )
 
 
-class InvalidUsernameOrPasswordError(ApplicationError):
+class InvalidCredentialParametersError(PortfolioTrackerError):
+    _message_template = (
+        "Invalid institution {institution_id} API credentials:\n"
+        "Required parameters: {required_parameters}\n"
+        "Missing parameters: {missing_parameters}\n"
+        "Unknown parameters: {unknown_parameters}\n"
+    )
+
+    def __init__(
+        self,
+        institution_id: InstitutionId,
+        required_parameters: tuple[str, ...],
+        missing_parameters: list[str] | None = None,
+        unknown_parameters: list[str]| None = None,
+    ) -> None:
+        super().__init__(
+            institution_id=institution_id,
+            required_parameters=required_parameters,
+            missing_parameters=", ".join(missing_parameters) if missing_parameters else "",
+            unknown_parameters=", ".join(unknown_parameters) if unknown_parameters else "",
+        )
+
+
+class InvalidUsernameOrPasswordError(PortfolioTrackerError):
     _message_template = "Invalid username or password."
 
 
-class UserNotLoggedInError(ApplicationError):
+class UserNotLoggedInError(PortfolioTrackerError):
     _message_template = "No user is currently logged in."
 
 
-class UserAlreadyLoggedOutError(ApplicationError):
+class UserAlreadyLoggedOutError(PortfolioTrackerError):
     _message_template = "User already logged out."
 
 
@@ -114,10 +134,10 @@ class FxDataIntegrityError(DataIntegrityError):
 class InstitutionClientError(ClientError): ...
 
 
-class InstitutionReportNotFoundError(ApplicationError): ...
+class InstitutionReportNotFoundError(PortfolioTrackerError): ...
 
 
-class InstitutionReportParserError(ApplicationError): ...
+class InstitutionReportParserError(PortfolioTrackerError): ...
 
 
 class InstitutionNotFoundError(ModelNotFoundError):
@@ -135,7 +155,7 @@ class MarketDataIntegrityError(DataIntegrityError):
         super().__init__(detail=detail)
 
 
-class TransactionAlreadyExistsError(ApplicationError):
+class TransactionAlreadyExistsError(PortfolioTrackerError):
     _message_template = "Transaction with ID {transaction_id} already exists."
 
 
@@ -144,7 +164,7 @@ class TransactionNotFoundError(ModelNotFoundError):
         super().__init__(model_name="Transaction", model_id=transaction_id)
 
 
-class UsernameAlreadyExistsError(ApplicationError):
+class UsernameAlreadyExistsError(PortfolioTrackerError):
     _message_template = "User with '{username}' username already exists."
 
     def __init__(self, username: str) -> None:

@@ -4,7 +4,7 @@ from typing import Any
 from filterutils import Filter, FilterNode, Operator
 
 from portfolio_tracker.application.persistence import TransactionRepository
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.transaction import Transaction, TransactionType
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import (
     Row,
@@ -34,14 +34,14 @@ class SqliteTransactionRepository(TransactionRepository):
         self,
         *,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Transaction]:
         rows = self._executor.select(
             model=Transaction,
             filter_=filter_,
-            order_by_list=order_by_list,
+            sorts=sorts,
             limit=limit,
             offset=offset,
         )

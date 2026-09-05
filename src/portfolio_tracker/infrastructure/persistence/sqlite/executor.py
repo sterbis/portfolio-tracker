@@ -7,7 +7,7 @@ from typing import Any
 import sqlparse
 from filterutils import Filter
 
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.sort import Sort
 
 from .builder import SqliteStatementBuilder
 from .registry import ColumnReference, FieldReference, Model
@@ -82,7 +82,7 @@ class SqliteExecutor:
         include_parents: bool = False,
         distinct: bool = False,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Row]:
@@ -92,7 +92,7 @@ class SqliteExecutor:
             include_parents=include_parents,
             distinct=distinct,
             filter_=filter_,
-            order_by_list=order_by_list,
+            sorts=sorts,
             limit=limit,
             offset=offset,
         )
@@ -107,7 +107,7 @@ class SqliteExecutor:
         include_parents: bool = False,
         distinct: bool = False,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         offset: int | None = None,
     ) -> Row | None:
         rows: list[Row] = self.select(
@@ -116,7 +116,7 @@ class SqliteExecutor:
             include_parents=include_parents,
             distinct=distinct,
             filter_=filter_,
-            order_by_list=order_by_list,
+            sorts=sorts,
             limit=1,
             offset=offset,
         )

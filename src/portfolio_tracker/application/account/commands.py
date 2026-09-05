@@ -10,7 +10,7 @@ class ConnectInstitutionAccountCommand:
     institution_id: InstitutionId
     name: str
     created_on: date
-    credentials_data: dict[str, Any]
+    credential_parameters: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -18,7 +18,7 @@ class UpdateInstitutionAccountCommand:
     institution_account_id: str
     name: str
     created_on: date
-    credentials_data: dict[str, Any] | None
+    credential_parameters: dict[str, Any] | None
 
 
 @dataclass(frozen=True)

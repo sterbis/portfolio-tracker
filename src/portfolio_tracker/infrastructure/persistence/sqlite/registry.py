@@ -221,16 +221,15 @@ class SchemaResolver:
                 if field_name.startswith("_"):
                     continue
 
-                owner_model = self._resolve_owner_model(model, field_name)
-
+                owner_model = self._resolve_field_owner(model, field_name)
                 if (owner_model, field_name) in columns:
                     column = columns[(owner_model, field_name)]
 
                 else:
                     table = self._registry.tables[owner_model]
-                    column_name = self._registry.column_names.get(owner_model, {}).get(
-                        field_name, field_name
-                    )
+                    column_name = self._registry.column_names.get(
+                        owner_model, {}
+                    ).get(field_name, field_name)
                     column = ColumnReference(table, column_name)
                     columns[(owner_model, field_name)] = column
 
@@ -239,7 +238,7 @@ class SchemaResolver:
 
         return column_map
 
-    def _resolve_owner_model(self, model: Model, field_name: str) -> Model:
+    def _resolve_field_owner(self, model: Model, field_name: str) -> Model:
         if self._is_primary_key_field(model, field_name):
             return model
 
@@ -304,7 +303,7 @@ class SchemaResolver:
         return [
             FieldReference(model, field_.name)
             for field_ in fields(model)
-            if include_parents or self._resolve_owner_model(model, field_.name) == model
+            if include_parents or self._resolve_field_owner(model, field_.name) == model
         ]
 
     def resolve_relations(

@@ -2,7 +2,7 @@ from datetime import date
 from typing import Iterable, Iterator
 
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.shared import DualMoney
+from portfolio_tracker.domain.shared import Currency, DualMoney
 
 from .models import ConvertedTransaction, Transaction
 
@@ -12,7 +12,7 @@ class TransactionConverter:
         self._rates_by_date = rates_by_date
 
     def convert(
-        self, transaction: Transaction, reporting_currency: str
+        self, transaction: Transaction, reporting_currency: Currency
     ) -> ConvertedTransaction:
         rates = self._rates_by_date[transaction.executed_at.date()]
 
@@ -44,7 +44,7 @@ class TransactionConverter:
         )
 
     def convert_many(
-        self, transactions: Iterable[Transaction], reporting_currency: str
+        self, transactions: Iterable[Transaction], reporting_currency: Currency
     ) -> Iterator[ConvertedTransaction]:
         for transaction in transactions:
             yield self.convert(transaction, reporting_currency)

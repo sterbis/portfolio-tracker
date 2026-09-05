@@ -6,7 +6,7 @@ TItem = TypeVar("TItem")
 
 
 @dataclass(frozen=True)
-class OrderBy:
+class Sort:
     field: str
     item_type: type
     direction: Literal["ASC", "DESC"] = "ASC"
@@ -20,10 +20,10 @@ class OrderBy:
 
     @classmethod
     def apply_many(
-        cls, items: Sequence[TItem], order_by_list: Sequence[OrderBy]
+        cls, items: Sequence[TItem], sorts: Sequence[Sort]
     ) -> list[TItem]:
         sorted_items = list(items)
-        for order_by in reversed(order_by_list):
-            sorted_items = order_by.apply(sorted_items)
+        for sort in reversed(sorts):
+            sorted_items = sort.apply(sorted_items)
 
         return sorted_items

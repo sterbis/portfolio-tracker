@@ -3,7 +3,7 @@ from typing import Any
 
 from filterutils import ColumnMap, Filter, UniqueNameGenerator
 
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.sort import Sort
 
 from .registry import ColumnReference, FieldReference, Model, SchemaResolver
 
@@ -57,7 +57,7 @@ class SqliteStatementBuilder:
         include_parents: bool = False,
         distinct: bool = False,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> tuple[str, dict[str, Any], dict[ColumnReference, list[FieldReference]]]:
@@ -81,11 +81,11 @@ class SqliteStatementBuilder:
                 filter_columns.setdefault(column, []).append(field)
 
         order_by_columns: dict[ColumnReference, str] = {}
-        if order_by_list:
-            for order_by in order_by_list:
-                field = FieldReference(order_by.item_type, order_by.field)
+        if sorts:
+            for sort in sorts:
+                field = FieldReference(sort.item_type, sort.field)
                 column = self._resolver.get_column(field)
-                order_by_columns[column] = order_by.direction
+                order_by_columns[column] = sort.direction
 
         all_columns = (
             select_columns.keys() | filter_columns.keys() | order_by_columns.keys()

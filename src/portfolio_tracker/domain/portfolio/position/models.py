@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from portfolio_tracker.domain.shared import DualMoney
+from portfolio_tracker.domain.shared import Currency, DualMoney
 
 
 @dataclass(frozen=True)
@@ -23,11 +23,11 @@ class Position:
     _tax_free_position: Position | None = None
 
     @property
-    def native_currency(self) -> str:
+    def native_currency(self) -> Currency:
         return self.cost_basis.native.currency
 
     @property
-    def reporting_currency(self) -> str:
+    def reporting_currency(self) -> Currency:
         return self.cost_basis.reporting.currency
 
     @property

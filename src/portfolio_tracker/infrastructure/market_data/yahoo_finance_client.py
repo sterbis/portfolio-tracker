@@ -6,7 +6,7 @@ import pandas as pd
 import yfinance as yf
 
 from portfolio_tracker.application.market_data import MarketDataClient
-from portfolio_tracker.application.shared.exceptions import MarketDataClientError
+from portfolio_tracker.application.shared.errors import MarketDataClientError
 
 
 class YahooFinanceClient(MarketDataClient):

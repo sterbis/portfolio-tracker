@@ -1,5 +1,8 @@
+import sys
 from datetime import date, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Callable, TypeVar, overload
+
+from filterutils import Filter, FilterError, FilterExpressionParser
 
 import click
 import typer
@@ -14,17 +17,31 @@ from portfolio_tracker.application.account import (
     UpdateAssetAccountCommand,
     UpdateInstitutionAccountCommand,
 )
-from portfolio_tracker.bootstrap import ApplicationContext
+from portfolio_tracker.application.institution import InstitutionService
+from portfolio_tracker.application.shared.errors import (
+    InvalidCredentialParametersError,
+)
+from portfolio_tracker.bootstrap_desktop import Container
 from portfolio_tracker.domain.institution import InstitutionId
 from portfolio_tracker.infrastructure.institution import InstitutionCode
 from portfolio_tracker.infrastructure.institution.ibkr import IbkrCredentials
 from portfolio_tracker.infrastructure.institution.trading_212 import (
     Trading212Credentials,
 )
-from portfolio_tracker.presentation.cli.console import console
-from portfolio_tracker.presentation.cli.parsers import validate_non_empty
+from portfolio_tracker.presentation.cli.console import console, error_console
+from portfolio_tracker.presentation.cli.environment import CliEnvironment
+from portfolio_tracker.presentation.cli.parameters import date_option, key_value_option
+from portfolio_tracker.presentation.cli.parsers import (
+    parse_key_value_pairs,
+    parse_date,
+    parse_multi_value,
+    validate_non_empty,
+)
 
 from .sync import sync_accounts
+
+T = TypeVar("T")
+
 
 account_app = typer.Typer()
 asset_accounts_app = typer.Typer()
@@ -34,24 +51,31 @@ account_app.add_typer(asset_accounts_app, name="asset")
 
 @account_app.command(name="list")
 def list_accounts(ctx: typer.Context) -> None:
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     service = context.get(AccountQueryService)
     institution_accounts = service.get_accounts_overview(context.active_user_id)
 
     if not institution_accounts:
-        console.print(
-            "No institution accounts found. To connect institution account run: portfolio account add"
+        error_console.print(
+            "No institution accounts found. "
+            "To connect institution account run: 'portfolio account add'"
         )
         return
 
     tree = Tree("Accounts")
 
     for institution_account in institution_accounts:
-        label = f"{institution_account.institution.name} — {institution_account.name} ({institution_account.id})"
+        label = (
+            f"{institution_account.institution.name} — "
+            f"{institution_account.name} ({institution_account.id})"
+        )
         institution_account_branch = tree.add(label)
 
         for asset_account in institution_account.asset_accounts:
-            label = f"{asset_account.name} [External ID: {asset_account.external_id}] ({asset_account.id})"
+            label = (
+                f"{asset_account.name} [External ID: {asset_account.external_id}] "
+                f"({asset_account.id})"
+            )
             institution_account_branch.add(label)
 
     console.print(tree)
@@ -60,40 +84,83 @@ def list_accounts(ctx: typer.Context) -> None:
 @account_app.command(name="add")
 def add_institution_account(
     ctx: typer.Context,
-    institution: Annotated[
-        InstitutionCode,
-        typer.Option(prompt=True, case_sensitive=False),
-    ],
+    institution: Annotated[str | None, typer.Option()] = None,
+    name: Annotated[str | None, typer.Option()] = None,
+    created_on: Annotated[str | None, typer.Option()] = None,
+    credentials: Annotated[list[str] | None, typer.Option()] = None,
 ) -> None:
-    context: ApplicationContext = ctx.obj
-    service = context.get(AccountCommandService)
-    name, created_on, credentials_data = _prompt_institution_account_data(
-        context, institution
+    context: Container = ctx.obj
+    environment: CliEnvironment = ctx.meta["environment"]
+
+    institution_id = resolve_input(
+        parameter="--institution",
+        value=institution,
+        prompt=f"Institution code ({'|'.join(InstitutionCode)})",
+        interactive=environment.interactive,
+        value_parser=lambda value: InstitutionCode(value.upper()),
     )
+    resolved_name = resolve_input(
+        parameter="--name",
+        value=name,
+        prompt="Account name",
+        interactive=environment.interactive,
+        value_parser=validate_non_empty,
+    )
+    resolved_created_on = resolve_input(
+        parameter="--created-on",
+        value=created_on,
+        prompt="Account created on",
+        interactive=environment.interactive,
+        value_parser=lambda value: parse_date(value, formats=context.DATE_FORMATS),
+    )
+    credential_parameters = resolve_credential_parameters(
+        institution_id, credentials, context, environment.interactive
+    )
+
+    service = context.get(AccountCommandService)
     service.connect_institution_account(
         context.active_user_id,
         ConnectInstitutionAccountCommand(
-            institution_id=institution,
-            name=name,
-            created_on=created_on,
-            credentials_data=credentials_data,
+            institution_id=institution_id,
+            name=resolved_name,
+            created_on=resolved_created_on,
+            credential_parameters=credential_parameters,
         ),
     )
-    console.print(f"{institution} '{name}' institution account successfully connected.")
+
+    console.print(f"{institution_id} '{name}' institution account successfully connected.")
 
 
 @account_app.command(name="edit")
 def edit_institution_account(
     ctx: typer.Context,
-    account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
+    account_id: Annotated[str | None, typer.Option()] = None,
+    institution: Annotated[str | None, typer.Option()] = None,
+    name: Annotated[str | None, typer.Option()] = None,
+    created_on: Annotated[str | None, typer.Option()] = None,
+    credentials: Annotated[list[str] | None, typer.Option()] = None,
+    no_input: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    context: ApplicationContext = ctx.obj
+    account_id = resolve_input(
+        parameter="--account-id",
+        value=institution,
+        prompt=f"Institution code ({'|'.join(InstitutionCode)})",
+        interactive=interactive,
+        value_parser=lambda value: InstitutionCode(value.upper()),
+    )
+    
+    context: Container = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
 
     institution_account = query_service.get_institution_account(
         context.active_user_id, account_id
     )
+
+
+
+
+
     name, created_on, credentials_data = _prompt_institution_account_data(
         context, institution_account.institution.id, institution_account
     )
@@ -103,7 +170,7 @@ def edit_institution_account(
             institution_account_id=institution_account.id,
             name=name,
             created_on=created_on,
-            credentials_data=credentials_data,
+            credential_parameters=credentials_data,
         ),
     )
     console.print(
@@ -117,7 +184,7 @@ def remove_institution_account(
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
     force: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
     institution_account = query_service.get_institution_account(
@@ -146,7 +213,7 @@ def edit_asset_account(
     ctx: typer.Context,
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
 ) -> None:
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
     asset_account = query_service.get_asset_account_overview(
@@ -170,7 +237,7 @@ def activate_asset_account(
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
     force: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
     asset_account = query_service.get_asset_account_overview(
@@ -207,7 +274,7 @@ def deactivate_asset_account(
     account_id: Annotated[str, typer.Option(prompt=True, callback=validate_non_empty)],
     force: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    context: ApplicationContext = ctx.obj
+    context: Container = ctx.obj
     query_service = context.get(AccountQueryService)
     command_service = context.get(AccountCommandService)
     asset_account = query_service.get_asset_account_overview(
@@ -228,8 +295,150 @@ def deactivate_asset_account(
     command_service.deactivate_asset_account(context.active_user_id, account_id)
 
 
+@overload
+def resolve_input(
+    parameter: str,
+    value: str | None,
+    prompt: str,
+    interactive: bool,
+    *,
+    default_value: str | None = None,
+    value_parser: None = None,
+) -> str: ...
+
+
+@overload
+def resolve_input(
+    parameter: str,
+    value: str | None,
+    prompt: str,
+    interactive: bool,
+    *,
+    default_value: str | None = None,
+    value_parser: Callable[[str], T],
+) -> T: ...
+
+
+def resolve_input(
+    parameter: str,
+    value: str | None,
+    prompt: str,
+    interactive: bool,
+    *,
+    default_value: str | None = None,
+    value_parser: Callable[[str], T] | None = None,
+) -> T | str:
+    if value is None:
+        if not interactive:
+            raise typer.BadParameter(
+                f"Missing value for required {parameter} parameter."
+            )
+
+        value = typer.prompt(prompt, default=default_value)
+
+    if value_parser is None:
+        return value
+
+    try:
+        return value_parser(value)
+
+    except ValueError as error:
+        raise typer.BadParameter(f"Invalid value for {parameter}: {error}") from error
+
+
+def resolve_multi_value_input(
+    parameter: str,
+    value: list[str] | None,
+    prompt: str,
+    interactive: bool,
+    *,
+    default_value: str | None = None,
+    value_parser: Callable[[str], T] | None = None,
+    separator: str = ",",
+) -> list[T] | list[str]:
+    if value is None:
+        if not interactive:
+            raise typer.BadParameter(
+                f"Missing value for required {parameter} parameter."
+            )
+
+        value = typer.prompt(
+            prompt,
+            default=default_value,
+            value_proc=lambda value: parse_multi_value(value, separator=separator),
+        )
+
+    if value_parser is None:
+        return value
+
+    try:
+        return [value_parser(item) for item in value]
+
+    except ValueError as error:
+        raise typer.BadParameter(f"Invalid value for {parameter}: {error}") from error
+
+
+def resolve_filter(
+    model: type, field: str, expression: str | None, value_parser: Callable[[str], Any]
+) -> Filter | None:
+    if expression is None:
+        return None
+    try:
+        return FilterExpressionParser.parse(
+            field=field,
+            expression=expression,
+            item_type=model,
+            value_parser=value_parser,
+        )
+    except FilterError as error:
+        raise typer.BadParameter(str(error)) from error
+
+
+def resolve_credential_parameters(
+    institution_id: InstitutionCode,
+    credentials: list[str] | None,
+    context: Container,
+    interactive: bool,
+) -> dict[str, Any]:
+    service = context.get(InstitutionService)
+    parameters = parse_key_value_pairs(credentials) if credentials else {}
+
+    try:
+        return service.parse_credential_parameters(
+            institution_id=institution_id, parameters=parameters
+        )
+
+    except InvalidCredentialParametersError as error:
+        if error.metadata["unknown_parameters"]:
+            raise typer.BadParameter(str(error)) from error
+
+        if not error.metadata["missing_parameters"]:
+            raise typer.BadParameter(str(error)) from error
+
+        if not interactive:
+            raise typer.BadParameter(str(error)) from error
+
+        credentials_cls = service.get_credentials_cls(institution_id)
+        secret_parameters = credentials_cls.secret_parameter_names()
+
+        for missing_parameter in error.metadata["missing_parameters"]:
+            prompt = str(missing_parameter).replace("_", " ").title()
+            hide_input = missing_parameter in secret_parameters
+            parameters[missing_parameter] = typer.prompt(
+                prompt, confirmation_prompt=True, hide_input=hide_input
+            )
+
+    try:
+        return service.parse_credential_parameters(
+            institution_id=institution_id, parameters=parameters
+        )
+
+    except InvalidCredentialParametersError as error:
+        raise typer.BadParameter(str(error)) from error
+
+
 def _prompt_institution_account_data(
-    context: ApplicationContext,
+    context: Container,
     institution_id: InstitutionId,
     current_institution_account: InstitutionAccountView | None = None,
 ) -> tuple[str, date, dict[str, Any]]:

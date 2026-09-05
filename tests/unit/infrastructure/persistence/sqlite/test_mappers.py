@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 
 
 @pytest.mark.parametrize(
@@ -30,7 +30,7 @@ from portfolio_tracker.domain.shared import Money
             "real",
             0.00012345678901234567,
         ),
-        (Money(amount=Decimal("12.34"), currency="USD"), "MONEY", "text", "12.34;USD"),
+        (Money(amount=Decimal("12.34"), currency=Currency.USD), "MONEY", "text", "12.34;USD"),
     ],
 )
 def test_adapters(
@@ -39,7 +39,7 @@ def test_adapters(
     expected_raw_data_type: str,
     expected_raw_value: str,
 ) -> None:
-    connection = sqlite3.connect(":memory:")
+    connection = sqlite3.connect(":memory:", detect_types=0)
     cursor = connection.cursor()
 
     try:
@@ -69,20 +69,24 @@ def test_adapters(
             "DECIMAL_AS_TEXT",
             Decimal("0.0001234567890123456789"),
         ),
-        ("12.34;USD", "MONEY", Money(amount=Decimal("12.34"), currency="USD")),
+        ("12.34;USD", "MONEY", Money(amount=Decimal("12.34"), currency=Currency.USD)),
     ],
 )
 def test_converters(
     raw_value: str,
     column_type: str,
     expected_value: Any,
-    memory_db_connection: sqlite3.Connection,
 ) -> None:
-    cursor = memory_db_connection.cursor()
+    connection = sqlite3.connect(":memory:", detect_types=sqlite3.PARSE_DECLTYPES)
+    cursor = connection.cursor()
 
-    cursor.execute(f"CREATE TABLE test_table (value {column_type});")
-    cursor.execute(f"INSERT INTO test_table VALUES ('{raw_value}');")
-    cursor.execute("SELECT value FROM test_table;")
+    try:
+        cursor.execute(f"CREATE TABLE test_table (value {column_type});")
+        cursor.execute(f"INSERT INTO test_table VALUES ('{raw_value}');")
+        cursor.execute("SELECT value FROM test_table;")
 
-    value = cursor.fetchone()[0]
-    assert value == expected_value
+        value = cursor.fetchone()[0]
+        assert value == expected_value
+
+    finally:
+        connection.close()

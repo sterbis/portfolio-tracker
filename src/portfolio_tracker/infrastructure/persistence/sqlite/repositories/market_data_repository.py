@@ -5,7 +5,7 @@ from decimal import Decimal
 from filterutils import Filter, FilterNode, Operator
 
 from portfolio_tracker.application.persistence import MarketDataRepository
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import (
     Row,
@@ -45,9 +45,9 @@ class SqliteMarketDataRepository(MarketDataRepository):
             model=StockSplits,
             fields=fields,
             filter_=filter_,
-            order_by_list=[
-                OrderBy("instrument_id", StockSplits, "ASC"),
-                OrderBy("executed_at", StockSplits, "ASC"),
+            sorts=[
+                Sort("instrument_id", StockSplits, "ASC"),
+                Sort("executed_at", StockSplits, "ASC"),
             ],
         )
         return self._rows_to_splits(rows)

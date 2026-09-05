@@ -4,7 +4,7 @@ from filterutils import Filter, FilterNode, FilterTree, Operator
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import AccountRepository
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.account import (
     AssetAccount,
     InstitutionAccount,
@@ -31,14 +31,14 @@ class SqliteAccountRepository(AccountRepository):
         self,
         *,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[InstitutionAccount]:
         rows = self._executor.select(
             model=InstitutionAccount,
             filter_=filter_,
-            order_by_list=order_by_list,
+            sorts=sorts,
             limit=limit,
             offset=offset,
         )
@@ -94,14 +94,14 @@ class SqliteAccountRepository(AccountRepository):
         self,
         *,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[AssetAccount]:
         rows = self._executor.select(
             model=AssetAccount,
             filter_=filter_,
-            order_by_list=order_by_list,
+            sorts=sorts,
             limit=limit,
             offset=offset,
         )
@@ -163,7 +163,7 @@ class SqliteAccountRepository(AccountRepository):
         )
 
     def get_user_accounts_map(self, user_id: str) -> UserAccountsMap:
-        references = [
+        fields = [
             FieldReference(AssetAccount, "institution_account_id"),
             FieldReference(AssetAccount, "id"),
             FieldReference(AssetAccount, "external_id"),
@@ -172,7 +172,7 @@ class SqliteAccountRepository(AccountRepository):
 
         rows = self._executor.select(
             model=AssetAccount,
-            fields=references,
+            fields=fields,
             filter_=FilterNode("user_id", Operator.EQ, user_id, InstitutionAccount),
         )
 
@@ -187,7 +187,7 @@ class SqliteAccountRepository(AccountRepository):
                 asset_account_id,
                 asset_account_external_id,
                 is_active,
-            ) = row.unpack(*references)
+            ) = row.unpack(*fields)
 
             institution_account_ids.add(institution_account_id)
             asset_to_institution_account_id[asset_account_id] = institution_account_id

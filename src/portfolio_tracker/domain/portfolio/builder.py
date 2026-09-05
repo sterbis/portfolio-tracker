@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
 from portfolio_tracker.domain.account import UserAccountsMap
+from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import ConvertedTransaction, TransactionType
 
 from .cash_balance import CashBalanceBuilder
@@ -18,7 +19,7 @@ class PortfolioBuilder:
     def build(
         self,
         transactions: Iterable[ConvertedTransaction],
-        reporting_currency: str,
+        reporting_currency: Currency,
     ) -> list[Portfolio]:
         position_builders, cash_balance_builders = self._process_transactions(
             transactions

@@ -1,124 +1,69 @@
-from datetime import date, datetime, timezone
-from enum import StrEnum
+import itertools
 from typing import Any, Callable
 
-import click
+import typer
 from filterutils import Filter, FilterError, FilterExpressionParser
 
-from portfolio_tracker.bootstrap import ApplicationContext
-
-from .parsers import parse_date_parameter, parse_datetime_parameter
+from .parsers import parse_multi_value
 
 
-class DatetimeParameterType(click.ParamType[datetime]):
-    name = "datetime"
-
-    def convert(
-        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
-    ) -> datetime:
-        if isinstance(value, datetime):
-            return value
-
-        if isinstance(value, date):
-            return datetime.combine(value, datetime.min.time(), timezone.utc)
-
-        date_formats = None
-        if ctx:
-            context: ApplicationContext = ctx.obj
-            date_formats = context.DATE_FORMATS
-
-        try:
-            return parse_datetime_parameter(str(value), date_formats)
-        except ValueError:
-            pass
-
-        if date_formats:
-            date_hint = f"[{' | '.join(date_formats)}]"
-        else:
-            date_hint = "[YYYY-MM-DD]"
-
-        message = (
-            f"Invalid datetime format '{value}'. "
-            f"Expected date {date_hint} with optional time [HH:MM[:SS][±HH:MM[:SS]]]. "
-            "Examples: '2026-06-01', '31/05/2026 14:30:00+02:00', or ISO 8601 format."
-        )
-        self.fail(message, param, ctx)
-
-    def get_metavar(self, param: click.Parameter, ctx: click.Context) -> str:
-        context: ApplicationContext = ctx.obj
-        return f"[{'|'.join(context.DATE_FORMATS)}[ HH:MM[:SS][±HH:MM[:SS]]]]"
+def suppress_parser(value: str) -> str:
+    return value
 
 
-class DateParameterType(click.ParamType[date]):
-    name = "date"
+def multi_value_option(
+    *param_decls: str,
+    separator: str = ",",
+    **option_kwargs: Any,
+) -> Any:
+    def parser(value: str) -> list[str]:
+        return parse_multi_value(value, separator=separator)
 
-    def convert(
-        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
-    ) -> date:
-        if isinstance(value, date):
-            return value
+    def callback(
+        ctx: typer.Context, value: tuple[list[str], ...] | None
+    ) -> list[str] | None:
+        if ctx.resilient_parsing or not value:
+            return None
 
-        formats = None
-        if ctx:
-            context: ApplicationContext = ctx.obj
-            formats = context.DATE_FORMATS
+        return list(itertools.chain.from_iterable(value))
 
-        try:
-            return parse_date_parameter(str(value), formats)
-        except ValueError:
-            pass
+    return typer.Option(*param_decls, parser=parser, callback=callback, **option_kwargs)
 
-        if formats:
-            mesage = f"Invalid date format '{value}'. Supported formats: {', '.join(formats)} or ISO 8601 format (YYYY-MM-DD)."
-        else:
-            mesage = (
-                f"Invalid date format '{value}'. Expected ISO 8601 format (YYYY-MM-DD)."
+
+def filter_option(
+    *param_decls: str,
+    model: type,
+    field: str,
+    value_parser: Callable[[str], Any] | None = None,
+    context_aware_value_parser: Callable[[str, typer.Context], Any] | None = None,
+    **option_kwargs: Any,
+) -> Any:
+    if value_parser is not None and context_aware_value_parser is not None:
+        raise TypeError("Pass either value_parser or context_aware_value_parser.")
+
+    def callback(ctx: typer.Context, expression: str | None) -> Filter | None:
+        if ctx.resilient_parsing or expression is None:
+            return None
+
+        if context_aware_value_parser is not None:
+            resolved_parser: Callable[[str], Any] | None = (
+                lambda value: context_aware_value_parser(value, ctx)
             )
 
-        self.fail(mesage, param, ctx)
-
-    def get_metavar(self, param: click.Parameter, ctx: click.Context) -> str:
-        context: ApplicationContext = ctx.obj
-        return f"[{'|'.join(context.DATE_FORMATS)}]"
-
-
-class FilterParameterType(click.ParamType[Filter]):
-    name = "filter"
-
-    def __init__(
-        self,
-        model: type,
-        field_name: str,
-        value_parser: Callable[[str], Any] | None = None,
-    ) -> None:
-        self._model = model
-        self._field_name = field_name
-        self._value_parser = value_parser
-
-    def convert(
-        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
-    ) -> Filter:
-        if isinstance(value, Filter):
-            return value
-
-        value = str(value)
-        if isinstance(self._value_parser, StrEnum):
-            value = value.upper()
+        else:
+            resolved_parser = value_parser
 
         try:
             return FilterExpressionParser.parse(
-                field=self._field_name,
-                expression=value,
-                item_type=self._model,
-                value_parser=self._value_parser,
+                field=field,
+                expression=expression,
+                item_type=model,
+                value_parser=resolved_parser,
             )
+
         except FilterError as error:
-            self.fail(str(error), param, ctx)
+            raise typer.BadParameter(str(error)) from error
 
-    def get_metavar(self, param: click.Parameter, ctx: click.Context) -> str:
-        if isinstance(self._value_parser, type) and issubclass(
-            self._value_parser, StrEnum
-        ):
-            return f"[{'|'.join(value.upper() for value in self._value_parser)}]"
-
-        return f"[{self._field_name.upper()} EXPRESSION]"
+    return typer.Option(
+        *param_decls, parser=suppress_parser, callback=callback, **option_kwargs
+    )

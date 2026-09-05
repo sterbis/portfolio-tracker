@@ -1,8 +1,8 @@
-from portfolio_tracker.application.shared.exceptions import (
+from portfolio_tracker.application.shared.errors import (
     TransactionAlreadyExistsError,
     TransactionNotFoundError,
 )
-from portfolio_tracker.application.shared.service import ApplicationService
+from portfolio_tracker.application.shared.service import Service
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction
 
@@ -12,7 +12,7 @@ from .commands import (
 )
 
 
-class TransactionCommandService(ApplicationService):
+class TransactionCommandService(Service):
     def create_transaction(
         self, user_id: str, command: CreateTransactionCommand
     ) -> str:
@@ -31,7 +31,7 @@ class TransactionCommandService(ApplicationService):
             cash_impact=Money(payload.cash_impact.amount, payload.cash_impact.currency),
         )
 
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             if uow.transactions.exists(transaction):
                 raise TransactionAlreadyExistsError(transaction_id=transaction.id)
 
@@ -43,7 +43,7 @@ class TransactionCommandService(ApplicationService):
     def update_transaction(
         self, user_id: str, command: UpdateTransactionCommand
     ) -> None:
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             transaction = uow.transactions.get_by_id(command.transaction_id)
             if not transaction:
                 raise TransactionNotFoundError(command.transaction_id)
@@ -80,7 +80,7 @@ class TransactionCommandService(ApplicationService):
             uow.commit()
 
     def delete_transaction(self, user_id: str, transaction_id: str) -> None:
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             transaction = uow.transactions.get_by_id(transaction_id)
             if not transaction:
                 raise TransactionNotFoundError(transaction_id)

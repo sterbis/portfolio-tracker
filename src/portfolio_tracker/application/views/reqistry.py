@@ -14,7 +14,7 @@ from portfolio_tracker.domain.instrument import (
     Option,
     Stock,
 )
-from portfolio_tracker.domain.transaction import Transaction
+from portfolio_tracker.domain.transaction import ConvertedTransaction, Transaction
 from portfolio_tracker.domain.user import User
 
 from .account import AssetAccountView, InstitutionAccountView
@@ -183,11 +183,15 @@ TRANSACTION_FIELD_MAP = {
     "correlation_id": FieldReference(Transaction, "correlation_id"),
     "executed_at": FieldReference(Transaction, "executed_at"),
     "type": FieldReference(Transaction, "type"),
-    "quantity": FieldReference(Transaction, "quantity"),
-    "price": FieldReference(Transaction, "price"),
-    "fee": FieldReference(Transaction, "fee"),
-    "tax": FieldReference(Transaction, "tax"),
-    "cash_impact": FieldReference(Transaction, "cash_impact"),
+    "quantity": FieldReference(ConvertedTransaction, "quantity"),
+    "price.native": FieldReference(ConvertedTransaction, "price.native"),
+    "price.reporting": FieldReference(ConvertedTransaction, "price.reporting"),
+    "fee.native": FieldReference(ConvertedTransaction, "fee.native"),
+    "fee.reporting": FieldReference(ConvertedTransaction, "fee.reporting"),
+    "tax.native": FieldReference(ConvertedTransaction, "tax.native"),
+    "tax.reporting": FieldReference(ConvertedTransaction, "tax.reporting"),
+    "cash_impact.native": FieldReference(ConvertedTransaction, "cash_impact.native"),
+    "cash_impact.reporting": FieldReference(ConvertedTransaction, "cash_impact.reporting"),
     **prefix_field_map(ASSET_ACCOUNT_FIELD_MAP, "asset_account"),
     **prefix_field_map(INSTRUMENT_FIELD_MAP, "instrument"),
 }

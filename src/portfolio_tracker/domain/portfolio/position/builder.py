@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
-from portfolio_tracker.domain.shared import DualMoney
+from portfolio_tracker.domain.shared import Currency, DualMoney
 from portfolio_tracker.domain.transaction import ConvertedTransaction, TransactionType
 
 from .models import Position, TaxLot
@@ -18,8 +18,8 @@ class PositionBuilder:
     def __init__(
         self,
         instrument_id: str,
-        native_currency: str,
-        reporting_currency: str,
+        native_currency: Currency,
+        reporting_currency: Currency,
         accounting_method: AccountingMethod = AccountingMethod.FIFO,
     ) -> None:
         self.instrument_id = instrument_id

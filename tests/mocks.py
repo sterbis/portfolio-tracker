@@ -22,8 +22,24 @@ class Trading321Credentials(Credentials):
     api_key: str
     api_secret: str
 
+    @classmethod
+    def parameter_names(cls) -> tuple[str, ...]:
+        return ("api_key", "api_secret")
+
+    @classmethod
+    def secret_parameter_names(cls) -> tuple[str, ...]:
+        return ("api_secret", )
+
 
 @dataclass(frozen=True)
 class HyperactiveBrokersCredentials(Credentials):
     web_service_token: str
     query_ids: list[str]
+
+    @classmethod
+    def parameter_names(cls) -> tuple[str, ...]:
+        return ("web_service_token", "query_ids")
+
+    @classmethod
+    def secret_parameter_names(cls) -> tuple[str, ...]:
+        return ("web_service_token", )

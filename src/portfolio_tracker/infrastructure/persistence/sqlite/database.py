@@ -2,9 +2,23 @@ import logging
 import sqlite3
 from pathlib import Path
 
-from .mappers import register_mappers
 
 logger = logging.getLogger(__name__)
+
+SCHEMA_PATH = Path(__file__).parent / "schema.sql"
+
+
+def initialize_database(
+    database: str | Path, *, uri: bool = False
+) -> None:
+    schema = SCHEMA_PATH.read_text(encoding="utf-8")
+    connection = open_connection(database, uri=uri)
+    try:
+        connection.executescript(schema)
+        logger.debug("'%s' database initialized successfully.", Path(database).name)
+
+    finally:
+        connection.close()
 
 
 def open_connection(
@@ -19,20 +33,13 @@ def open_connection(
     )
 
     connection.execute("PRAGMA foreign_keys = ON;")
-    connection.execute("PRAGMA journal_mode = WAL;")
+    cursor = connection.execute("PRAGMA journal_mode = WAL;")
+
+    journal_mode = cursor.fetchone()[0].upper()
+    if journal_mode != "WAL":
+        logger.warning(
+            "Cannot set journal mode to WAL mode. Current journal mode is '%s' mode.",
+            journal_mode,
+        )
 
     return connection
-
-
-def initialize_database(
-    database: str | Path, schema_path: str | Path, *, uri: bool = False
-) -> None:
-    schema = Path(schema_path).read_text(encoding="utf-8")
-    connection = open_connection(database, uri=uri)
-    try:
-        connection.executescript(schema)
-        logger.debug("'%s' database initialized successfully.", Path(database).name)
-    finally:
-        connection.close()
-
-    register_mappers()

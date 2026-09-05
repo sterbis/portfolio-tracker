@@ -3,7 +3,7 @@ from decimal import Decimal
 from enum import IntEnum
 
 from portfolio_tracker.domain.instrument import AssetClass, InstrumentType
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 
 from .cash_balance import CashBalance, CashBalanceValuation
 from .position import Position, PositionValuation
@@ -19,7 +19,7 @@ class ConsolidationScope(IntEnum):
 class Portfolio:
     scope: ConsolidationScope
     account_id: str | None
-    reporting_currency: str
+    reporting_currency: Currency
     positions: list[Position]
     cash_balance: CashBalance
 

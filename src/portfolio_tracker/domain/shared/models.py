@@ -1,15 +1,24 @@
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import StrEnum
 from functools import total_ordering
+from typing import TYPE_CHECKING
 
-from portfolio_tracker.domain.fx import FxRates
+if TYPE_CHECKING:
+    from portfolio_tracker.domain.fx import FxRates
+
+
+class Currency(StrEnum):
+    CZK = "CZK"
+    EUR = "EUR"
+    USD = "USD"
 
 
 @total_ordering
 @dataclass(frozen=True)
 class Money:
     amount: Decimal
-    currency: str
+    currency: Currency
 
     def __str__(self) -> str:
         return f"{self.amount.normalize()} {self.currency}"
@@ -74,7 +83,7 @@ class Money:
     def to_zero(self) -> Money:
         return Money(amount=Decimal("0"), currency=self.currency)
 
-    def convert(self, to_currency: str, rates: FxRates) -> Money:
+    def convert(self, to_currency: Currency, rates: FxRates) -> Money:
         rate = rates.get_rate(self.currency, to_currency)
         return Money(
             amount=self.amount * rate,
@@ -82,7 +91,7 @@ class Money:
         )
 
     @classmethod
-    def zero(cls, currency: str) -> Money:
+    def zero(cls, currency: Currency) -> Money:
         return cls(amount=Decimal("0"), currency=currency)
 
 
@@ -137,7 +146,7 @@ class DualMoney:
         )
 
     @classmethod
-    def zero(cls, native_currency: str, reporting_currency: str) -> DualMoney:
+    def zero(cls, native_currency: Currency, reporting_currency: Currency) -> DualMoney:
         return cls(
             native=Money.zero(native_currency),
             reporting=Money.zero(reporting_currency),

@@ -4,12 +4,12 @@ from portfolio_tracker.application.fx import FxService
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.persistence import (
-    SessionFactory,
+    StorageConnectionFactory,
     UserScopedUnitOfWork,
 )
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
-from portfolio_tracker.application.shared.order_by import OrderBy
-from portfolio_tracker.application.shared.service import ApplicationQueryService
+from portfolio_tracker.application.shared.sort import Sort
+from portfolio_tracker.application.shared.service import QueryService
 from portfolio_tracker.application.views import (
     PortfolioValuationView,
     PortfolioView,
@@ -34,12 +34,12 @@ from portfolio_tracker.domain.transaction import (
 from .queries import GetPortfoliosQuery
 
 
-class PortfolioQueryService(ApplicationQueryService):
-    REQUIRED_TRANSACTION_ORDER_BY: OrderBy = OrderBy("executed_at", Transaction, "ASC")
+class PortfolioQueryService(QueryService):
+    REQUIRED_TRANSACTION_SORT: Sort = Sort("executed_at", Transaction, "ASC")
 
     def __init__(
         self,
-        session_factory: SessionFactory,
+        storage_connection_factory: StorageConnectionFactory,
         filter_mapper: FilterMapper,
         filter_splitter: FilterSplitter,
         view_builder: ViewBuilder,
@@ -50,7 +50,7 @@ class PortfolioQueryService(ApplicationQueryService):
         fx_service: FxService,
         market_data_service: MarketDataService,
     ) -> None:
-        super().__init__(session_factory, filter_mapper, filter_splitter, view_builder)
+        super().__init__(storage_connection_factory, filter_mapper, filter_splitter, view_builder)
         self._institution_registry = institution_registry
         self._market_data_service = market_data_service
         self._fx_service = fx_service
@@ -117,12 +117,12 @@ class PortfolioQueryService(ApplicationQueryService):
         list[Instrument],
         list[Portfolio],
     ]:
-        with self._user_unit_of_work(user_id, read_only=True) as uow:
+        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             transactions: Iterable[Transaction] = uow.transactions.get(
                 institution_account_ids=query.institution_account_ids,
                 asset_account_ids=query.asset_account_ids,
                 filter_=query.filter,
-                order_by_list=[self.REQUIRED_TRANSACTION_ORDER_BY],
+                sorts=[self.REQUIRED_TRANSACTION_SORT],
             )
             instrument_ids = uow.transactions.get_distinct_instrument_ids(
                 institution_account_ids=query.institution_account_ids,

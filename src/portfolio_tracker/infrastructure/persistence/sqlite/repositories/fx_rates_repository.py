@@ -5,7 +5,7 @@ from decimal import Decimal
 from filterutils import Filter, FilterNode, Operator
 
 from portfolio_tracker.application.persistence import FxRatesRepository
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
 from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
@@ -48,9 +48,9 @@ class SqliteFxRatesRepository(FxRatesRepository):
             model=FxRates,
             fields=references,
             filter_=filter_,
-            order_by_list=[
-                OrderBy("effective_on", FxRates, "ASC"),
-                OrderBy("base_currency", FxRates, "ASC"),
+            sorts=[
+                Sort("effective_on", FxRates, "ASC"),
+                Sort("base_currency", FxRates, "ASC"),
             ],
         )
 
@@ -97,7 +97,7 @@ class SqliteFxRatesRepository(FxRatesRepository):
         row = self._executor.select_one(
             model=FxRates,
             fields=[effective_on_field],
-            order_by_list=[OrderBy("effective_on", FxRates, "DESC")],
+            sorts=[Sort("effective_on", FxRates, "DESC")],
         )
         if not row:
             return None

@@ -4,7 +4,7 @@ from typing import Any
 from filterutils import Filter, FilterNode, Operator
 
 from portfolio_tracker.application.persistence import InstrumentRepository
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.instrument import (
     AssetClass,
     Bond,
@@ -78,14 +78,14 @@ class SqliteInstrumentRepository(InstrumentRepository):
         self,
         *,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[InstrumentMetadata]:
         rows = self._executor.select(
             model=InstrumentMetadata,
             filter_=filter_,
-            order_by_list=order_by_list,
+            sorts=sorts,
             limit=limit,
             offset=offset,
         )
@@ -95,7 +95,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         self,
         *,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Instrument]:
@@ -128,8 +128,8 @@ class SqliteInstrumentRepository(InstrumentRepository):
                 metadata = metadata_by_id[instrument_id]
                 instruments.append(self._row_to_instrument(row, model, metadata))
 
-        if order_by_list:
-            instruments = OrderBy.apply_many(instruments, order_by_list)
+        if sorts:
+            instruments = Sort.apply_many(instruments, sorts)
 
         return instruments
 

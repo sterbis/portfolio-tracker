@@ -1,5 +1,5 @@
-from abc import ABC
-from dataclasses import asdict, dataclass
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
@@ -21,7 +21,12 @@ class Credentials(ABC):
 
     @property
     def parameters(self) -> dict[str, Any]:
-        parameters = asdict(self)
-        parameters.pop("institution_id")
-        parameters.pop("institution_account_id")
-        return parameters
+        return {name: getattr(self, name) for name in self.parameter_names()}
+
+    @classmethod
+    @abstractmethod
+    def parameter_names(cls) -> tuple[str, ...]: ...
+
+    @classmethod
+    @abstractmethod
+    def secret_parameter_names(cls) -> tuple[str, ...]: ...

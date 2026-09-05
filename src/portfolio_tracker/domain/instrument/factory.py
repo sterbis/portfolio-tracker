@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Any, NotRequired, TypedDict
 
+from portfolio_tracker.domain.shared import Currency
+
 from .models import (
     AssetClass,
     Bond,
@@ -37,7 +39,7 @@ class InstrumentBaseData(TypedDict):
     name: str
     symbol: str
     exchange: str | None
-    currency: str
+    currency: Currency
     last_synced_at: NotRequired[datetime | None]
 
 

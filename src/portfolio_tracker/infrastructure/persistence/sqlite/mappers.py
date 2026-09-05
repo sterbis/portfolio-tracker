@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 
 
 def adapt_date(value: date) -> str:
@@ -23,7 +23,7 @@ def adapt_str_enum(value: StrEnum) -> str:
 
 
 def adapt_money(value: Money) -> str:
-    return f"{adapt_decimal(value.amount)};{value.currency}"
+    return f"{adapt_decimal(value.amount)};{value.currency.value}"
 
 
 def convert_date(value: bytes) -> date:
@@ -42,18 +42,10 @@ def convert_decimal(value: bytes | str) -> Decimal:
 
 def convert_money(value: bytes) -> Money:
     amount, currency = value.split(b";")
-    return Money(amount=convert_decimal(amount), currency=currency.decode())
-
-
-_MAPPERS_REGISTERED = False
+    return Money(amount=convert_decimal(amount), currency=Currency(currency.decode()))
 
 
 def register_mappers() -> None:
-    global _MAPPERS_REGISTERED  # pylint: disable=global-statement
-
-    if _MAPPERS_REGISTERED:
-        return
-
     sqlite3.register_adapter(date, adapt_date)
     sqlite3.register_adapter(datetime, adapt_datetime)
     sqlite3.register_adapter(Decimal, adapt_decimal)
@@ -64,5 +56,3 @@ def register_mappers() -> None:
     sqlite3.register_converter("datetime", convert_datetime)
     sqlite3.register_converter("decimal_as_text", convert_decimal)
     sqlite3.register_converter("money", convert_money)
-
-    _MAPPERS_REGISTERED = True

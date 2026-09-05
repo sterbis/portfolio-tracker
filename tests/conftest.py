@@ -11,6 +11,7 @@ from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.institution import Institution
 from portfolio_tracker.domain.instrument import Stock
 from portfolio_tracker.domain.market_data import StockSplits
+from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.user import User
 
 from .mocks import (
@@ -91,7 +92,7 @@ def googl_stock() -> Stock:
         name="Alphabet Inc.",
         symbol="GOOGL",
         exchange="NASDAQ",
-        currency="USD",
+        currency=Currency.USD,
         isin="US02079K3059",
     )
 
@@ -102,7 +103,7 @@ def msft_stock() -> Stock:
         name="Microsoft Corporation",
         symbol="MSFT",
         exchange="NASDAQ",
-        currency="USD",
+        currency=Currency.USD,
         isin="US5949181045",
     )
 
@@ -113,7 +114,7 @@ def aapl_stock() -> Stock:
         name="Apple Inc.",
         symbol="AAPL",
         exchange="NASDAQ",
-        currency="USD",
+        currency=Currency.USD,
         isin="US0378331005",
     )
 
@@ -124,7 +125,7 @@ def nvda_stock() -> Stock:
         name="NVIDIA Corporation",
         symbol="NVDA",
         exchange="NASDAQ",
-        currency="USD",
+        currency=Currency.USD,
         isin="US67066G1040",
     )
 
@@ -133,10 +134,10 @@ def nvda_stock() -> Stock:
 def sample_rates() -> FxRates:
     return FxRates(
         effective_on=date(2026, 6, 1),
-        base_currency="USD",
+        base_currency=Currency.USD,
         rates={
-            "EUR": Decimal("0.90"),
-            "CZK": Decimal("23.00"),
+            Currency.EUR: Decimal("0.90"),
+            Currency.CZK: Decimal("23.00"),
         },
     )
 

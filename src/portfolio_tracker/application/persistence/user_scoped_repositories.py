@@ -3,11 +3,11 @@ from datetime import date
 
 from filterutils import Filter, FilterNode, FilterTree, Operator
 
-from portfolio_tracker.application.shared.exceptions import (
+from portfolio_tracker.application.shared.errors import (
     AssetAccountNotFoundError,
     InstitutionAccountNotFoundError,
 )
-from portfolio_tracker.application.shared.order_by import OrderBy
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.account import (
     AssetAccount,
     InstitutionAccount,
@@ -152,7 +152,7 @@ class UserScopedTransactionRepository(UserScopedRepository):
         institution_account_ids: set[str] | None = None,
         asset_account_ids: set[str] | None = None,
         filter_: Filter | None = None,
-        order_by_list: list[OrderBy] | None = None,
+        sorts: list[Sort] | None = None,
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[Transaction]:
@@ -164,7 +164,7 @@ class UserScopedTransactionRepository(UserScopedRepository):
 
         return self._transaction_repository.get(
             filter_=filter_,
-            order_by_list=order_by_list,
+            sorts=sorts,
             limit=limit,
             offset=offset,
         )

@@ -7,7 +7,7 @@ from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.instrument import Stock
 from portfolio_tracker.domain.market_data import StockSplits
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 from portfolio_tracker.domain.transaction import Transaction, TransactionType
 from portfolio_tracker.domain.user import User
 from portfolio_tracker.infrastructure.persistence.sqlite.builder import (
@@ -27,13 +27,13 @@ from tests.mocks import MockEncryptor
 
 
 def test_user_repository_round_trips_user(
-    initialized_shared_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    initialized_in_memory_db_connection: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
     sample_user: User,
 ) -> None:
     repository = SqliteUserRepository(
         SqliteExecutor(
-            connection=initialized_shared_memory_db_connection_foreign_keys_off,
+            connection=initialized_in_memory_db_connection,
             builder=statement_builder,
         )
     )
@@ -43,7 +43,7 @@ def test_user_repository_round_trips_user(
 
 
 def test_account_repository_round_trips_institution_and_asset_accounts(
-    initialized_shared_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
     sample_institution_registry: InstitutionRegistry,
     sample_institution_account: InstitutionAccount,
@@ -52,7 +52,7 @@ def test_account_repository_round_trips_institution_and_asset_accounts(
     account_repository = SqliteAccountRepository(
         sample_institution_registry,
         SqliteExecutor(
-            connection=initialized_shared_memory_db_connection_foreign_keys_off,
+            connection=initialized_in_memory_db_connection_foreign_keys_off,
             builder=statement_builder,
         ),
     )
@@ -71,63 +71,45 @@ def test_account_repository_round_trips_institution_and_asset_accounts(
 
 
 def test_credentials_repository_round_trips_credentials(
-    initialized_shared_memory_db_connection: sqlite3.Connection,
+    initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
     mock_encryptor: MockEncryptor,
     sample_institution_registry: InstitutionRegistry,
-    sample_user: User,
     sample_institution_account: InstitutionAccount,
 ) -> None:
-    credentials_parameters = {
+    parameters = {
         "api_key": "key_123",
         "api_secret": "secret_abc",
     }
     credentials = sample_institution_registry.create_credentials(
         sample_institution_account.institution_id,
         sample_institution_account.id,
-        credentials_parameters,
+        parameters,
     )
-
-    user_repository = SqliteUserRepository(
-        executor=SqliteExecutor(
-            connection=initialized_shared_memory_db_connection,
-            builder=statement_builder,
-        ),
-    )
-    user_repository.add(sample_user)
-
-    account_repository = SqliteAccountRepository(
-        institution_registry=sample_institution_registry,
-        executor=SqliteExecutor(
-            connection=initialized_shared_memory_db_connection,
-            builder=statement_builder,
-        ),
-    )
-    account_repository.add_institution_account(sample_institution_account)
 
     credentials_repository = SqliteCredentialsRepository(
         institution_registry=sample_institution_registry,
         encryptor=mock_encryptor,
         executor=SqliteExecutor(
-            connection=initialized_shared_memory_db_connection,
+            connection=initialized_in_memory_db_connection_foreign_keys_off,
             builder=statement_builder,
         ),
     )
-    credentials_repository.store(credentials)
+    credentials_repository.upsert(credentials)
 
-    stored_credentials = credentials_repository.retrieve(sample_institution_account.id)
+    stored_credentials = credentials_repository.get(sample_institution_account.id)
     assert stored_credentials == credentials
 
 
 def test_transaction_repository_round_trips_transaction(
-    initialized_shared_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
     sample_asset_account: AssetAccount,
     googl_stock: Stock,
 ) -> None:
     transaction_repository = SqliteTransactionRepository(
         executor=SqliteExecutor(
-            connection=initialized_shared_memory_db_connection_foreign_keys_off,
+            connection=initialized_in_memory_db_connection_foreign_keys_off,
             builder=statement_builder,
         ),
     )
@@ -138,10 +120,10 @@ def test_transaction_repository_round_trips_transaction(
         type=TransactionType.BUY,
         instrument_id=googl_stock.id,
         quantity=Decimal("10"),
-        price=Money(Decimal("100.50"), "USD"),
-        fee=Money.zero("USD"),
-        tax=Money.zero("USD"),
-        cash_impact=Money(Decimal("-1005.00"), "USD"),
+        price=Money(Decimal("100.50"), Currency.USD),
+        fee=Money.zero(Currency.USD),
+        tax=Money.zero(Currency.USD),
+        cash_impact=Money(Decimal("-1005.00"), Currency.USD),
     )
     transaction_repository.add(transaction)
 
@@ -150,13 +132,13 @@ def test_transaction_repository_round_trips_transaction(
 
 
 def test_instrument_repository_round_trips_stock_instrument(
-    initialized_shared_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    initialized_in_memory_db_connection: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
     googl_stock: Stock,
 ) -> None:
     repository = SqliteInstrumentRepository(
         executor=SqliteExecutor(
-            connection=initialized_shared_memory_db_connection_foreign_keys_off,
+            connection=initialized_in_memory_db_connection,
             builder=statement_builder,
         ),
     )
@@ -168,13 +150,13 @@ def test_instrument_repository_round_trips_stock_instrument(
 
 
 def test_fx_rates_repository_round_trips_fx_rates(
-    initialized_shared_memory_db_connection: sqlite3.Connection,
+    initialized_in_memory_db_connection: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
     sample_rates: FxRates,
 ) -> None:
     repository = SqliteFxRatesRepository(
         executor=SqliteExecutor(
-            connection=initialized_shared_memory_db_connection,
+            connection=initialized_in_memory_db_connection,
             builder=statement_builder,
         ),
     )
@@ -184,13 +166,13 @@ def test_fx_rates_repository_round_trips_fx_rates(
 
 
 def test_market_data_repository_round_trips_stock_splits(
-    initialized_shared_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
     sample_stock_splits: StockSplits,
 ) -> None:
     repository = SqliteMarketDataRepository(
         executor=SqliteExecutor(
-            connection=initialized_shared_memory_db_connection_foreign_keys_off,
+            connection=initialized_in_memory_db_connection_foreign_keys_off,
             builder=statement_builder,
         )
     )

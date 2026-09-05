@@ -1,12 +1,17 @@
-from .database import initialize_database, open_connection
+from .database import initialize_database
 from .mappers import register_mappers
-from .unit_of_work import SqliteSession, SqliteSessionFactory, SqliteUnitOfWork
+from .registry import SCHEMA_REGISTRY
+from .unit_of_work import (
+    SqliteStorageConnection,
+    SqliteStorageConnectionFactory,
+    SqliteUnitOfWork,
+)
 
 __all__ = [
-    "SqliteSession",
-    "SqliteSessionFactory",
+    "SCHEMA_REGISTRY",
+    "SqliteStorageConnection",
+    "SqliteStorageConnectionFactory",
     "SqliteUnitOfWork",
     "initialize_database",
     "register_mappers",
-    "open_connection",
 ]

@@ -1,14 +1,14 @@
 from dataclasses import replace
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import SessionFactory
-from portfolio_tracker.application.shared.exceptions import (
+from portfolio_tracker.application.persistence import StorageConnectionFactory
+from portfolio_tracker.application.shared.errors import (
     AssetAccountAlreadyActivatedError,
     AssetAccountAlreadyDeactivatedError,
     InstitutionClientError,
     InvalidCredentialsError,
 )
-from portfolio_tracker.application.shared.service import ApplicationService
+from portfolio_tracker.application.shared.service import Service
 from portfolio_tracker.domain.account import InstitutionAccount
 from portfolio_tracker.domain.institution import Credentials
 
@@ -19,13 +19,13 @@ from .commands import (
 )
 
 
-class AccountCommandService(ApplicationService):
+class AccountCommandService(Service):
     def __init__(
         self,
-        session_factory: SessionFactory,
+        storage_connection_factory: StorageConnectionFactory,
         institution_registry: InstitutionRegistry,
     ) -> None:
-        super().__init__(session_factory)
+        super().__init__(storage_connection_factory)
         self._institution_registry = institution_registry
 
     def connect_institution_account(
@@ -40,13 +40,13 @@ class AccountCommandService(ApplicationService):
         credentials = self._institution_registry.create_credentials(
             institution_account.institution_id,
             institution_account.id,
-            command.credentials_data,
+            command.credential_parameters,
         )
         self._verify_credentials(credentials)
 
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             uow.accounts.add_institution_account(institution_account)
-            uow.credentials.store(credentials)
+            uow.credentials.upsert(credentials)
             uow.commit()
 
         return institution_account.id
@@ -54,18 +54,18 @@ class AccountCommandService(ApplicationService):
     def update_institution_account(
         self, user_id: str, command: UpdateInstitutionAccountCommand
     ) -> None:
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             institution_account = uow.accounts.get_institution_account_by_id(
                 command.institution_account_id
             )
-            if command.credentials_data:
+            if command.credential_parameters:
                 credentials = self._institution_registry.create_credentials(
                     institution_account.institution_id,
                     institution_account.id,
-                    command.credentials_data,
+                    command.credential_parameters,
                 )
                 self._verify_credentials(credentials)
-                uow.credentials.store(credentials)
+                uow.credentials.upsert(credentials)
 
             institution_account = replace(
                 institution_account,
@@ -76,7 +76,7 @@ class AccountCommandService(ApplicationService):
             uow.commit()
 
     def disconnect_institution_account(self, user_id: str, account_id: str) -> None:
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             uow.accounts.remove_institution_account_by_id(account_id)
             uow.credentials.remove(account_id)
             uow.commit()
@@ -84,7 +84,7 @@ class AccountCommandService(ApplicationService):
     def update_asset_account(
         self, user_id: str, command: UpdateAssetAccountCommand
     ) -> None:
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             asset_account = uow.accounts.get_asset_account_by_id(
                 command.asset_account_id
             )
@@ -97,7 +97,7 @@ class AccountCommandService(ApplicationService):
             uow.commit()
 
     def activate_asset_account(self, user_id: str, account_id: str) -> None:
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             asset_account = uow.accounts.get_asset_account_by_id(account_id)
             if asset_account.is_active:
                 raise AssetAccountAlreadyActivatedError(account_id)
@@ -107,7 +107,7 @@ class AccountCommandService(ApplicationService):
             uow.commit()
 
     def deactivate_asset_account(self, user_id: str, account_id: str) -> None:
-        with self._user_unit_of_work(user_id) as uow:
+        with self._user_scoped_unit_of_work(user_id) as uow:
             asset_account = uow.accounts.get_asset_account_by_id(account_id)
             if not asset_account.is_active:
                 raise AssetAccountAlreadyDeactivatedError(account_id)

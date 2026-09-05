@@ -1,12 +1,12 @@
 import logging
 import sys
-import time
 from types import TracebackType
+from typing import Annotated
 
 import typer
 
-from portfolio_tracker.application.shared.exceptions import ApplicationError
-from portfolio_tracker.bootstrap import ApplicationContext, bootstrap_app
+from portfolio_tracker.application.shared.errors import PortfolioTrackerError
+from portfolio_tracker.bootstrap_desktop import bootstrap_desktop
 
 from .commands import (
     account_app,
@@ -18,7 +18,8 @@ from .commands import (
     user_app,
 )
 from .console import error_console
-from .session import delete_login_session, get_login_session, set_login_session
+from .environment import CliEnvironment
+from .session import UserSession
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def global_exception_handler(
 ) -> None:
     exc_info = (exc_type, exc_value, traceback)
 
-    if isinstance(exc_value, ApplicationError):
+    if isinstance(exc_value, PortfolioTrackerError):
         message = exc_value.message
         logger.error(message, exc_info=exc_info)
 
@@ -58,37 +59,59 @@ def global_exception_handler(
 sys.excepthook = global_exception_handler
 
 
+SESSION_KEY = f"{__name__}.session"
+USER_SESSION_TTL = 1800  # 30m = 30 * 60s = 1800s
+
+
 @app.callback()
-def main(ctx: typer.Context) -> None:
-    auth_free_commands = ("register", "login", "logout")
-    context: ApplicationContext = ctx.obj
+def main(
+    ctx: typer.Context,
+    no_input: Annotated[bool, typer.Option()] = False,
+) -> None:
+    environment = CliEnvironment(
+        interactive=(not no_input and sys.stdin.isatty()),
+    )
 
     command = ctx.invoked_subcommand
     if not command:
         return
 
-    active_user_id, session_expiration = get_login_session()
+    ctx.command.name
 
-    if not active_user_id and command not in auth_free_commands:
+    auth_free_commands = ("register", "login", "logout")
+
+    session = UserSession.get()
+
+    if not session and command not in auth_free_commands:
         error_console.print("Error: Login required.")
         error_console.print("To log in, run: portfolio login")
         error_console.print("To register, run: portfolio register")
         raise typer.Exit(code=1)
 
-    if session_expiration and time.time() > session_expiration:
-        delete_login_session()
+    if session and session.is_expired:
+        session.clear()
         error_console.print("Session expired due to inactivity. Please log in again.")
         raise typer.Exit(code=1)
 
-    if active_user_id:
-        if command in auth_free_commands:
-            delete_login_session()
-            active_user_id = None
+    if command in auth_free_commands:
+        session.clear()
 
-        else:
-            set_login_session(active_user_id, context.USER_SESSION_TTL)
+    else:
+        session.refresh()
 
-    ctx.obj = bootstrap_app(active_user_id)
+    ctx.obj = bootstrap_desktop()
+
+
+
+def get_session(ctx: typer.Context) -> UserSession:
+    value = ctx.meta[SESSION_KEY]
+    assert isinstance(value, UserSession), f"Expected CliSession for ctx.meta '{SESSION_KEY}', got {type(value).__name__}."
+    return value
+
+
+def get_application_context(ctx: typer.Context) -> Container:
+    assert isinstance(ctx.obj, Container), f"Expected ApplicationContext, got {type(ctx.obj).__name__}."
+    return ctx.obj
 
 
 if __name__ == "__main__":

@@ -10,9 +10,9 @@ from portfolio_tracker.application.institution import (
     ReportInstrument,
     ReportTransaction,
 )
-from portfolio_tracker.application.shared.exceptions import InstitutionReportParserError
+from portfolio_tracker.application.shared.errors import InstitutionReportParserError
 from portfolio_tracker.domain.instrument import InstrumentType
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 from portfolio_tracker.domain.transaction import TransactionType
 
 
@@ -53,7 +53,7 @@ class Trading212ReportParser(InstitutionReportParser):
             "Withdrawal": self._parse_cash_movement_action,
         }
 
-    def parse_report(self, report: Iterator[str]) -> Iterator[ReportTransaction]:
+    def parse(self, report: Iterator[str]) -> Iterator[ReportTransaction]:
         reader = csv.DictReader(report)
 
         for row in reader:
@@ -86,8 +86,8 @@ class Trading212ReportParser(InstitutionReportParser):
         *,
         rate: Decimal,
         from_amount: Decimal,
-        from_currency: str,
-        to_currency: str,
+        from_currency: Currency,
+        to_currency: Currency,
         expected_to_amount: Decimal | None = None,
     ) -> None:
         correlation_id = self._generate_correlation_id()
@@ -232,8 +232,8 @@ class Trading212ReportParser(InstitutionReportParser):
         self,
         row: dict[str, Any],
         from_amount: Decimal,
-        from_currency: str,
-        to_currency: str,
+        from_currency: Currency,
+        to_currency: Currency,
         rate: Decimal,
         expected_to_amount: Decimal | None = None,
         correlation_id: str | None = None,
@@ -291,7 +291,7 @@ class Trading212ReportParser(InstitutionReportParser):
             type=InstrumentType.STOCK,
             name=row["Name"],
             symbol=row["Ticker"],
-            currency=row["Currency (Price / share)"],
+            currency=self._parse_currency_column(row, "Currency (Price / share)"),
             details={"isin": row["ISIN"]},
         )
 
@@ -315,35 +315,38 @@ class Trading212ReportParser(InstitutionReportParser):
     def _parse_price(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_abs_decimal(row["Price / share"]),
-            currency=row["Currency (Price / share)"],
+            currency=self._parse_currency_column(row, "Currency (Price / share)"),
         )
 
     def _parse_total(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_abs_decimal(row["Total"]),
-            currency=row["Currency (Total)"],
+            currency=self._parse_currency_column(row, "Currency (Total)"),
         )
 
     def _parse_withholding_tax(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_decimal(row["Withholding tax"]),
-            currency=row["Currency (Withholding tax)"],
+            currency=self._parse_currency_column(row, "Currency (Withholding tax)"),
         )
 
     def _parse_currency_conversion_from_amount(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_decimal(row["Currency conversion from amount"]),
-            currency=row["Currency (Currency conversion from amount)"],
+            currency=self._parse_currency_column(row, "Currency (Currency conversion from amount)"),
         )
 
     def _parse_currency_conversion_to_amount(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_decimal(row["Currency conversion to amount"]),
-            currency=row["Currency (Currency conversion to amount)"],
+            currency=self._parse_currency_column(row, "Currency (Currency conversion to amount)"),
         )
 
     def _parse_currency_conversion_fee(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_abs_decimal(row["Currency conversion fee"]),
-            currency=row["Currency (Currency conversion fee)"],
+            currency=self._parse_currency_column(row, "Currency (Currency conversion fee)"),
         )
+
+    def _parse_currency_column(self, row: dict[str, Any], column_name: str) -> Currency:
+        return Currency(row[column_name])

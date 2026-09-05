@@ -16,11 +16,11 @@ from portfolio_tracker.application.market_data import (
     MarketDataService,
 )
 from portfolio_tracker.application.persistence import (
-    SessionFactory,
+    StorageConnectionFactory,
     UserScopedUnitOfWork,
 )
-from portfolio_tracker.application.shared.exceptions import (
-    ApplicationError,
+from portfolio_tracker.application.shared.errors import (
+    PortfolioTrackerError,
     CredentialsNotFoundError,
     FxClientError,
     FxDataIntegrityError,
@@ -28,7 +28,7 @@ from portfolio_tracker.application.shared.exceptions import (
     MarketDataClientError,
     MarketDataIntegrityError,
 )
-from portfolio_tracker.application.shared.service import ApplicationService
+from portfolio_tracker.application.shared.service import Service
 from portfolio_tracker.domain.account import (
     AssetAccount,
     InstitutionAccount,
@@ -79,15 +79,15 @@ class InstitutionAccountSyncResult:
         return self.error is None
 
 
-class SyncService(ApplicationService):
+class SyncService(Service):
     def __init__(
         self,
-        session_factory: SessionFactory,
+        storage_connection_factory: StorageConnectionFactory,
         institution_registry: InstitutionRegistry,
         fx_service: FxService,
         market_data_service: MarketDataService,
     ) -> None:
-        super().__init__(session_factory)
+        super().__init__(storage_connection_factory)
         self._institution_registry = institution_registry
         self._fx_service = fx_service
         self._market_data_service = market_data_service
@@ -98,7 +98,7 @@ class SyncService(ApplicationService):
         if not command.report_path.is_file():
             raise InstitutionReportNotFoundError()
 
-        with self._user_unit_of_work(user_id, read_only=True) as uow:
+        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             institution_account = uow.accounts.get_institution_account_by_id(
                 command.institution_account_id
             )
@@ -109,12 +109,12 @@ class SyncService(ApplicationService):
 
         try:
             with command.report_path.open("r", encoding="utf-8") as report:
-                parser = self._institution_registry.create_parser(
+                parser = self._institution_registry.create_report_parser(
                     institution_account.institution_id, institution_account.id
                 )
-                report_transactions = parser.parse_report(report)
+                report_transactions = parser.parse(report)
 
-                with self._user_unit_of_work(user_id) as uow:
+                with self._user_scoped_unit_of_work(user_id) as uow:
                     transaction_dates = self._process_transactions(
                         uow,
                         institution_account,
@@ -128,7 +128,7 @@ class SyncService(ApplicationService):
                 account_name=institution_account.name,
             )
 
-        except ApplicationError as error:
+        except PortfolioTrackerError as error:
             logger.error("Report import failed: %s", error.message, exc_info=error)
             yield InstitutionAccountSyncFailed(
                 institution_account.id,
@@ -200,7 +200,7 @@ class SyncService(ApplicationService):
     ) -> InstitutionAccountSyncResult:
         try:
             return await self._sync_institution_account(institution_account, command)
-        except ApplicationError as error:
+        except PortfolioTrackerError as error:
             return InstitutionAccountSyncResult(
                 institution_account,
                 error=error,
@@ -217,12 +217,12 @@ class SyncService(ApplicationService):
         start, end = self._resolve_sync_interval(institution_account, command)
         report = client.fetch_report(start, end)
 
-        parser = self._institution_registry.create_parser(
+        parser = self._institution_registry.create_report_parser(
             institution_account.institution_id, institution_account.id
         )
         transaction_dates: set[date] = set()
 
-        with self._user_unit_of_work(institution_account.user_id) as uow:
+        with self._user_scoped_unit_of_work(institution_account.user_id) as uow:
             async for report_chunk in report:
                 asset_account_ids = uow.accounts_map.institution_to_asset_account_ids[
                     institution_account.id
@@ -230,7 +230,7 @@ class SyncService(ApplicationService):
                 required_asset_account_ids = command.asset_account_ids.intersection(
                     asset_account_ids
                 )
-                report_transactions = parser.parse_report(report_chunk)
+                report_transactions = parser.parse(report_chunk)
                 report_transaction_dates = self._process_transactions(
                     uow,
                     institution_account,
@@ -336,8 +336,8 @@ class SyncService(ApplicationService):
                 only_dates=missing_dates,
             )
 
-            with self._session_factory.create() as session:
-                uow = session.unit_of_work()
+            with self._storage_connection_factory.create() as connection:
+                uow = connection.unit_of_work()
                 for rates in rates_series:
                     with uow:
                         uow.fx_rates.ensure(rates)
@@ -399,8 +399,8 @@ class SyncService(ApplicationService):
         completed = 0
         failed_metadata_list: list[InstrumentMetadata] = []
 
-        with self._session_factory.create() as session:
-            uow = session.unit_of_work()
+        with self._storage_connection_factory.create() as connection:
+            uow = connection.unit_of_work()
             for metadata in metadata_list:
                 try:
                     splits = self._market_data_service.get_stock_splits(metadata)
@@ -437,7 +437,7 @@ class SyncService(ApplicationService):
 
     def _get_credentials(self, account_id: str) -> Credentials:
         with self._unit_of_work(read_only=True) as uow:
-            credentials = uow.credentials.retrieve(account_id)
+            credentials = uow.credentials.get(account_id)
             if not credentials:
                 raise CredentialsNotFoundError(account_id)
 
@@ -446,7 +446,7 @@ class SyncService(ApplicationService):
     def _resolve_synced_accounts(
         self, user_id: str, command: SyncInstitutionAccountsCommand
     ) -> list[InstitutionAccount]:
-        with self._user_unit_of_work(user_id, read_only=True) as uow:
+        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             institution_account_ids = uow.accounts_map.resolve_institution_account_ids(
                 command.institution_account_ids,
                 command.asset_account_ids,

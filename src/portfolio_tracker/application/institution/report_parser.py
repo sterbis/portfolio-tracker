@@ -6,9 +6,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from portfolio_tracker.application.shared.exceptions import InstitutionReportParserError
+from portfolio_tracker.application.shared.errors import InstitutionReportParserError
 from portfolio_tracker.domain.instrument import InstrumentType
-from portfolio_tracker.domain.shared import Money
+from portfolio_tracker.domain.shared import Currency, Money
 from portfolio_tracker.domain.transaction import TransactionType
 
 
@@ -17,7 +17,7 @@ class ReportInstrument:
     type: InstrumentType
     name: str
     symbol: str
-    currency: str
+    currency: Currency
     exchange: str | None = None
     underlying_instrument: ReportInstrument | None = None
     details: dict[str, Any] = field(default_factory=dict)
@@ -52,7 +52,7 @@ class InstitutionReportParser(ABC):
         self._institution_account_id = institution_account_id
 
     @abstractmethod
-    def parse_report(self, report: Iterator[str]) -> Iterator[ReportTransaction]: ...
+    def parse(self, report: Iterator[str]) -> Iterator[ReportTransaction]: ...
 
     def _to_decimal(self, value: Any) -> Decimal:
         return Decimal(str(value))

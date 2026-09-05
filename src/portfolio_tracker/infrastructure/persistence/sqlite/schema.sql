@@ -31,6 +31,24 @@ CREATE TABLE IF NOT EXISTS asset_account (
     FOREIGN KEY (institution_account_id) REFERENCES institution_account(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS ledger (
+    id TEXT PRIMARY KEY,
+    correlation_id TEXT,
+    checksum TEXT NOT NULL UNIQUE,
+    executed_at DATETIME NOT NULL,
+    asset_account_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    instrument_id TEXT,
+    quantity DECIMAL_AS_TEXT NOT NULL,
+    price MONEY NOT NULL,
+    fee MONEY NOT NULL,
+    tax MONEY NOT NULL,
+    cash_impact MONEY NOT NULL,
+
+    FOREIGN KEY (asset_account_id) REFERENCES asset_account(id),
+    FOREIGN KEY (instrument_id) REFERENCES instrument(id)
+);
+
 CREATE TABLE IF NOT EXISTS instrument (
     id TEXT PRIMARY KEY,
     checksum TEXT NOT NULL UNIQUE,
@@ -100,24 +118,6 @@ CREATE TABLE IF NOT EXISTS option (
 CREATE TABLE IF NOT EXISTS stock (
     id TEXT PRIMARY KEY REFERENCES instrument(id) ON DELETE CASCADE,
     isin TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS ledger (
-    id TEXT PRIMARY KEY,
-    correlation_id TEXT,
-    checksum TEXT NOT NULL UNIQUE,
-    executed_at DATETIME NOT NULL,
-    asset_account_id TEXT NOT NULL,
-    type TEXT NOT NULL,
-    instrument_id TEXT,
-    quantity DECIMAL_AS_TEXT NOT NULL,
-    price MONEY NOT NULL,
-    fee MONEY NOT NULL,
-    tax MONEY NOT NULL,
-    cash_impact MONEY NOT NULL,
-
-    FOREIGN KEY (asset_account_id) REFERENCES asset_account(id),
-    FOREIGN KEY (instrument_id) REFERENCES instrument(id)
 );
 
 CREATE TABLE IF NOT EXISTS fx_rate (
