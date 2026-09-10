@@ -9,7 +9,9 @@ from portfolio_tracker.infrastructure.persistence.sqlite.database import open_co
 
 
 @pytest.fixture(scope="module")
-def db_connection(tmp_path_factory: pytest.TempPathFactory) -> Generator[sqlite3.Connection, None, None]:
+def db_connection(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Generator[sqlite3.Connection, None, None]:
     connection = open_connection(tmp_path_factory.mktemp("tmp") / "test.db")
     yield connection
     connection.close()
@@ -40,7 +42,7 @@ def test_database_initialization(
     initialized_in_memory_db_connection: sqlite3.Connection,
 ) -> None:
     cursor = initialized_in_memory_db_connection.cursor()
-    
+
     cursor.execute("""
         SELECT name 
         FROM sqlite_schema 

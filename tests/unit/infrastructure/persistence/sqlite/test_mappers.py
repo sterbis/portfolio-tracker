@@ -30,7 +30,12 @@ from portfolio_tracker.domain.shared import Currency, Money
             "real",
             0.00012345678901234567,
         ),
-        (Money(amount=Decimal("12.34"), currency=Currency.USD), "MONEY", "text", "12.34;USD"),
+        (
+            Money(amount=Decimal("12.34"), currency=Currency.USD),
+            "MONEY",
+            "text",
+            "12.34;USD",
+        ),
     ],
 )
 def test_adapters(

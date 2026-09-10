@@ -6,7 +6,6 @@ from typing import Literal, overload
 from dotenv import load_dotenv
 from platformdirs import site_data_path, user_config_path, user_data_path
 
-
 load_dotenv()
 
 
@@ -25,7 +24,7 @@ class DesktopConfiguration:
 def load_desktop_configuration() -> DesktopConfiguration:
     return DesktopConfiguration(
         encryption_key=get_env_var(env_var("ENCRYPTION_KEY"), required=True),
-        database_path=user_data_path(APP_NAME, ensure_exists=True)/ "portfolio.db",
+        database_path=user_data_path(APP_NAME, ensure_exists=True) / "portfolio.db",
         users_data_dir=user_data_path(APP_NAME, ensure_exists=True) / "users",
         users_settings_dir=user_config_path(APP_NAME, ensure_exists=True) / "users",
     )
@@ -45,8 +44,10 @@ def env_var(name: str) -> str:
 @overload
 def get_env_var(name: str, required: Literal[True]) -> str: ...
 
+
 @overload
 def get_env_var(name: str, required: Literal[False] = False) -> str | None: ...
+
 
 def get_env_var(name: str, required: bool = False) -> str | None:
     value = os.environ.get(name)

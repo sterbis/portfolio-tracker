@@ -45,5 +45,7 @@ class UserService(Service):
 
     @staticmethod
     def _check_password(password: str, expected_password_hash: str) -> None:
-        if not bcrypt.checkpw(password.encode("utf-8"), expected_password_hash.encode("utf-8")):
+        if not bcrypt.checkpw(
+            password.encode("utf-8"), expected_password_hash.encode("utf-8")
+        ):
             raise InvalidUsernameOrPasswordError()

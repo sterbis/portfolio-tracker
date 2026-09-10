@@ -1,16 +1,16 @@
 import re
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
-from typing import Any, Callable, Literal, TypeVar, overload
+from enum import StrEnum
+from typing import Callable, Literal, TypeVar
 
 import typer
-from filterutils import Filter, FilterTree
 
-from portfolio_tracker.application.container import Container
 from portfolio_tracker.application.views import MoneyView
+from portfolio_tracker.domain.shared import Currency
 
-
-TItem = TypeVar("TItem")
+TParsedValue = TypeVar("TParsedValue")
+TEnum = TypeVar("TEnum", bound=StrEnum)
 
 
 DATE_FORMATS = ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y"]
@@ -23,6 +23,14 @@ def validate_non_empty(value: str) -> str:
     value = value.strip()
     if not value:
         raise ValueError("Value is empty.")
+
+    return value
+
+
+def allow_empty(value: str) -> str | None:
+    value = value.strip()
+    if not value:
+        return None
 
     return value
 
@@ -61,9 +69,11 @@ def parse_date(value: str, *, formats: list[str] | None = None) -> date:
     return date.fromisoformat(value)
 
 
-def parse_datetime(
-    value: str, *, date_formats: list[str] | None = None
-) -> datetime:
+def date_parser(value: str) -> date:
+    return parse_date(value, formats=DATE_FORMATS)
+
+
+def parse_datetime(value: str, *, date_formats: list[str] | None = None) -> datetime:
     parts = re.split(r"[T\s]+", value, maxsplit=1)
     date_value = parts[0]
     time_value = parts[1] if len(parts) > 1 else "00:00:00"
@@ -75,60 +85,44 @@ def parse_datetime(
     return datetime_.astimezone(timezone.utc)
 
 
-def parse_money(value: str, default_currency: str) -> MoneyView:
+def datetime_parser(value: str) -> datetime:
+    return parse_datetime(value, date_formats=DATE_FORMATS)
+
+
+def parse_enum(value: str, enum_cls: type[TEnum]) -> TEnum:
+    return enum_cls(value.upper())
+
+
+def enum_parser(enum_cls: type[TEnum]) -> Callable[[str], TEnum]:
+    def parser(value: str) -> TEnum:
+        return parse_enum(value, enum_cls)
+
+    return parser
+
+
+def parse_money(value: str, *, default_currency: Currency | None = None) -> MoneyView:
     match = MONEY_EXPRESSION_REGEX.match(value)
     if not match:
         raise ValueError(f"Invalid money expression: '{value}'")
 
     amount = match.group("amount")
-    currency = match.group("currency") or default_currency
-    return MoneyView(amount=Decimal(amount), currency=currency.upper())
+    if currency_code := match.group("currency"):
+        currency = parse_enum(currency_code, Currency)
+
+    elif default_currency:
+        currency = default_currency
+
+    else:
+        raise ValueError(f"Missing currency in money expression: '{value}'")
+
+    return MoneyView(amount=Decimal(amount), currency=currency)
 
 
-def get_application_context(ctx: typer.Context) -> Container:
-    context: Container = ctx.obj
-    return context
+def money_parser(default_currency: Currency) -> Callable[[str], MoneyView]:
+    def parser(value: str) -> MoneyView:
+        return parse_money(value, default_currency=default_currency)
 
-
-def context_aware_date_parser(value: str, ctx: typer.Context) -> date:
-    return parse_date(value, formats=get_application_context(ctx).DATE_FORMATS)
-
-
-def context_aware_datetime_parser(value: str, ctx: typer.Context) -> datetime:
-    return parse_datetime(value, date_formats=get_application_context(ctx).DATE_FORMATS)
-
-
-def context_aware_money_parser(value: str, ctx: typer.Context) -> MoneyView:
-    return parse_money(value, get_application_context(ctx).DEFAULT_REPORTING_CURRENCY)
-
-
-@overload
-def parse_list_parameter(
-    values: list[str] | None, *, converter: None = None
-) -> list[str]: ...
-
-
-@overload
-def parse_list_parameter(
-    values: list[str] | None, *, converter: Callable[[str], TItem]
-) -> list[TItem]: ...
-
-
-def parse_list_parameter(
-    values: list[str] | None, *, converter: Callable[[str], TItem] | None = None
-) -> list[TItem] | list[str]:
-    if not values:
-        return []
-
-    items: list[Any] = []
-    for value in values:
-        items.extend(
-            converter(item.strip()) if converter else item.strip()
-            for item in value.split(",")
-            if item.strip()
-        )
-
-    return items
+    return parser
 
 
 def parse_sort_parameter(value: str) -> tuple[str, Literal["ASC", "DESC"]]:
@@ -150,10 +144,13 @@ def parse_sort_parameter(value: str) -> tuple[str, Literal["ASC", "DESC"]]:
     return (column, direction)  # type: ignore[return-value]
 
 
-def build_filter(*parameters: Filter | None) -> FilterTree:
-    filter_ = FilterTree()
-    for parameter in parameters:
-        if parameter:
-            filter_.add_child(parameter)
+def parse_input_value(
+    parameter: str,
+    value: str,
+    value_parser: Callable[[str], TParsedValue],
+) -> TParsedValue:
+    try:
+        return value_parser(value)
 
-    return filter_
+    except ValueError as error:
+        raise typer.BadParameter(f"Parameter: {parameter}. Reason: {error}") from error

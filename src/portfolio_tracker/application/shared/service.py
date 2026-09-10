@@ -13,7 +13,6 @@ from portfolio_tracker.application.views import ViewBuilder
 from .filter import FilterMapper, FilterSplitter
 from .sort import Sort
 
-
 TView = TypeVar("TView")
 
 
@@ -58,7 +57,9 @@ class QueryService(Service):
         self._filter_splitter = filter_splitter
         self._view_builder = view_builder
 
-    def _resolve_filters(self, filter_: Filter | None) -> tuple[Filter | None, Filter | None]:
+    def _resolve_filters(
+        self, filter_: Filter | None
+    ) -> tuple[Filter | None, Filter | None]:
         if filter_:
             filter_ = self._filter_mapper.map(filter_)
             return self._filter_splitter.split(filter_)

@@ -51,7 +51,9 @@ class FrankfurterClient(FxClient):
             yield from self._process_response_stream(
                 response,
                 required_base_currency=base_currency.value.upper(),
-                required_quote_currencies={currency.value.upper() for currency in quote_currencies},
+                required_quote_currencies={
+                    currency.value.upper() for currency in quote_currencies
+                },
                 required_dates=(
                     {date.isoformat() for date in only_dates} if only_dates else set()
                 ),
@@ -99,9 +101,9 @@ class FrankfurterClient(FxClient):
             if buffer[date_].keys() == required_quote_currencies:
                 yield FxRates(
                     effective_on=date.fromisoformat(date_),
-                    base_currency=base_currency,
+                    base_currency=Currency(base_currency),
                     rates={
-                        quote_currency: Decimal(rate)
+                        Currency(quote_currency): Decimal(rate)
                         for quote_currency, rate in buffer.pop(date_).items()
                     },
                 )
@@ -109,9 +111,9 @@ class FrankfurterClient(FxClient):
         for date_, rates in buffer.items():
             yield FxRates(
                 effective_on=date.fromisoformat(date_),
-                base_currency=base_currency,
+                base_currency=Currency(base_currency),
                 rates={
-                    quote_currency: Decimal(rate)
+                    Currency(quote_currency): Decimal(rate)
                     for quote_currency, rate in rates.items()
                 },
             )
@@ -129,9 +131,9 @@ class FrankfurterClient(FxClient):
         )
         return FxRates(
             effective_on=date_ or datetime.now(tz=timezone.utc).date(),
-            base_currency=base_currency.upper(),
+            base_currency=Currency(base_currency.upper()),
             rates={
-                data["quote"].upper(): Decimal(str(data["rate"]))
+                Currency(data["quote"].upper()): Decimal(str(data["rate"]))
                 for data in response.json()
             },
         )
@@ -150,7 +152,9 @@ class FrankfurterClient(FxClient):
         headers = headers or {"Accept": "application/json"}
         parameters = {
             "base": base_currency.value,
-            "quotes": ",".join(quote_currency.value for quote_currency in quote_currencies),
+            "quotes": ",".join(
+                quote_currency.value for quote_currency in quote_currencies
+            ),
         }
         if date_:
             parameters["date"] = date_.isoformat()

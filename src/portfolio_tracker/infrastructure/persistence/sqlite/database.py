@@ -2,15 +2,12 @@ import logging
 import sqlite3
 from pathlib import Path
 
-
 logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
-def initialize_database(
-    database: str | Path, *, uri: bool = False
-) -> None:
+def initialize_database(database: str | Path, *, uri: bool = False) -> None:
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     connection = open_connection(database, uri=uri)
     try:

@@ -8,8 +8,8 @@ from portfolio_tracker.application.persistence import (
     UserScopedUnitOfWork,
 )
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
-from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.shared.service import QueryService
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.views import (
     PortfolioValuationView,
     PortfolioView,
@@ -50,7 +50,9 @@ class PortfolioQueryService(QueryService):
         fx_service: FxService,
         market_data_service: MarketDataService,
     ) -> None:
-        super().__init__(storage_connection_factory, filter_mapper, filter_splitter, view_builder)
+        super().__init__(
+            storage_connection_factory, filter_mapper, filter_splitter, view_builder
+        )
         self._institution_registry = institution_registry
         self._market_data_service = market_data_service
         self._fx_service = fx_service

@@ -191,7 +191,9 @@ TRANSACTION_FIELD_MAP = {
     "tax.native": FieldReference(ConvertedTransaction, "tax.native"),
     "tax.reporting": FieldReference(ConvertedTransaction, "tax.reporting"),
     "cash_impact.native": FieldReference(ConvertedTransaction, "cash_impact.native"),
-    "cash_impact.reporting": FieldReference(ConvertedTransaction, "cash_impact.reporting"),
+    "cash_impact.reporting": FieldReference(
+        ConvertedTransaction, "cash_impact.reporting"
+    ),
     **prefix_field_map(ASSET_ACCOUNT_FIELD_MAP, "asset_account"),
     **prefix_field_map(INSTRUMENT_FIELD_MAP, "instrument"),
 }

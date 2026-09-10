@@ -7,7 +7,6 @@ from typing import Callable
 
 import pytest
 
-
 from portfolio_tracker.infrastructure.persistence.sqlite.builder import (
     SqliteStatementBuilder,
 )

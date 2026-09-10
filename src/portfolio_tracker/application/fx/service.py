@@ -23,7 +23,9 @@ class FxService:
         fx_client: FxClient,
     ):
         self._fx_client = fx_client
-        self._quote_currencies = {currency for currency in Currency if currency != self._BASE_CURRENCY}
+        self._quote_currencies = {
+            currency for currency in Currency if currency != self._BASE_CURRENCY
+        }
         self._cached_spot_rates: FxRates | None = None
         self._cached_spot_rates_ttl: int = 300
         self._spot_rates_fetched_at: datetime | None = None

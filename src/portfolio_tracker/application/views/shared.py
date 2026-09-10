@@ -9,6 +9,9 @@ class MoneyView:
     amount: Decimal
     currency: Currency
 
+    def __str__(self) -> str:
+        return f"{self.amount} {self.currency}"
+
     @classmethod
     def from_domain(cls, money: Money) -> MoneyView:
         return cls(amount=money.amount, currency=money.currency)

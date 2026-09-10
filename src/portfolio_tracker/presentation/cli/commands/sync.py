@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime
 from typing import Annotated
 
 import typer
@@ -8,18 +7,26 @@ from portfolio_tracker.application.sync import (
     SyncFxRatesCommand,
     SyncInstitutionAccountsCommand,
     SyncInstrumentsCommand,
-    SyncService,
 )
-from portfolio_tracker.bootstrap_desktop import Container
 from portfolio_tracker.presentation.cli.console import error_console
+from portfolio_tracker.presentation.cli.context import (
+    get_container,
+    get_logged_in_user_id,
+)
+from portfolio_tracker.presentation.cli.guarded_typer import GuardedTyper
+from portfolio_tracker.presentation.cli.input import (
+    resolve_optional_input,
+    resolve_optional_multi_value_input,
+)
+from portfolio_tracker.presentation.cli.parameters import multi_value_option
 from portfolio_tracker.presentation.cli.parsers import (
-    parse_date,
-    parse_list_parameter,
+    date_parser,
+    datetime_parser,
 )
 from portfolio_tracker.presentation.cli.ui.progress import render_sync_progress
 from portfolio_tracker.shared.async_utils import as_async_generator
 
-sync_app = typer.Typer(invoke_without_command=True)
+sync_app = GuardedTyper(invoke_without_command=True)
 
 
 @sync_app.callback()
@@ -31,20 +38,32 @@ def sync_callback(ctx: typer.Context) -> None:
 @sync_app.command(name="account")
 def sync_accounts(
     ctx: typer.Context,
-    account_id: Annotated[list[str] | None, typer.Option()] = None,
-    asset_account_id: Annotated[list[str] | None, typer.Option()] = None,
-    start: Annotated[datetime | None, typer.Option()] = None,
-    end: Annotated[datetime | None, typer.Option()] = None,
+    institution_account_id: Annotated[list[str] | None, multi_value_option()] = None,
+    asset_account_id: Annotated[
+        list[str] | None, multi_value_option("--asset-account-id")
+    ] = None,
+    start: Annotated[str | None, typer.Option()] = None,
+    end: Annotated[str | None, typer.Option()] = None,
     restore: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    account_ids = set(parse_list_parameter(account_id))
-    asset_account_ids = set(parse_list_parameter(asset_account_id))
+    container = get_container(ctx)
+    user_id = get_logged_in_user_id(ctx)
 
-    if account_ids and asset_account_ids:
-        error_console.print(
-            "Error: Options --account-id and --asset-account-id are mutually exclusive."
-        )
-        raise typer.Exit(code=1)
+    institution_account_ids = (
+        set(institution_account_id) if institution_account_id else set()
+    )
+    asset_account_ids = set(asset_account_id) if asset_account_id else set()
+
+    resolved_start = resolve_optional_input(
+        parameter="--start",
+        value=start,
+        value_parser=datetime_parser,
+    )
+    resolved_end = resolve_optional_input(
+        parameter="--end",
+        value=start,
+        value_parser=datetime_parser,
+    )
 
     if restore and (start or end):
         error_console.print(
@@ -52,19 +71,16 @@ def sync_accounts(
         )
         raise typer.Exit(code=1)
 
-    context: Container = ctx.obj
-    service = context.get(SyncService)
     command = SyncInstitutionAccountsCommand(
-        user_id=context.active_user_id,
-        institution_account_ids=account_ids,
-        asset_account_ids=asset_account_ids,
-        start=start,
-        end=end,
+        institution_account_ids=set(institution_account_ids),
+        asset_account_ids=set(asset_account_ids),
+        start=resolved_start,
+        end=resolved_end,
         restore=restore,
     )
     asyncio.run(
         render_sync_progress(
-            service.sync_institution_accounts, context.active_user_id, command
+            container.sync_service.sync_institution_accounts, user_id, command
         )
     )
 
@@ -72,42 +88,42 @@ def sync_accounts(
 @sync_app.command(name="fx")
 def sync_fx_rates(
     ctx: typer.Context,
-    date: Annotated[list[str] | None, typer.Option()] = None,
+    date_: Annotated[list[str] | None, multi_value_option()] = None,
+    all_: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    dates = set(
-        parse_list_parameter(
-            date,
-            converter=lambda value: parse_date(
-                value, formats=Container.DATE_FORMATS
-            ),
-        )
+    container = get_container(ctx)
+    dates = resolve_optional_multi_value_input(
+        "--date", date_, value_parser=date_parser
     )
-    context: Container = ctx.obj
-    service = context.get(SyncService)
     command = SyncFxRatesCommand(
-        dates=dates,
-        all=not dates,
+        dates=set(dates) if dates else set(),
+        all=all_,
     )
     asyncio.run(
-        render_sync_progress(as_async_generator, service.sync_fx_rates(command))
+        render_sync_progress(
+            as_async_generator, container.sync_service.sync_fx_rates(command)
+        )
     )
 
 
 @sync_app.command(name="instrument")
 def sync_instruments(
     ctx: typer.Context,
-    symbol: Annotated[list[str] | None, typer.Option()] = None,
+    symbol: Annotated[list[str] | None, multi_value_option()] = None,
     new_only: Annotated[bool, typer.Option()] = False,
-    all_: Annotated[bool, typer.Option("--all")] = False,
+    all_: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    symbols = set(parse_list_parameter(symbol))
-    context: Container = ctx.obj
-    service = context.get(SyncService)
+    container = get_container(ctx)
+    symbols = resolve_optional_multi_value_input(
+        "--symbol", symbol, value_parser=lambda value: value.upper()
+    )
     command = SyncInstrumentsCommand(
-        symbols=symbols,
+        symbols=set(symbols) if symbols else set(),
         new_only=new_only,
         all=all_,
     )
     asyncio.run(
-        render_sync_progress(as_async_generator, service.sync_instruments(command))
+        render_sync_progress(
+            as_async_generator, container.sync_service.sync_instruments(command)
+        )
     )

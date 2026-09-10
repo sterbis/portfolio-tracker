@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from portfolio_tracker.domain.shared.models import Money
+from portfolio_tracker.domain.shared.models import Currency, Money
 from portfolio_tracker.domain.transaction.models import Transaction, TransactionType
 
 
@@ -14,10 +14,10 @@ def test_valid_buy_transaction() -> None:
         type=TransactionType.BUY,
         instrument_id="inst_123",
         quantity=Decimal("10.5"),
-        price=Money(Decimal("150.0"), "USD"),
-        fee=Money(Decimal("1.5"), "USD"),
-        tax=Money(Decimal("0.5"), "USD"),
-        cash_impact=Money(Decimal("-1576.5"), "USD"),
+        price=Money(Decimal("150.0"), Currency.USD),
+        fee=Money(Decimal("1.5"), Currency.USD),
+        tax=Money(Decimal("0.5"), Currency.USD),
+        cash_impact=Money(Decimal("-1576.5"), Currency.USD),
     )
     assert transaction.id.startswith("tr_")
     assert transaction.correlation_id is None
@@ -31,10 +31,10 @@ def test_valid_deposit_without_instrument() -> None:
         type=TransactionType.DEPOSIT,
         instrument_id=None,
         quantity=Decimal("0.0"),
-        price=Money(Decimal("0.0"), "USD"),
-        fee=Money(Decimal("0.0"), "USD"),
-        tax=Money(Decimal("0.0"), "USD"),
-        cash_impact=Money(Decimal("1000.0"), "USD"),
+        price=Money(Decimal("0.0"), Currency.USD),
+        fee=Money(Decimal("0.0"), Currency.USD),
+        tax=Money(Decimal("0.0"), Currency.USD),
+        cash_impact=Money(Decimal("1000.0"), Currency.USD),
     )
     assert transaction.id.startswith("tr_")
     assert transaction.instrument_id is None
@@ -49,10 +49,10 @@ def test_naive_datetime_raises_value_error() -> None:
             type=TransactionType.DEPOSIT,
             instrument_id=None,
             quantity=Decimal("0.0"),
-            price=Money(Decimal("0.0"), "USD"),
-            fee=Money(Decimal("0.0"), "USD"),
-            tax=Money(Decimal("0.0"), "USD"),
-            cash_impact=Money(Decimal("1000.0"), "USD"),
+            price=Money(Decimal("0.0"), Currency.USD),
+            fee=Money(Decimal("0.0"), Currency.USD),
+            tax=Money(Decimal("0.0"), Currency.USD),
+            cash_impact=Money(Decimal("1000.0"), Currency.USD),
         )
 
 
@@ -66,10 +66,10 @@ def test_non_utc_timezone_raises_value_error() -> None:
             type=TransactionType.DEPOSIT,
             instrument_id=None,
             quantity=Decimal("0.0"),
-            price=Money(Decimal("0.0"), "USD"),
-            fee=Money(Decimal("0.0"), "USD"),
-            tax=Money(Decimal("0.0"), "USD"),
-            cash_impact=Money(Decimal("1000.0"), "USD"),
+            price=Money(Decimal("0.0"), Currency.USD),
+            fee=Money(Decimal("0.0"), Currency.USD),
+            tax=Money(Decimal("0.0"), Currency.USD),
+            cash_impact=Money(Decimal("1000.0"), Currency.USD),
         )
 
 
@@ -82,10 +82,10 @@ def test_buy_without_instrument_raises_value_error() -> None:
             type=TransactionType.BUY,
             instrument_id=None,  # Missing for BUY
             quantity=Decimal("10.0"),
-            price=Money(Decimal("10.0"), "USD"),
-            fee=Money(Decimal("0.0"), "USD"),
-            tax=Money(Decimal("0.0"), "USD"),
-            cash_impact=Money(Decimal("-100.0"), "USD"),
+            price=Money(Decimal("10.0"), Currency.USD),
+            fee=Money(Decimal("0.0"), Currency.USD),
+            tax=Money(Decimal("0.0"), Currency.USD),
+            cash_impact=Money(Decimal("-100.0"), Currency.USD),
         )
 
 
@@ -98,10 +98,10 @@ def test_negative_quantity_raises_value_error() -> None:
             type=TransactionType.BUY,
             instrument_id="inst_123",
             quantity=Decimal("-1.0"),  # Negative quantity
-            price=Money(Decimal("10.0"), "USD"),
-            fee=Money(Decimal("0.0"), "USD"),
-            tax=Money(Decimal("0.0"), "USD"),
-            cash_impact=Money(Decimal("-10.0"), "USD"),
+            price=Money(Decimal("10.0"), Currency.USD),
+            fee=Money(Decimal("0.0"), Currency.USD),
+            tax=Money(Decimal("0.0"), Currency.USD),
+            cash_impact=Money(Decimal("-10.0"), Currency.USD),
         )
 
 
@@ -114,8 +114,8 @@ def test_negative_price_raises_value_error() -> None:
             type=TransactionType.BUY,
             instrument_id="inst_123",
             quantity=Decimal("1.0"),
-            price=Money(Decimal("-5.0"), "USD"),  # Negative price
-            fee=Money(Decimal("0.0"), "USD"),
-            tax=Money(Decimal("0.0"), "USD"),
-            cash_impact=Money(Decimal("5.0"), "USD"),
+            price=Money(Decimal("-5.0"), Currency.USD),  # Negative price
+            fee=Money(Decimal("0.0"), Currency.USD),
+            tax=Money(Decimal("0.0"), Currency.USD),
+            cash_impact=Money(Decimal("5.0"), Currency.USD),
         )

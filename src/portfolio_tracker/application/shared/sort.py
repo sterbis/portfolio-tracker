@@ -19,9 +19,7 @@ class Sort:
         )
 
     @classmethod
-    def apply_many(
-        cls, items: Sequence[TItem], sorts: Sequence[Sort]
-    ) -> list[TItem]:
+    def apply_many(cls, items: Sequence[TItem], sorts: Sequence[Sort]) -> list[TItem]:
         sorted_items = list(items)
         for sort in reversed(sorts):
             sorted_items = sort.apply(sorted_items)

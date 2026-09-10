@@ -27,7 +27,9 @@ def create_unit_of_work(
     sample_institution_registry: InstitutionRegistry,
     statement_builder: SqliteStatementBuilder,
 ) -> UnitOfWorkFactory:
-    def create(connection: sqlite3.Connection, *, read_only: bool = False) -> SqliteUnitOfWork:
+    def create(
+        connection: sqlite3.Connection, *, read_only: bool = False
+    ) -> SqliteUnitOfWork:
         return SqliteUnitOfWork(
             encryptor=mock_encryptor,
             institution_registry=sample_institution_registry,
@@ -89,9 +91,7 @@ def test_rollback_occurs_when_transaction_aborts(
             raise RuntimeError("Mock database operation fail.")
 
     with in_memory_uow:
-        assert (
-            in_memory_uow.users.get_by_username(sample_user.username) == sample_user
-        )
+        assert in_memory_uow.users.get_by_username(sample_user.username) == sample_user
         assert in_memory_uow.users.get_by_username(sample_user_2.username) is None
 
 

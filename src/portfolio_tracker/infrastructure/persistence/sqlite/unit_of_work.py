@@ -158,9 +158,7 @@ class SqliteStorageConnectionFactory(StorageConnectionFactory):
             resolver=SchemaResolver(registry=schema_registry)
         )
 
-    def create(
-        self, *, read_only: bool = False
-    ) -> SqliteStorageConnection:
+    def create(self, *, read_only: bool = False) -> SqliteStorageConnection:
         return SqliteStorageConnection(
             database=self._database,
             encryptor=self._encryptor,

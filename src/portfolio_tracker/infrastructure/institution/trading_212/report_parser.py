@@ -333,19 +333,25 @@ class Trading212ReportParser(InstitutionReportParser):
     def _parse_currency_conversion_from_amount(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_decimal(row["Currency conversion from amount"]),
-            currency=self._parse_currency_column(row, "Currency (Currency conversion from amount)"),
+            currency=self._parse_currency_column(
+                row, "Currency (Currency conversion from amount)"
+            ),
         )
 
     def _parse_currency_conversion_to_amount(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_decimal(row["Currency conversion to amount"]),
-            currency=self._parse_currency_column(row, "Currency (Currency conversion to amount)"),
+            currency=self._parse_currency_column(
+                row, "Currency (Currency conversion to amount)"
+            ),
         )
 
     def _parse_currency_conversion_fee(self, row: dict[str, Any]) -> Money:
         return Money(
             amount=self._to_abs_decimal(row["Currency conversion fee"]),
-            currency=self._parse_currency_column(row, "Currency (Currency conversion fee)"),
+            currency=self._parse_currency_column(
+                row, "Currency (Currency conversion fee)"
+            ),
         )
 
     def _parse_currency_column(self, row: dict[str, Any], column_name: str) -> Currency:

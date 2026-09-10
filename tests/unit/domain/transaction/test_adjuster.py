@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from portfolio_tracker.domain.market_data.models import StockSplits
-from portfolio_tracker.domain.shared.models import Money
+from portfolio_tracker.domain.shared.models import Currency, Money
 from portfolio_tracker.domain.transaction.adjuster import TransactionAdjuster
 from portfolio_tracker.domain.transaction.models import Transaction, TransactionType
 
@@ -27,10 +27,10 @@ def test_transaction_adjuster_split_boundaries() -> None:
         type=TransactionType.BUY,
         instrument_id="inst_aapl",
         quantity=Decimal("10"),
-        price=Money(Decimal("100"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-1000"), "USD"),
+        price=Money(Decimal("100"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-1000"), Currency.USD),
     )
 
     # Tx 2: Executed after split (should NOT be adjusted)
@@ -41,10 +41,10 @@ def test_transaction_adjuster_split_boundaries() -> None:
         type=TransactionType.BUY,
         instrument_id="inst_aapl",
         quantity=Decimal("10"),
-        price=Money(Decimal("100"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-1000"), "USD"),
+        price=Money(Decimal("100"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-1000"), Currency.USD),
     )
 
     # Tx 3: Executed exactly on split date/time (should NOT be adjusted under current logic)
@@ -55,10 +55,10 @@ def test_transaction_adjuster_split_boundaries() -> None:
         type=TransactionType.BUY,
         instrument_id="inst_aapl",
         quantity=Decimal("10"),
-        price=Money(Decimal("100"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-1000"), "USD"),
+        price=Money(Decimal("100"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-1000"), Currency.USD),
     )
 
     # Run the adjuster
@@ -77,15 +77,15 @@ def test_transaction_adjuster_split_boundaries() -> None:
 
     # Verify Tx before: quantity multiplied by 2, price divided by 2
     assert results[0].quantity == Decimal("20")
-    assert results[0].price == Money(Decimal("50"), "USD")
+    assert results[0].price == Money(Decimal("50"), Currency.USD)
 
     # Verify Tx after: unchanged
     assert results[1].quantity == Decimal("10")
-    assert results[1].price == Money(Decimal("100"), "USD")
+    assert results[1].price == Money(Decimal("100"), Currency.USD)
 
     # Verify Tx exactly: unchanged (since transaction.executed_at < split_datetime is required)
     assert results[2].quantity == Decimal("10")
-    assert results[2].price == Money(Decimal("100"), "USD")
+    assert results[2].price == Money(Decimal("100"), Currency.USD)
 
 
 def test_transaction_adjuster_multiple_cumulative_splits() -> None:
@@ -111,10 +111,10 @@ def test_transaction_adjuster_multiple_cumulative_splits() -> None:
         type=TransactionType.BUY,
         instrument_id="inst_aapl",
         quantity=Decimal("10"),
-        price=Money(Decimal("120"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-1200"), "USD"),
+        price=Money(Decimal("120"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-1200"), Currency.USD),
     )
 
     snapshot_at = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)
@@ -122,7 +122,7 @@ def test_transaction_adjuster_multiple_cumulative_splits() -> None:
 
     # Total multiplier should be 2.0 * 3.0 = 6.0
     assert results[0].quantity == Decimal("60")
-    assert results[0].price == Money(Decimal("20"), "USD")
+    assert results[0].price == Money(Decimal("20"), Currency.USD)
 
 
 def test_transaction_adjuster_ignores_non_trades() -> None:
@@ -142,10 +142,10 @@ def test_transaction_adjuster_ignores_non_trades() -> None:
         type=TransactionType.DEPOSIT,
         instrument_id=None,
         quantity=Decimal("0"),
-        price=Money(Decimal("0"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("1000"), "USD"),
+        price=Money(Decimal("0"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("1000"), Currency.USD),
     )
 
     snapshot_at = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)

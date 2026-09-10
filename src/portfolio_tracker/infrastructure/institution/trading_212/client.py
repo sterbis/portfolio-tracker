@@ -29,7 +29,7 @@ class Trading212Credentials(Credentials):
 
     @classmethod
     def secret_parameter_names(cls) -> tuple[str, ...]:
-        return ("api_secret", )
+        return ("api_secret",)
 
 
 class Trading212ApiEndpoints:
@@ -99,9 +99,13 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
                 f"Failed to download report from '{url}'."
             ) from error
 
-        for line in response.iter_lines(decode_unicode=True):
-            assert isinstance(line, str)
-            yield line
+        try:
+            for line in response.iter_lines(decode_unicode=True):
+                assert isinstance(line, str)
+                yield line
+
+        finally:
+            response.close()
 
     async def _request_report_generation(
         self,

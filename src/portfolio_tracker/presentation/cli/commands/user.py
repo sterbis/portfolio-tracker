@@ -6,13 +6,16 @@ from portfolio_tracker.application.shared.errors import UserAlreadyLoggedOutErro
 from portfolio_tracker.application.user import (
     AuthenticateUserCommand,
     RegisterUserCommand,
-    UserService,
 )
-from portfolio_tracker.bootstrap_desktop import Container
 from portfolio_tracker.presentation.cli.console import console
-from portfolio_tracker.presentation.cli.session import (
-    delete_login_session,
-    save_login_session,
+from portfolio_tracker.presentation.cli.context import (
+    get_container,
+    get_environment,
+    get_loggin_session_store,
+    get_settings,
+)
+from portfolio_tracker.presentation.cli.input import (
+    resolve_input,
 )
 
 user_app = typer.Typer()
@@ -21,49 +24,69 @@ user_app = typer.Typer()
 @user_app.command(name="register")
 def register(
     ctx: typer.Context,
-    username: Annotated[str, typer.Option(prompt=True)],
-    password: Annotated[
-        str, typer.Option(prompt=True, confirmation_prompt=True, hide_input=True)
-    ],
+    username: Annotated[str | None, typer.Option()] = None,
+    password: Annotated[str | None, typer.Option()] = None,
 ) -> None:
-    context: Container = ctx.obj
-    service = context.get(UserService)
-    service.register(RegisterUserCommand(username=username, password=password))
+    environment = get_environment(ctx)
+    container = get_container(ctx)
+
+    resolved_username = resolve_input("--username", username, environment)
+    resolved_password = resolve_input("--password", password, environment, secret=True)
+
+    container.user_service.register(
+        command=RegisterUserCommand(
+            username=resolved_username, password=resolved_password
+        )
+    )
     console.print(f"User '{username}' successfully registered.")
     ctx.invoke(
         login,
-        username=username,
-        password=password,
+        username=resolved_username,
+        password=resolved_password,
     )
 
 
 @user_app.command(name="login")
 def login(
     ctx: typer.Context,
-    username: Annotated[str, typer.Option(prompt=True)],
-    password: Annotated[str, typer.Option(prompt=True, hide_input=True)],
+    username: Annotated[str | None, typer.Option()] = None,
+    password: Annotated[str | None, typer.Option()] = None,
 ) -> None:
-    context: Container = ctx.obj
-    service = context.get(UserService)
-    user_id = service.authenticate(
-        AuthenticateUserCommand(username=username, password=password)
+    environment = get_environment(ctx)
+    container = get_container(ctx)
+    session_store = get_loggin_session_store(ctx)
+
+    session_store.clear()
+
+    resolved_username = resolve_input("--username", username, environment)
+    resolved_password = resolve_input("--password", password, environment, secret=True)
+
+    user_id = container.user_service.authenticate(
+        command=AuthenticateUserCommand(
+            username=resolved_username,
+            password=resolved_password,
+        )
     )
-    save_login_session(user_id, context.USER_SESSION_TTL)
-    console.print(f"User '{username}' successfully logged in.")
+    settings = get_settings(ctx, user_id)
+    session_store.save(user_id, settings.application.cli_login_session_ttl)
+
+    console.print(f"User '{resolved_username}' successfully logged in.")
 
 
 @user_app.command(name="logout")
-def logout(
-    force: Annotated[bool, typer.Option()] = False,
-) -> None:
-    if not force:
-        log_out = typer.confirm("Are you sure you want to log out?", default=False)
-        if not log_out:
+def logout(ctx: typer.Context) -> None:
+    environment = get_environment(ctx)
+    session_store = get_loggin_session_store(ctx)
+
+    session = session_store.load()
+    if not session.is_valid:
+        raise UserAlreadyLoggedOutError()
+
+    if environment.is_interactive:
+        logout_ = typer.confirm("Are you sure you want to log out?", default=False)
+        if not logout_:
             console.print("Operation cancelled.")
             return
 
-    deleted = delete_login_session()
-    if not deleted:
-        raise UserAlreadyLoggedOutError()
-
+    session_store.clear()
     console.print("Successfully logged out.")

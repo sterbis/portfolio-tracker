@@ -227,9 +227,9 @@ class SchemaResolver:
 
                 else:
                     table = self._registry.tables[owner_model]
-                    column_name = self._registry.column_names.get(
-                        owner_model, {}
-                    ).get(field_name, field_name)
+                    column_name = self._registry.column_names.get(owner_model, {}).get(
+                        field_name, field_name
+                    )
                     column = ColumnReference(table, column_name)
                     columns[(owner_model, field_name)] = column
 

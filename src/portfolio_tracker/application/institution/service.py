@@ -9,7 +9,9 @@ from .registry import InstitutionRegistry
 
 class InstitutionService(Service):
     def __init__(
-        self, storage_connection_factory: StorageConnectionFactory, institution_registry: InstitutionRegistry
+        self,
+        storage_connection_factory: StorageConnectionFactory,
+        institution_registry: InstitutionRegistry,
     ) -> None:
         super().__init__(storage_connection_factory)
         self._institution_registry = institution_registry
@@ -17,9 +19,7 @@ class InstitutionService(Service):
     def get_institution(self, institution_id: InstitutionId) -> Institution:
         return self._institution_registry.get_institution(institution_id)
 
-    def get_credentials_cls(
-        self, institution_id: InstitutionId
-    ) -> type[Credentials]:
+    def get_credentials_cls(self, institution_id: InstitutionId) -> type[Credentials]:
         return self._institution_registry.get_credentials_cls(institution_id)
 
     def parse_credential_parameters(

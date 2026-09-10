@@ -7,6 +7,7 @@ from filterutils import Filter, FilterNode, Operator
 from portfolio_tracker.application.persistence import FxRatesRepository
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.fx import FxRates
+from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
 from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldReference
 
@@ -56,16 +57,21 @@ class SqliteFxRatesRepository(FxRatesRepository):
 
         current_date = None
         current_base_currency = None
-        accumulated_rates: dict[str, Decimal] = {}
+        accumulated_rates: dict[Currency, Decimal] = {}
 
         for row in rows:
             effective_on, base_currency, quote_currency, rate = row.unpack(*references)
+            base_currency = Currency(base_currency)
+            quote_currency = Currency(quote_currency)
 
             if current_date is not None and (
                 effective_on != current_date or base_currency != current_base_currency
             ):
-                yield FxRates(effective_on, base_currency, accumulated_rates)
-
+                yield FxRates(
+                    effective_on=current_date,
+                    base_currency=base_currency,
+                    rates=accumulated_rates,
+                )
                 accumulated_rates = {}
 
             current_date = effective_on
@@ -73,7 +79,11 @@ class SqliteFxRatesRepository(FxRatesRepository):
             accumulated_rates[quote_currency] = rate
 
         if current_date and current_base_currency:
-            yield FxRates(current_date, current_base_currency, accumulated_rates)
+            yield FxRates(
+                effective_on=current_date,
+                base_currency=current_base_currency,
+                rates=accumulated_rates,
+            )
 
     def get_by_date(self, effective_on: date) -> FxRates | None:
         return next(

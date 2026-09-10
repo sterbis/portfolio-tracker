@@ -42,9 +42,7 @@ class JsonSettingsStore(SettingsStore):
         return structure_dataclass_values(self._settings_cls, overrides)
 
     def save(self, user_id: str, overrides: dict[str, Any]) -> None:
-        self._path(user_id).write_text(
-            json.dumps(unstructure(overrides), indent=2)
-        )
+        self._path(user_id).write_text(json.dumps(unstructure(overrides), indent=2))
 
     def _path(self, user_id: str) -> Path:
         path = self._settings_dir / user_id / "settings.json"
@@ -53,9 +51,7 @@ class JsonSettingsStore(SettingsStore):
 
 
 class SettingsCache(Generic[TSettings]):
-    def __init__(
-        self, default_settings: TSettings, store: SettingsStore
-    ) -> None:
+    def __init__(self, default_settings: TSettings, store: SettingsStore) -> None:
         self._default_settings = default_settings
         self._store = store
         self._cache: dict[str, TSettings] = {}

@@ -20,13 +20,13 @@ from portfolio_tracker.application.persistence import (
     UserScopedUnitOfWork,
 )
 from portfolio_tracker.application.shared.errors import (
-    PortfolioTrackerError,
     CredentialsNotFoundError,
     FxClientError,
     FxDataIntegrityError,
     InstitutionReportNotFoundError,
     MarketDataClientError,
     MarketDataIntegrityError,
+    PortfolioTrackerError,
 )
 from portfolio_tracker.application.shared.service import Service
 from portfolio_tracker.domain.account import (
@@ -95,7 +95,7 @@ class SyncService(Service):
     def import_report(
         self, user_id: str, command: ImportReportCommand
     ) -> Generator[SyncEvent, None, None]:
-        if not command.report_path.is_file():
+        if not command.path.is_file():
             raise InstitutionReportNotFoundError()
 
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
@@ -108,7 +108,7 @@ class SyncService(Service):
         )
 
         try:
-            with command.report_path.open("r", encoding="utf-8") as report:
+            with command.path.open("r", encoding="utf-8") as report:
                 parser = self._institution_registry.create_report_parser(
                     institution_account.institution_id, institution_account.id
                 )

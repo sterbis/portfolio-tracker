@@ -1,10 +1,16 @@
 from dataclasses import dataclass
 
-from portfolio_tracker.application.account import AccountCommandService, AccountQueryService
+from portfolio_tracker.application.account import (
+    AccountCommandService,
+    AccountQueryService,
+)
 from portfolio_tracker.application.institution import InstitutionService
 from portfolio_tracker.application.portfolio import PortfolioQueryService
 from portfolio_tracker.application.sync import SyncService
-from portfolio_tracker.application.transaction import TransactionCommandService, TransactionQueryService
+from portfolio_tracker.application.transaction import (
+    TransactionCommandService,
+    TransactionQueryService,
+)
 from portfolio_tracker.application.user import UserService
 
 

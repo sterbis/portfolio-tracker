@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from pprint import pformat
 from typing import Any
 
@@ -8,12 +9,17 @@ class PortfolioTrackerError(Exception):
     _message_template = "{message}"
 
     def __init__(self, **kwargs: Any) -> None:
-        self.metadata = kwargs or {"message": "An undefined error occurred."}
+        self.context = kwargs or {"message": "An undefined error occurred."}
         super().__init__(self.message)
 
     @property
     def message(self) -> str:
-        return self._message_template.format(**self.metadata)
+        return self._message_template.format(
+            **{
+                key: ", ".join(value) if isinstance(value, Sequence) else str(value)
+                for key, value in self.context.items()
+            }
+        )
 
 
 class ClientError(PortfolioTrackerError):
@@ -37,9 +43,6 @@ class ModelNotFoundError(PortfolioTrackerError):
     _message_template = "{model_name} with ID {model_id} not found."
 
     def __init__(self, model_name: str, model_id: str | set[str]) -> None:
-        if isinstance(model_id, set):
-            model_id = ", ".join(model_id)
-
         super().__init__(model_name=model_name, model_id=model_id)
 
 
@@ -99,13 +102,13 @@ class InvalidCredentialParametersError(PortfolioTrackerError):
         institution_id: InstitutionId,
         required_parameters: tuple[str, ...],
         missing_parameters: list[str] | None = None,
-        unknown_parameters: list[str]| None = None,
+        unknown_parameters: list[str] | None = None,
     ) -> None:
         super().__init__(
             institution_id=institution_id,
             required_parameters=required_parameters,
-            missing_parameters=", ".join(missing_parameters) if missing_parameters else "",
-            unknown_parameters=", ".join(unknown_parameters) if unknown_parameters else "",
+            missing_parameters=missing_parameters or [],
+            unknown_parameters=unknown_parameters or [],
         )
 
 

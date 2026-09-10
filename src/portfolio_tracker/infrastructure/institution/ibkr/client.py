@@ -14,4 +14,4 @@ class IbkrCredentials(Credentials):
 
     @classmethod
     def secret_parameter_names(cls) -> tuple[str, ...]:
-        return ("flex_web_service_token", )
+        return ("flex_web_service_token",)

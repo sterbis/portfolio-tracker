@@ -82,11 +82,16 @@ class FilterMapper:
 
         if isinstance(value, DualMoneyView):
             return DualMoney(
-                native=Money(amount=value.native.amount, currency=value.native.currency),
-                reporting=Money(amount=value.reporting.amount, currency=value.reporting.currency),
+                native=Money(
+                    amount=value.native.amount, currency=value.native.currency
+                ),
+                reporting=Money(
+                    amount=value.reporting.amount, currency=value.reporting.currency
+                ),
             )
 
         return value
+
 
 class FilterSplitter:
     def __init__(self, persisted_model_types: tuple[type, ...]) -> None:

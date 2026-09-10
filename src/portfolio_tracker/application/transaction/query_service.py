@@ -2,10 +2,15 @@ from datetime import date
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import StorageConnectionFactory
+from portfolio_tracker.application.shared.errors import TransactionNotFoundError
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
-from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.shared.service import QueryService
-from portfolio_tracker.application.views import TransactionView, ViewBuilder
+from portfolio_tracker.application.shared.sort import Sort
+from portfolio_tracker.application.views import (
+    TransactionPlainView,
+    TransactionView,
+    ViewBuilder,
+)
 from portfolio_tracker.domain.transaction import (
     Transaction,
     TransactionAdjuster,
@@ -27,9 +32,21 @@ class TransactionQueryService(QueryService):
         institution_registry: InstitutionRegistry,
         transaction_adjuster: TransactionAdjuster,
     ) -> None:
-        super().__init__(storage_connection_factory, filter_mapper, filter_splitter, view_builder)
+        super().__init__(
+            storage_connection_factory, filter_mapper, filter_splitter, view_builder
+        )
         self._institution_registry = institution_registry
         self._transaction_adjuster = transaction_adjuster
+
+    def get_transaction(
+        self, user_id: str, transaction_id: str
+    ) -> TransactionPlainView:
+        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
+            transaction = uow.transactions.get_by_id(transaction_id)
+            if transaction is None:
+                raise TransactionNotFoundError(transaction_id)
+
+            return TransactionPlainView.from_domain(transaction)
 
     def get_transactions(
         self, user_id: str, query: GetTransactionsQuery

@@ -5,10 +5,16 @@ from portfolio_tracker.application.account import (
     AccountQueryService,
 )
 from portfolio_tracker.application.container import Container
-from portfolio_tracker.application.institution import InstitutionService, InstitutionRegistry
 from portfolio_tracker.application.fx import FxService
+from portfolio_tracker.application.institution import (
+    InstitutionRegistry,
+    InstitutionService,
+)
 from portfolio_tracker.application.market_data import MarketDataService
-from portfolio_tracker.application.persistence import PERSISTED_MODEL_TYPES, StorageConnectionFactory
+from portfolio_tracker.application.persistence import (
+    PERSISTED_MODEL_TYPES,
+    StorageConnectionFactory,
+)
 from portfolio_tracker.application.portfolio import PortfolioQueryService
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.sync import SyncService
@@ -38,7 +44,7 @@ from portfolio_tracker.shared.settings_utils import JsonSettingsStore, SettingsC
 from .settings import Settings
 
 
-def bootstrap_desktop() -> tuple[Container, SettingsCache[Settings]]:
+def desktop_bootstrap() -> tuple[Container, SettingsCache[Settings]]:
     configuration = load_desktop_configuration()
 
     encryptor = FernetEncryptor(configuration.encryption_key)
@@ -65,18 +71,18 @@ def bootstrap(
     institution_registry: InstitutionRegistry,
     storage_connection_factory: StorageConnectionFactory,
     user_settings_dir: Path,
-) -> tuple[Container, SettingsCache[Settings]]: 
+) -> tuple[Container, SettingsCache[Settings]]:
     fx_client = FrankfurterClient()
     fx_service = FxService(fx_client)
-    
+
     market_data_client = YahooFinanceClient()
     market_data_service = MarketDataService(market_data_client)
-    
+
     filter_mapper = FilterMapper(registry=VIEW_REGISTRY)
     filter_splitter = FilterSplitter(persisted_model_types=PERSISTED_MODEL_TYPES)
     transaction_adjuster = TransactionAdjuster()
     view_builder = ViewBuilder()
-    
+
     container = Container(
         account_command_service=AccountCommandService(
             storage_connection_factory=storage_connection_factory,

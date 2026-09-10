@@ -12,7 +12,7 @@ from portfolio_tracker.domain.portfolio.position import (
     AccountingMethod,
     PositionBuilder,
 )
-from portfolio_tracker.domain.shared import DualMoney, Money
+from portfolio_tracker.domain.shared import Currency, DualMoney, Money
 from portfolio_tracker.domain.transaction import (
     Transaction,
     TransactionConverter,
@@ -33,10 +33,10 @@ def aapl_transactions(
             instrument_id=aapl_stock.id,
             type=TransactionType.BUY,
             quantity=Decimal("10"),
-            price=Money(Decimal("180"), "USD"),
-            fee=Money(Decimal("0"), "USD"),
-            tax=Money(Decimal("0"), "USD"),
-            cash_impact=Money(Decimal("-1800"), "USD"),
+            price=Money(Decimal("180"), Currency.USD),
+            fee=Money(Decimal("0"), Currency.USD),
+            tax=Money(Decimal("0"), Currency.USD),
+            cash_impact=Money(Decimal("-1800"), Currency.USD),
         ),
         # Buy 5 AAPL shares @ 210
         Transaction(
@@ -46,10 +46,10 @@ def aapl_transactions(
             instrument_id=aapl_stock.id,
             type=TransactionType.BUY,
             quantity=Decimal("5"),
-            price=Money(Decimal("210"), "USD"),
-            fee=Money(Decimal("0"), "USD"),
-            tax=Money(Decimal("0"), "USD"),
-            cash_impact=Money(Decimal("-1050"), "USD"),
+            price=Money(Decimal("210"), Currency.USD),
+            fee=Money(Decimal("0"), Currency.USD),
+            tax=Money(Decimal("0"), Currency.USD),
+            cash_impact=Money(Decimal("-1050"), Currency.USD),
         ),
         # Buy 7 AAPL shares @ 200
         Transaction(
@@ -59,10 +59,10 @@ def aapl_transactions(
             instrument_id=aapl_stock.id,
             type=TransactionType.BUY,
             quantity=Decimal("7"),
-            price=Money(Decimal("200"), "USD"),
-            fee=Money(Decimal("0"), "USD"),
-            tax=Money(Decimal("0"), "USD"),
-            cash_impact=Money(Decimal("-1400"), "USD"),
+            price=Money(Decimal("200"), Currency.USD),
+            fee=Money(Decimal("0"), Currency.USD),
+            tax=Money(Decimal("0"), Currency.USD),
+            cash_impact=Money(Decimal("-1400"), Currency.USD),
         ),
         # Sell 12 AAPL shares @ 220
         Transaction(
@@ -72,10 +72,10 @@ def aapl_transactions(
             instrument_id=aapl_stock.id,
             type=TransactionType.SELL,
             quantity=Decimal("12"),
-            price=Money(Decimal("220"), "USD"),
-            fee=Money(Decimal("0"), "USD"),
-            tax=Money(Decimal("0"), "USD"),
-            cash_impact=Money(Decimal("2640"), "USD"),
+            price=Money(Decimal("220"), Currency.USD),
+            fee=Money(Decimal("0"), Currency.USD),
+            tax=Money(Decimal("0"), Currency.USD),
+            cash_impact=Money(Decimal("2640"), Currency.USD),
         ),
     ]
 
@@ -83,10 +83,18 @@ def aapl_transactions(
 @pytest.fixture(scope="module")
 def rates_by_date() -> dict[date, FxRates]:
     return {
-        date(2026, 1, 1): FxRates(date(2026, 1, 1), "USD", {"CZK": Decimal("20.0")}),
-        date(2026, 1, 2): FxRates(date(2026, 1, 2), "USD", {"CZK": Decimal("20.5")}),
-        date(2026, 1, 3): FxRates(date(2026, 1, 3), "USD", {"CZK": Decimal("21.0")}),
-        date(2026, 1, 4): FxRates(date(2026, 1, 4), "USD", {"CZK": Decimal("21.5")}),
+        date(2026, 1, 1): FxRates(
+            date(2026, 1, 1), Currency.USD, {Currency.CZK: Decimal("20.0")}
+        ),
+        date(2026, 1, 2): FxRates(
+            date(2026, 1, 2), Currency.USD, {Currency.CZK: Decimal("20.5")}
+        ),
+        date(2026, 1, 3): FxRates(
+            date(2026, 1, 3), Currency.USD, {Currency.CZK: Decimal("21.0")}
+        ),
+        date(2026, 1, 4): FxRates(
+            date(2026, 1, 4), Currency.USD, {Currency.CZK: Decimal("21.5")}
+        ),
     }
 
 
@@ -95,8 +103,8 @@ def test_execute_fifo_sell(
     aapl_transactions: list[Transaction],
     rates_by_date: dict[date, FxRates],
 ) -> None:
-    native_currency = "USD"
-    reporting_currency = "CZK"
+    native_currency = Currency.USD
+    reporting_currency = Currency.CZK
 
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
@@ -119,19 +127,19 @@ def test_execute_fifo_sell(
     # C. Lot 2 remaining state (3 shares left @ original 210 USD, 4,305 CZK)
     assert builder.lots[0].remaining_quantity == Decimal("3")
     assert builder.lots[0].price == DualMoney(
-        Money(Decimal("210"), "USD"), Money(Decimal("4305"), "CZK")
+        Money(Decimal("210"), Currency.USD), Money(Decimal("4305"), Currency.CZK)
     )
 
     # D. Lot 3 remaining state (7 shares left @ original 200 USD, 4,200 CZK)
     assert builder.lots[1].remaining_quantity == Decimal("7")
     assert builder.lots[1].price == DualMoney(
-        Money(Decimal("200"), "USD"), Money(Decimal("4200"), "CZK")
+        Money(Decimal("200"), Currency.USD), Money(Decimal("4200"), Currency.CZK)
     )
 
     # E. Cost Basis: (3 * 210 USD) + (7 * 200 USD) = 2030 USD
     #    Cost Basis: (3 * 4,305 CZK) + (7 * 4,200 CZK) = 42,315 CZK
     assert builder.cost_basis == DualMoney(
-        Money(Decimal("2030"), "USD"), Money(Decimal("42315"), "CZK")
+        Money(Decimal("2030"), Currency.USD), Money(Decimal("42315"), Currency.CZK)
     )
 
 
@@ -140,8 +148,8 @@ def test_execute_average_cost_sell(
     aapl_transactions: list[Transaction],
     rates_by_date: dict[date, FxRates],
 ) -> None:
-    native_currency = "USD"
-    reporting_currency = "CZK"
+    native_currency = Currency.USD
+    reporting_currency = Currency.CZK
 
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
@@ -163,10 +171,10 @@ def test_execute_average_cost_sell(
 
     # C. Verify that all remaining lots have changed to the same average price and zero fees
     expected_average_price = DualMoney(
-        Money(Decimal("4250") / Decimal("22"), "USD"),  # 193.1818...
-        Money(Decimal("86925") / Decimal("22"), "CZK"),  # 3,951.1363...
+        Money(Decimal("4250") / Decimal("22"), Currency.USD),  # 193.1818...
+        Money(Decimal("86925") / Decimal("22"), Currency.CZK),  # 3,951.1363...
     )
-    expected_fee = DualMoney.zero("USD", "CZK")
+    expected_fee = DualMoney.zero(Currency.USD, Currency.CZK)
 
     for lot in builder.lots:
         assert lot.price == expected_average_price
@@ -182,8 +190,8 @@ def test_position_builder_chronological_order_enforced(
     sample_asset_account: AssetAccount,
     rates_by_date: dict[date, FxRates],
 ) -> None:
-    native_currency = "USD"
-    reporting_currency = "CZK"
+    native_currency = Currency.USD
+    reporting_currency = Currency.CZK
 
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
@@ -200,10 +208,10 @@ def test_position_builder_chronological_order_enforced(
         instrument_id=aapl_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("5"),
-        price=Money(Decimal("180"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-900"), "USD"),
+        price=Money(Decimal("180"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-900"), Currency.USD),
     )
     converted_transaction_1 = converter.convert(transaction_1, reporting_currency)
     builder.add(converted_transaction_1)
@@ -216,10 +224,10 @@ def test_position_builder_chronological_order_enforced(
         instrument_id=aapl_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("5"),
-        price=Money(Decimal("180"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-900"), "USD"),
+        price=Money(Decimal("180"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-900"), Currency.USD),
     )
     converted_transaction_2 = converter.convert(transaction_2, reporting_currency)
 
@@ -234,8 +242,8 @@ def test_position_builder_instrument_mismatch_raises_error(
     sample_asset_account: AssetAccount,
     rates_by_date: dict[date, FxRates],
 ) -> None:
-    native_currency = "USD"
-    reporting_currency = "CZK"
+    native_currency = Currency.USD
+    reporting_currency = Currency.CZK
 
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
@@ -251,10 +259,10 @@ def test_position_builder_instrument_mismatch_raises_error(
         instrument_id="MSFT",  # Mismatched instrument
         type=TransactionType.BUY,
         quantity=Decimal("5"),
-        price=Money(Decimal("180"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-900"), "USD"),
+        price=Money(Decimal("180"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-900"), Currency.USD),
     )
     converted_transaction = converter.convert(transaction, reporting_currency)
 
@@ -267,8 +275,8 @@ def test_position_builder_short_selling_protection(
     sample_asset_account: AssetAccount,
     rates_by_date: dict[date, FxRates],
 ) -> None:
-    native_currency = "USD"
-    reporting_currency = "CZK"
+    native_currency = Currency.USD
+    reporting_currency = Currency.CZK
 
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
@@ -285,10 +293,10 @@ def test_position_builder_short_selling_protection(
         instrument_id=aapl_stock.id,
         type=TransactionType.SELL,
         quantity=Decimal("5"),
-        price=Money(Decimal("180"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("900"), "USD"),
+        price=Money(Decimal("180"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("900"), Currency.USD),
     )
     converted_sell_transaction = converter.convert(sell_transaction, reporting_currency)
 
@@ -308,10 +316,10 @@ def test_position_builder_short_selling_protection(
         instrument_id=aapl_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("5"),
-        price=Money(Decimal("180"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-900"), "USD"),
+        price=Money(Decimal("180"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-900"), Currency.USD),
     )
     converted_buy_transaction = converter.convert(buy_transaction, reporting_currency)
     builder_2.add(converted_buy_transaction)
@@ -323,10 +331,10 @@ def test_position_builder_short_selling_protection(
         instrument_id=aapl_stock.id,
         type=TransactionType.SELL,
         quantity=Decimal("6"),
-        price=Money(Decimal("180"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("1080"), "USD"),
+        price=Money(Decimal("180"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("1080"), Currency.USD),
     )
     converted_excessive_sell_transaction = converter.convert(
         excessive_sell_transaction, reporting_currency
@@ -341,8 +349,8 @@ def test_position_builder_closure_and_reopening(
     sample_asset_account: AssetAccount,
     rates_by_date: dict[date, FxRates],
 ) -> None:
-    native_currency = "USD"
-    reporting_currency = "CZK"
+    native_currency = Currency.USD
+    reporting_currency = Currency.CZK
 
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
@@ -359,10 +367,10 @@ def test_position_builder_closure_and_reopening(
         instrument_id=aapl_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("5"),
-        price=Money(Decimal("100"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-500"), "USD"),
+        price=Money(Decimal("100"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-500"), Currency.USD),
     )
     converted_buy_transaction = converter.convert(buy_transaction, reporting_currency)
     builder.add(converted_buy_transaction)
@@ -375,10 +383,10 @@ def test_position_builder_closure_and_reopening(
         instrument_id=aapl_stock.id,
         type=TransactionType.SELL,
         quantity=Decimal("5"),
-        price=Money(Decimal("120"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("600"), "USD"),
+        price=Money(Decimal("120"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("600"), Currency.USD),
     )
     converted_sell_transaction = converter.convert(sell_transaction, reporting_currency)
     builder.add(converted_sell_transaction)
@@ -395,10 +403,10 @@ def test_position_builder_closure_and_reopening(
         instrument_id=aapl_stock.id,
         type=TransactionType.BUY,
         quantity=Decimal("10"),
-        price=Money(Decimal("110"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("-1100"), "USD"),
+        price=Money(Decimal("110"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("-1100"), Currency.USD),
     )
     converted_buy_transaction_2 = converter.convert(
         buy_transaction_2, reporting_currency
@@ -409,7 +417,7 @@ def test_position_builder_closure_and_reopening(
     assert snapshot2.quantity == Decimal("10")
     assert snapshot2.closed_at is None
     assert snapshot2.cost_basis == DualMoney(
-        Money(Decimal("1100"), "USD"), Money(Decimal("22000"), "CZK")
+        Money(Decimal("1100"), Currency.USD), Money(Decimal("22000"), Currency.CZK)
     )
 
 
@@ -418,8 +426,8 @@ def test_position_builder_unsupported_tx_type_raises_error(
     sample_asset_account: AssetAccount,
     rates_by_date: dict[date, FxRates],
 ) -> None:
-    native_currency = "USD"
-    reporting_currency = "CZK"
+    native_currency = Currency.USD
+    reporting_currency = Currency.CZK
 
     builder = PositionBuilder(
         instrument_id=aapl_stock.id,
@@ -435,10 +443,10 @@ def test_position_builder_unsupported_tx_type_raises_error(
         instrument_id=aapl_stock.id,
         type=TransactionType.DEPOSIT,  # DEPOSIT is not BUY/SELL
         quantity=Decimal("0"),
-        price=Money(Decimal("0"), "USD"),
-        fee=Money(Decimal("0"), "USD"),
-        tax=Money(Decimal("0"), "USD"),
-        cash_impact=Money(Decimal("100"), "USD"),
+        price=Money(Decimal("0"), Currency.USD),
+        fee=Money(Decimal("0"), Currency.USD),
+        tax=Money(Decimal("0"), Currency.USD),
+        cash_impact=Money(Decimal("100"), Currency.USD),
     )
     converted_transaction = converter.convert(transaction, reporting_currency)
 

@@ -31,7 +31,7 @@ from .portfolio import (
 )
 from .reqistry import VIEW_REGISTRY, FieldMap, FieldReference
 from .shared import DualMoneyView, MoneyView
-from .transaction import TransactionView
+from .transaction import TransactionPlainView, TransactionView
 from .user import UserView
 
 __all__ = [
@@ -61,6 +61,7 @@ __all__ = [
     "PositionValuationView",
     "PositionView",
     "StockView",
+    "TransactionPlainView",
     "TransactionView",
     "UserView",
     "ValuedCashBalanceView",

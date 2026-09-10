@@ -28,7 +28,7 @@ class Trading321Credentials(Credentials):
 
     @classmethod
     def secret_parameter_names(cls) -> tuple[str, ...]:
-        return ("api_secret", )
+        return ("api_secret",)
 
 
 @dataclass(frozen=True)
@@ -42,4 +42,4 @@ class HyperactiveBrokersCredentials(Credentials):
 
     @classmethod
     def secret_parameter_names(cls) -> tuple[str, ...]:
-        return ("web_service_token", )
+        return ("web_service_token",)

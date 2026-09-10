@@ -51,7 +51,6 @@ class SqliteCredentialsRepository(CredentialsRepository):
         if row is None:
             return None
 
-
         institution_id = self._institution_registry.get_institution_id(row[0])
         encrypted_parameters = row[1]
 
