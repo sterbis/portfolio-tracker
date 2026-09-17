@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import (
     ConvertedTransaction,
     Transaction,
@@ -46,6 +47,30 @@ class TransactionView:
             fee=DualMoneyView.from_domain(transaction.fee),
             tax=DualMoneyView.from_domain(transaction.tax),
             cash_impact=DualMoneyView.from_domain(transaction.cash_impact),
+        )
+
+
+@dataclass(frozen=True, kw_only=True)
+class TransactionTotalView:
+    cash_impact: MoneyView
+
+    @classmethod
+    def from_views(
+        cls, views: list[TransactionView], reporting_currency: Currency
+    ) -> TransactionTotalView:
+        if not views:
+            return cls(
+                cash_impact=MoneyView(amount=Decimal("0"), currency=reporting_currency),
+            )
+
+        return cls(
+            cash_impact=MoneyView(
+                amount=sum(
+                    (view.cash_impact.reporting.amount for view in views),
+                    start=Decimal("0"),
+                ),
+                currency=reporting_currency,
+            )
         )
 
 

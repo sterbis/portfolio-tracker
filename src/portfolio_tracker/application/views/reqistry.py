@@ -60,7 +60,7 @@ def prefix_field_map(field_map: FieldMap, prefix: str) -> FieldMap:
     return {f"{prefix}.{field_name}": field for field_name, field in field_map.items()}
 
 
-def merge_field_maps(*field_maps: FieldMap) -> dict[str, FieldReference]:
+def merge_field_maps(*field_maps: FieldMap) -> FieldMap:
     models_by_field: dict[str, set[Model]] = {}
 
     for field_map in field_maps:

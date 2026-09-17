@@ -1,10 +1,12 @@
 import typing
+import types
+from collections.abc import Mapping
 from dataclasses import fields, is_dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Mapping, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Generator, TypeVar, cast
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
@@ -39,6 +41,48 @@ def register_converter(cls: type[T], converter: Callable[[Any], T]) -> None:
     _CONVERTERS[cls] = converter
 
 
+def unpack_type(type_: type) -> Generator[type, None, None]:
+    if typing.get_origin(type_) in (typing.Union, types.UnionType):
+        yield from typing.get_args(type_)
+
+    else:
+        yield type_
+
+
+def resolve_field_type(cls: type, field_: str) -> Any:
+    current_type = cls
+    for name in field_.split("."):
+        for type_ in unpack_type(current_type):
+            if is_dataclass(type_):
+                annotations = typing.get_type_hints(type_)
+                if name not in annotations:
+                    raise ValueError(
+                        f"Dataclass '{type_.__name__}' has no field '{name}'."
+                    )
+
+                current_type = annotations[name]
+                break
+
+            if typing.get_origin(type_) is dict and len(typing.get_args(type_)) == 2:
+                current_type = typing.get_args(type_)[1]
+                break
+
+        else:
+            raise ValueError(
+                f"Type '{getattr(current_type, '__name__', current_type)}' has no field '{name}'."
+            )
+
+    return current_type
+
+
+def resolve_field_value(obj: Any, field: str) -> Any:
+    value = obj
+    for name in field.split("."):
+        value = value[name] if isinstance(value, Mapping) else getattr(value, name)
+
+    return value
+
+
 def unstructure(value: Any) -> Any:
     if isinstance(value, Enum):
         return unstructure(value.value)
@@ -46,36 +90,35 @@ def unstructure(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
 
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [unstructure(item) for item in value]
+
+    if isinstance(value, Mapping):
+        return {key: unstructure(item) for key, item in value.items()}
+
     if _is_dataclass_instance(value):
         return {
             field.name: unstructure(getattr(value, field.name))
             for field in fields(value)
         }
 
-    if isinstance(value, Mapping):
-        return {key: unstructure(item) for key, item in value.items()}
-
-    if isinstance(value, (list, tuple, set, frozenset)):
-        return [unstructure(item) for item in value]
-
     if adapter := _ADAPTERS.get(type(value)):
         return adapter(value)
 
     raise TypeError(
-        f"Object of type {type(value).__name__} is not serializable and no adapter is registered."
+        f"No adapter registered for object of type {type(value).__name__}."
     )
 
 
-def structure(cls: type[T], value: Any) -> T:
+def structure(value: Any, cls: type[T]) -> T:
     if isinstance(value, cls):
         return value
 
     if issubclass(cls, Enum):
-        return cast(T, cls(value))
+        return cast(T, cls(value.upper() if isinstance(value, str) else value))
 
     if is_dataclass(cls):
-        values = structure_dataclass_values(cls, value)
-        return cast(T, cls(**values))
+        return cast(T, structure_dataclass(value, cls))
 
     if converter := _CONVERTERS.get(cls):
         return cast(T, converter(value))
@@ -83,46 +126,50 @@ def structure(cls: type[T], value: Any) -> T:
     try:
         return cls(value)  # type: ignore[call-arg]
     except TypeError as error:
-
         raise TypeError(
-            f"No converter registered for type {cls.__name__}, and direct construction failed: {error}"
+            f"No converter registered for type {cls.__name__}. Direct construction failed: {error}"
         ) from error
 
 
-def structure_dataclass_values(
-    cls: type[TDataclass], values: dict[str, Any]
-) -> dict[str, Any]:
-    hints = typing.get_type_hints(cls)
+def structure_dataclass(
+    values: dict[str, Any], cls: type[TDataclass]
+) -> TDataclass:
     structured_values: dict[str, Any] = {}
+    annotations = typing.get_type_hints(cls)
 
-    for name, value in values.items():
-        if name not in hints:
+    for filed_name, value in values.items():
+        if filed_name not in annotations:
             continue
 
-        field_type: type = hints[name]
-
-        if is_dataclass(field_type) and isinstance(value, dict):
-            structured_values[name] = structure_dataclass_values(field_type, value)
-
-        elif isinstance(value, dict) and typing.get_origin(field_type) is dict:
-            item_type: type = typing.get_args(field_type)[1]
-            structured_values[name] = {
-                key: (
-                    structure_dataclass_values(item_type, item)
-                    if is_dataclass(item_type)
-                    else structure(item_type, item)
-                )
-                for key, item in value.items()
-            }
-
-        elif isinstance(value, list) and typing.get_origin(field_type) is list:
-            item_type = typing.get_args(field_type)[0]
-            structured_values[name] = [structure(item_type, item) for item in value]
+        annotation: type = annotations[filed_name]
+        if isinstance(annotation, types.GenericAlias):
+            field_type = typing.get_origin(annotation)
 
         else:
-            structured_values[name] = structure(field_type, value)
+            field_type = annotation
 
-    return structured_values
+        if is_dataclass(field_type) and isinstance(value, dict):
+            structured_values[filed_name] = structure_dataclass(value, field_type)
+
+        elif field_type is dict and isinstance(value, dict):
+            item_type: type = typing.get_args(annotation)[1]
+            structured_values[filed_name] = {
+                item_name: (
+                    structure_dataclass(item, item_type)
+                    if is_dataclass(item_type)
+                    else structure(item, item_type)
+                )
+                for item_name, item in value.items()
+            }
+
+        elif field_type is list and isinstance(value, list):
+            item_type = typing.get_args(annotation)[0]
+            structured_values[filed_name] = [structure(item, item_type) for item in value]
+
+        else:
+            structured_values[filed_name] = structure(value, field_type)
+
+    return cls(**structured_values)
 
 
 def replace_dataclass_values(
@@ -180,45 +227,45 @@ def replace_dataclass_values(
     return replace(instance, **replacements)
 
 
-def prune_override_values(
-    default_values: TDataclass | dict[str, Any], override_values: dict[str, Any]
+def prune_replacement_values(
+    replacement_values: dict[str, Any], original_values: TDataclass | dict[str, Any]
 ) -> dict[str, Any]:
     pruned_values: dict[str, Any] = {}
 
-    for key, override_value in override_values.items():
-        if isinstance(default_values, dict):
-            if key not in default_values:
+    for key, replacement_value in replacement_values.items():
+        if isinstance(original_values, dict):
+            if key not in original_values:
                 continue
 
-            default_value = default_values[key]
+            original_value = original_values[key]
 
-        elif _is_dataclass_instance(default_value):
-            if not hasattr(default_values, key):
+        elif _is_dataclass_instance(original_value):
+            if not hasattr(original_values, key):
                 continue
 
-            default_value = getattr(default_values, key)
+            original_value = getattr(original_values, key)
 
         else:
             raise ValueError(
-                "Dataclass or dict is expected to be passed as original values."
+                "Dataclass or dict is expected to be passed as default values."
             )
 
-        if isinstance(override_value, dict) and (
-            isinstance(default_value, dict) or _is_dataclass_instance(default_value)
+        if isinstance(replacement_value, dict) and (
+            isinstance(original_value, dict) or _is_dataclass_instance(original_value)
         ):
-            nested_pruned = prune_override_values(default_value, override_value)
-            if nested_pruned:
-                pruned_values[key] = nested_pruned
+            nested_pruned_values = prune_replacement_values(replacement_value, original_value)
+            if nested_pruned_values:
+                pruned_values[key] = nested_pruned_values
 
-        elif override_value != default_value:
-            pruned_values[key] = override_value
+        elif replacement_value != original_value:
+            pruned_values[key] = replacement_value
 
     return pruned_values
 
 
 def diff_from_defaults(value: T, default_value: T) -> dict[str, Any]:
     result = _diff(value, default_value)
-    return result if result is not _UNCHANGED else {}
+    return {} if result is _UNCHANGED else result
 
 
 def _diff(value: Any, default_value: Any) -> Any:

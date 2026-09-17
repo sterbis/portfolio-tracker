@@ -2,17 +2,23 @@ from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
-class TableSettings:
-    displayed_columns: list[str]
+class TableDisplaySettings:
+    active_columns: list[str]
     sort_columns: list[str]
 
 
 @dataclass(frozen=True)
 class CliDisplaySettings:
-    tables: dict[str, TableSettings] = field(
+    date_format: str = "%d/%m/%Y"
+    time_format: str = "%H:%M:%S.%f"
+    none_string: str = "N/A"
+    quantity_decimal_places: int = 4
+    percent_decimal_places: int = 2
+    money_decimal_places: int = 2
+    tables: dict[str, TableDisplaySettings] = field(
         default_factory=lambda: {
-            "transaction": TableSettings(
-                displayed_columns=["account", "executed_at", "type", "symbol", "price"],
+            "transaction": TableDisplaySettings(
+                active_columns=["account", "executed_at", "type", "symbol", "price"],
                 sort_columns=["account", "executed_at"],
             )
         }

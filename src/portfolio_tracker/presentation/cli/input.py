@@ -27,7 +27,6 @@ from .parsers import (
     datetime_parser,
     enum_parser,
     money_parser,
-    parse_input_value,
     parse_key_value_pairs,
     parse_money,
     parse_multi_value,
@@ -352,6 +351,18 @@ def resolve_filter_inputs(inputs: list[FilterInput]) -> FilterTree:
             resolved_filter.add_child(filter_)
 
     return resolved_filter
+
+
+def parse_input_value(
+    parameter: str,
+    value: str,
+    value_parser: Callable[[str], TParsedValue],
+) -> TParsedValue:
+    try:
+        return value_parser(value)
+
+    except ValueError as error:
+        raise typer.BadParameter(f"Parameter: {parameter}. Reason: {error}") from error
 
 
 @overload

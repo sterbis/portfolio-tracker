@@ -85,7 +85,7 @@ class SqliteStatementBuilder:
             for sort in sorts:
                 field = FieldReference(sort.item_type, sort.field)
                 column = self._resolver.get_column(field)
-                order_by_columns[column] = sort.direction
+                order_by_columns[column] = sort.reverse
 
         all_columns = (
             select_columns.keys() | filter_columns.keys() | order_by_columns.keys()

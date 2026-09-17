@@ -45,10 +45,11 @@ def get_logged_in_user_id(ctx: Context) -> str:
 
 
 def get_settings(ctx: Context, user_id: str | None = None) -> Settings:
-    settings_cache: SettingsCache[Settings] = _get_context_metadata(
-        ctx, SETTINGS_CACHE_KEY, SettingsCache
-    )
-    return settings_cache.get_settings(user_id)
+    return get_settings_cache(ctx).get_settings(user_id)
+
+
+def get_settings_cache(ctx: Context) -> SettingsCache[Settings]:
+    return _get_context_metadata(ctx, SETTINGS_CACHE_KEY, SettingsCache)
 
 
 def _get_context_metadata(

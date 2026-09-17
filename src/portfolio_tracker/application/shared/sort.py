@@ -1,6 +1,7 @@
-import operator
 from dataclasses import dataclass
-from typing import Literal, Sequence, TypeVar
+from typing import Any, Sequence, TypeVar
+
+from portfolio_tracker.shared.dataclass_utils import resolve_field_value
 
 TItem = TypeVar("TItem")
 
@@ -9,13 +10,17 @@ TItem = TypeVar("TItem")
 class Sort:
     field: str
     item_type: type
-    direction: Literal["ASC", "DESC"] = "ASC"
+    reverse: bool = False
+
+    def _sort_key(self, item: TItem) -> tuple[bool, Any]:
+        value = resolve_field_value(item, self.field)
+        return value is not None if self.reverse else value is None, value
 
     def apply(self, items: Sequence[TItem]) -> list[TItem]:
         return sorted(
             items,
-            key=operator.attrgetter(self.field),
-            reverse=(self.direction == "DESC"),
+            key=self._sort_key,
+            reverse=self.reverse,
         )
 
     @classmethod

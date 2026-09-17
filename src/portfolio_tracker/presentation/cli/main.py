@@ -10,7 +10,8 @@ from portfolio_tracker.application.shared.errors import PortfolioTrackerError
 from .commands import (
     account_app,
     import_app,
-    portfolio_app,
+    overview_app,
+    settings_app,
     sync_app,
     transaction_app,
     user_app,
@@ -51,11 +52,12 @@ sys.excepthook = global_exception_handler
 app = GuardedTyper()
 app.add_typer(account_app, name="account")
 app.add_typer(transaction_app, name="transaction")
+app.add_typer(settings_app, name="settings")
 app.add_typer(sync_app, name="sync")
 
 app.add_typer(user_app)
 app.add_typer(import_app)
-app.add_typer(portfolio_app)
+app.add_typer(overview_app)
 
 
 @app.callback()

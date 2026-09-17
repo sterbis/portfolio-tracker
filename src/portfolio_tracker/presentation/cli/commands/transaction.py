@@ -9,7 +9,11 @@ from portfolio_tracker.application.transaction import (
     TransactionPayloadDto,
     UpdateTransactionCommand,
 )
-from portfolio_tracker.application.views import MoneyView
+from portfolio_tracker.application.views import (
+    MoneyView,
+    TransactionView,
+    TransactionTotalView,
+)
 from portfolio_tracker.domain.instrument import AssetClass, InstrumentType
 from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import TransactionType
@@ -43,7 +47,9 @@ from portfolio_tracker.presentation.cli.parsers import (
     datetime_parser,
     enum_parser,
     money_parser,
+    parse_sort_column,
 )
+from portfolio_tracker.presentation.cli.ui.tables import get_view_table
 
 transaction_app = GuardedTyper()
 
@@ -51,8 +57,12 @@ transaction_app = GuardedTyper()
 @transaction_app.command(name="list")
 def list_transactions(
     ctx: typer.Context,
-    institution_account_id: Annotated[list[str] | None, multi_value_option()] = None,
-    asset_account_id: Annotated[list[str] | None, multi_value_option()] = None,
+    institution_account_ids: Annotated[
+        list[str] | None, multi_value_option("--institution_account_id")
+    ] = None,
+    asset_account_ids: Annotated[
+        list[str] | None, multi_value_option("--asset_account_id")
+    ] = None,
     currency: Annotated[Currency | None, typer.Option(case_sensitive=False)] = None,
     executed_at: Annotated[str | None, typer.Option()] = None,
     type_: Annotated[str | None, typer.Option()] = None,
@@ -65,18 +75,14 @@ def list_transactions(
     instrument_asset_class: Annotated[str | None, typer.Option()] = None,
     instrument_symbol: Annotated[str | None, typer.Option()] = None,
     instrument_name: Annotated[str | None, typer.Option()] = None,
-    # sort: Annotated[list[str] | None, multi_value_option()] = None,
+    active_columns: Annotated[list[str] | None, multi_value_option("--column")] = None,
+    sort_columns: Annotated[list[str] | None, multi_value_option("--sort")] = None,
     limit: Annotated[int | None, typer.Option()] = None,
     offset: Annotated[int | None, typer.Option()] = None,
 ) -> None:
     container = get_container(ctx)
     user_id = get_logged_in_user_id(ctx)
     settings = get_settings(ctx, user_id)
-
-    institution_account_ids = (
-        set(institution_account_id) if institution_account_id else set()
-    )
-    asset_account_ids = set(asset_account_id) if asset_account_id else set()
 
     reporting_currency = currency or settings.application.reporting_currency
     reporting_currency_money_parser = money_parser(reporting_currency)
@@ -126,16 +132,38 @@ def list_transactions(
     ]
     filter_ = resolve_filter_inputs(filter_inputs)
 
+    transaction_table = get_view_table(TransactionView)
+
+    table_settings = settings.display.cli.tables[transaction_table.name]
+    sort_columns = sort_columns or table_settings.sort_columns
+    active_columns = active_columns or table_settings.active_columns
+
+    sorts = [
+        parse_sort_column(sort_column, TransactionView) for sort_column in sort_columns
+    ]
+
     query = GetTransactionsQuery(
-        institution_account_ids=institution_account_ids,
-        asset_account_ids=asset_account_ids,
+        institution_account_ids=(
+            set(institution_account_ids) if institution_account_ids else set()
+        ),
+        asset_account_ids=set(asset_account_ids) if asset_account_ids else set(),
         reporting_currency=reporting_currency,
         filter=filter_,
+        sorts=sorts,
         limit=limit,
         offset=offset,
     )
 
-    _ = container.transaction_query_service.get_transactions(user_id, query)
+    views = container.transaction_query_service.get_transactions(user_id, query)
+    total_view = TransactionTotalView.from_views(views, reporting_currency)
+
+    rendered_table = transaction_table.render(
+        views,
+        settings.display.cli,
+        active_columns=active_columns,
+        total_view=total_view,
+    )
+    console.print(rendered_table)
 
 
 @transaction_app.command(name="add")

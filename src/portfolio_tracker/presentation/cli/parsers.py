@@ -1,15 +1,20 @@
 import re
+import typing
+import types
+from dataclasses import is_dataclass
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from enum import StrEnum
-from typing import Callable, Literal, TypeVar
-
-import typer
+from types import NoneType
+from typing import Any, Callable, TypeVar
 
 from portfolio_tracker.application.views import MoneyView
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.shared import Currency
+from portfolio_tracker.presentation.cli.ui.tables import get_view_table
+from portfolio_tracker.shared.dataclass_utils import register_converter, resolve_field_type, structure
 
-TParsedValue = TypeVar("TParsedValue")
+
 TEnum = TypeVar("TEnum", bound=StrEnum)
 
 
@@ -56,6 +61,24 @@ def parse_key_value_pairs(value: list[str]) -> dict[str, str]:
         values[key] = val.strip()
 
     return values
+
+
+def parse_none(value: str) -> None:
+    if value.strip().lower() in ("none", "null"):
+        return None
+
+    raise ValueError(f"Unexpected None value: '{value}'.")
+
+
+def parse_bool(value: str) -> bool:
+    normalized_value = value.strip().lower()
+    if normalized_value in ("true", "1", "yes", "on"):
+        return True
+
+    if normalized_value in ("false", "0", "no", "off"):
+        return False
+
+    raise ValueError(f"Unexpected boolean value: '{value}'.")
 
 
 def parse_date(value: str, *, formats: list[str] | None = None) -> date:
@@ -125,32 +148,71 @@ def money_parser(default_currency: Currency) -> Callable[[str], MoneyView]:
     return parser
 
 
-def parse_sort_parameter(value: str) -> tuple[str, Literal["ASC", "DESC"]]:
-    parts = value.split(":", 1)
-    column = parts[0].strip()
+def parse_sort_column(value: str, view_cls: type) -> Sort:
+    if value.lower().endswith((":asc", "=asc", ":desc", "=desc")):
+        column_name = value.split(":", 1)[0].split("=", 1)[0]
+        reverse = value.lower().endswith("desc")
 
-    if not column:
-        raise typer.BadParameter("Sort column name cannot be empty.")
+    elif value.startswith("-"):
+        column_name = value[1:]
+        reverse = True
 
-    if len(parts) == 1:
-        return (column, "ASC")
+    else:
+        column_name = value
+        reverse = False
 
-    direction = parts[1].strip().upper()
-    if direction not in ("ASC", "DESC"):
-        raise typer.BadParameter(
-            f"Invalid sort direction '{parts[1]}' for column '{column}'. Use 'asc' or 'desc'."
-        )
+    view_table = get_view_table(view_cls)
+    field = view_table.get_column_field(column_name)
 
-    return (column, direction)  # type: ignore[return-value]
+    return Sort(
+        field=field,
+        item_type=view_cls,
+        reverse=reverse
+    )
 
 
-def parse_input_value(
-    parameter: str,
-    value: str,
-    value_parser: Callable[[str], TParsedValue],
-) -> TParsedValue:
+def sort_column_parser(view_cls: type) -> Callable[[str], Sort]:
+    def parser(value: str) -> Sort:
+        return parse_sort_column(value, view_cls)
+
+    return parser
+
+
+register_converter(NoneType, parse_none)
+register_converter(bool, parse_bool)
+register_converter(date, date_parser)
+register_converter(datetime, datetime_parser)
+
+
+def parse_settings_value(settings_cls: type, key: str, value: str) -> Any:
     try:
-        return value_parser(value)
-
+        field_type = resolve_field_type(settings_cls, key)
     except ValueError as error:
-        raise typer.BadParameter(f"Parameter: {parameter}. Reason: {error}") from error
+        raise KeyError(f"Invalid settings key: '{key}'.") from error
+
+    if is_dataclass(field_type):
+        raise KeyError(f"Invalid settings key: '{key}'. Key points to a section.")
+
+    if origin_type := typing.get_origin(field_type):
+        if origin_type is list and len(typing.get_args(field_type)) == 1:
+            item_type = typing.get_args(field_type)[0]
+            try:
+                return [structure(item, item_type) for item in value.split(",") if item.strip()]
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"Invalid '{key}' settings value: '{value}'.") from error
+
+        if origin_type in (typing.Union, types.UnionType):
+            for field_type in typing.get_args(field_type):
+                try:
+                    return structure(value, field_type)
+                except (TypeError, ValueError):
+                    pass
+
+            raise ValueError(f"Invalid '{key}' settings value: '{value}'.")
+
+        raise KeyError(f"Invalid settings key: '{key}'.")
+
+    try:
+        return structure(value, field_type)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"Invalid '{key}' settings value: '{value}'.") from error

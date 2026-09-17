@@ -20,10 +20,11 @@ from portfolio_tracker.presentation.cli.input import (
 from portfolio_tracker.presentation.cli.parameters import multi_value_option
 from portfolio_tracker.presentation.cli.parsers import enum_parser, money_parser
 
-portfolio_app = GuardedTyper()
+
+overview_app = GuardedTyper()
 
 
-@portfolio_app.command(name="cash-balance")
+@overview_app.command(name="cash-balance")
 def cash_balance(
     ctx: typer.Context,
     institution_account_id: Annotated[list[str] | None, multi_value_option()] = None,
@@ -55,7 +56,7 @@ def cash_balance(
     _ = container.portfolio_query_service.get_valued_portfolios(user_id, query)
 
 
-@portfolio_app.command(name="positions")
+@overview_app.command(name="positions")
 def positions(
     ctx: typer.Context,
     institution_account_id: Annotated[list[str] | None, multi_value_option()] = None,

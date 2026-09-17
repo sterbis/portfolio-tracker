@@ -21,8 +21,6 @@ from .queries import GetTransactionsQuery
 
 
 class TransactionQueryService(QueryService):
-    DEFAULT_SORT: Sort = Sort("executed_at", Transaction, "ASC")
-
     def __init__(
         self,
         storage_connection_factory: StorageConnectionFactory,
