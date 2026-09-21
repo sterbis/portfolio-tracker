@@ -5,14 +5,12 @@ from portfolio_tracker.application.persistence import StorageConnectionFactory
 from portfolio_tracker.application.shared.errors import TransactionNotFoundError
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.shared.service import QueryService
-from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.views import (
     TransactionPlainView,
     TransactionView,
     ViewBuilder,
 )
 from portfolio_tracker.domain.transaction import (
-    Transaction,
     TransactionAdjuster,
     TransactionConverter,
 )
@@ -53,8 +51,8 @@ class TransactionQueryService(QueryService):
 
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             transactions = uow.transactions.get(
-                institution_account_ids=query.institution_account_ids,
-                asset_account_ids=query.asset_account_ids,
+                institution_connection_ids=query.institution_connection_ids,
+                account_ids=query.account_ids,
                 filter_=repository_filter,
             )
 
@@ -90,27 +88,24 @@ class TransactionQueryService(QueryService):
                 }
             )
 
-            asset_account_ids = uow.accounts_map.resolve_asset_account_ids(
-                query.institution_account_ids, query.asset_account_ids
+            account_ids = uow.account_map.resolve_account_ids(
+                query.institution_connection_ids, query.account_ids
             )
-            asset_accounts = uow.accounts.get_asset_accounts_by_ids(asset_account_ids)
-            institution_accounts = uow.accounts.get_institution_accounts_by_ids(
-                {
-                    asset_account.institution_account_id
-                    for asset_account in asset_accounts
-                }
+            accounts = uow.accounts.get_by_ids(account_ids)
+            institution_connections = uow.institution_connections.get_by_ids(
+                {account.institution_connection_id for account in accounts}
             )
             institutions = [
                 self._institution_registry.get_institution(
-                    institution_account.institution_id
+                    institution_connection.institution_id
                 )
-                for institution_account in institution_accounts
+                for institution_connection in institution_connections
             ]
 
             views = self._view_builder.build_transaction_views(
                 institutions,
-                institution_accounts,
-                asset_accounts,
+                institution_connections,
+                accounts,
                 instruments,
                 converted_transactions,
             )

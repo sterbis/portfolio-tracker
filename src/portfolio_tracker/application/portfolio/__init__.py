@@ -3,11 +3,11 @@ from ..views.portfolio import (
     CashBalanceView,
     PortfolioValuationView,
     PortfolioView,
+    PositionRowView,
     PositionValuationView,
     PositionView,
     ValuedCashBalanceView,
     ValuedPortfolioView,
-    ValuedPositionView,
 )
 from .queries import GetPortfoliosQuery
 from .query_service import PortfolioQueryService
@@ -23,5 +23,5 @@ __all__ = [
     "PositionView",
     "ValuedCashBalanceView",
     "ValuedPortfolioView",
-    "ValuedPositionView",
+    "PositionRowView",
 ]

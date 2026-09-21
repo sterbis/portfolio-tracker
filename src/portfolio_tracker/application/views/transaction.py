@@ -19,7 +19,7 @@ class TransactionView:
     id: str
     correlation_id: str | None = None
     executed_at: datetime
-    asset_account: AssetAccountView
+    account: AssetAccountView
     type: TransactionType
     instrument: InstrumentView | None = None
     quantity: Decimal
@@ -32,14 +32,14 @@ class TransactionView:
     def from_domain(
         cls,
         transaction: ConvertedTransaction,
-        asset_account_view: AssetAccountView,
+        account_view: AssetAccountView,
         instrument_view: InstrumentView | None = None,
     ) -> TransactionView:
         return cls(
             id=transaction.id,
             correlation_id=transaction.correlation_id,
             executed_at=transaction.executed_at,
-            asset_account=asset_account_view,
+            account=account_view,
             type=transaction.type,
             instrument=instrument_view,
             quantity=transaction.quantity,
@@ -79,7 +79,7 @@ class TransactionPlainView:
     id: str
     correlation_id: str | None = None
     executed_at: datetime
-    asset_account_id: str
+    account_id: str
     type: TransactionType
     instrument_id: str | None = None
     quantity: Decimal
@@ -94,7 +94,7 @@ class TransactionPlainView:
             id=transaction.id,
             correlation_id=transaction.correlation_id,
             executed_at=transaction.executed_at,
-            asset_account_id=transaction.asset_account_id,
+            account_id=transaction.account_id,
             type=transaction.type,
             instrument_id=transaction.instrument_id,
             quantity=transaction.quantity,

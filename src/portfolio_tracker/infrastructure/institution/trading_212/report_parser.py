@@ -39,8 +39,8 @@ class Trading212ReportParser(InstitutionReportParser):
         "Withdrawal": TransactionType.WITHDRAWAL,
     }
 
-    def __init__(self, institution_account_id: str) -> None:
-        super().__init__(institution_account_id)
+    def __init__(self, institution_connection_id: str) -> None:
+        super().__init__(institution_connection_id)
         self._action_parsers: dict[
             str, Callable[[dict[str, Any]], list[TransactionDetails]]
         ] = {
@@ -67,7 +67,7 @@ class Trading212ReportParser(InstitutionReportParser):
             for details in parser(row):
                 yield ReportTransaction(
                     correlation_id=details.correlation_id,
-                    external_asset_account_id=self._institution_account_id,
+                    account_external_id=self._institution_connection_id,
                     external_transaction_id=row["ID"],
                     executed_at=self._parse_datetime(row),
                     type=details.type,

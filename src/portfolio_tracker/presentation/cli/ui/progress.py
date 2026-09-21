@@ -4,13 +4,13 @@ import typer
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 
 from portfolio_tracker.application.sync import (
+    AccountsSyncCompleted,
+    AccountsSyncFailed,
+    AccountsSyncStarted,
     FxSyncCompleted,
     FxSyncFailed,
     FxSyncProgress,
     FxSyncStarted,
-    InstitutionAccountSyncCompleted,
-    InstitutionAccountSyncFailed,
-    InstitutionAccountSyncStarted,
     InstrumentsSyncCompleted,
     InstrumentsSyncFailed,
     InstrumentsSyncProgress,
@@ -37,14 +37,16 @@ async def render_sync_progress(
     ) as progress:
         async for event in sync_function(*args, **kwargs):
             match event:
-                case InstitutionAccountSyncStarted(
-                    account_id=account_id, account_name=account_name
+                case AccountsSyncStarted(
+                    institution_connection_id=account_id,
+                    institution_connection_name=account_name,
                 ):
                     task_id = progress.add_task(f"Syncing {account_name}...", total=100)
                     task_ids[account_id] = task_id
 
-                case InstitutionAccountSyncCompleted(
-                    account_id=account_id, account_name=account_name
+                case AccountsSyncCompleted(
+                    institution_connection_id=account_id,
+                    institution_connection_name=account_name,
                 ):
                     progress.update(
                         task_ids[account_id],
@@ -52,8 +54,10 @@ async def render_sync_progress(
                         description=f"[green]✔ {account_name} sync completed[/green]",
                     )
 
-                case InstitutionAccountSyncFailed(
-                    account_id=account_id, account_name=account_name, error=error
+                case AccountsSyncFailed(
+                    institution_connection_id=account_id,
+                    institution_connection_name=account_name,
+                    error=error,
                 ):
                     progress.update(
                         task_ids[account_id],

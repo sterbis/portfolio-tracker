@@ -7,12 +7,11 @@ from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.shared.errors import FxDataIntegrityError
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.account import (
+    AccountMap,
     AssetAccount,
-    InstitutionAccount,
-    UserAccountsMap,
 )
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.domain.institution import Credentials, InstitutionConnection
 from portfolio_tracker.domain.instrument import Instrument, InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.transaction import Transaction
@@ -20,7 +19,7 @@ from portfolio_tracker.domain.user import User
 
 PERSISTED_MODEL_TYPES = (
     User,
-    InstitutionAccount,
+    InstitutionConnection,
     AssetAccount,
     Instrument,
     Transaction,
@@ -37,57 +36,24 @@ class UserRepository(ABC):
     def get_by_username(self, username: str) -> User | None: ...
 
 
-class AccountRepository(ABC):
+class InstitutionConnectionRepository(ABC):
     @abstractmethod
-    def add_institution_account(self, account: InstitutionAccount) -> None: ...
+    def add(self, connection: InstitutionConnection) -> None: ...
 
     @abstractmethod
-    def get_institution_account_by_id(
-        self, account_id: str
-    ) -> InstitutionAccount | None: ...
+    def get_by_id(self, connection_id: str) -> InstitutionConnection | None: ...
 
     @abstractmethod
-    def get_institution_accounts_by_ids(
-        self, account_ids: set[str]
-    ) -> list[InstitutionAccount]: ...
+    def get_by_ids(self, connection_ids: set[str]) -> list[InstitutionConnection]: ...
 
     @abstractmethod
-    def get_institution_accounts_by_user_id(
-        self, user_id: str
-    ) -> list[InstitutionAccount]: ...
+    def get_by_user_id(self, user_id: str) -> list[InstitutionConnection]: ...
 
     @abstractmethod
-    def update_institution_account(self, account: InstitutionAccount) -> None: ...
+    def update(self, connection: InstitutionConnection) -> None: ...
 
     @abstractmethod
-    def remove_institution_account_by_id(self, account_id: str) -> None: ...
-
-    @abstractmethod
-    def ensure_asset_account(self, account: AssetAccount) -> None: ...
-
-    @abstractmethod
-    def get_asset_account_by_id(self, account_id: str) -> AssetAccount | None: ...
-
-    @abstractmethod
-    def get_asset_account_by_external_id(
-        self, institution_account_id: str, external_id: str
-    ) -> AssetAccount | None: ...
-
-    @abstractmethod
-    def get_asset_accounts_by_ids(
-        self, account_ids: set[str]
-    ) -> list[AssetAccount]: ...
-
-    @abstractmethod
-    def get_asset_accounts_by_institution_account_id(
-        self, institution_account_id: str
-    ) -> list[AssetAccount]: ...
-
-    @abstractmethod
-    def update_asset_account(self, account: AssetAccount) -> None: ...
-
-    @abstractmethod
-    def get_user_accounts_map(self, user_id: str) -> UserAccountsMap: ...
+    def remove_by_id(self, connection_id: str) -> None: ...
 
 
 class CredentialsRepository(ABC):
@@ -98,10 +64,37 @@ class CredentialsRepository(ABC):
     def upsert(self, credentials: Credentials) -> None: ...
 
     @abstractmethod
-    def get(self, institution_account_id: str) -> Credentials | None: ...
+    def get(self, institution_connection_id: str) -> Credentials | None: ...
 
     @abstractmethod
-    def remove(self, institution_account_id: str) -> None: ...
+    def remove(self, institution_connection_id: str) -> None: ...
+
+
+class AccountRepository(ABC):
+    @abstractmethod
+    def ensure(self, account: AssetAccount) -> None: ...
+
+    @abstractmethod
+    def get_by_id(self, account_id: str) -> AssetAccount | None: ...
+
+    @abstractmethod
+    def get_by_external_id(
+        self, institution_connection_id: str, external_id: str
+    ) -> AssetAccount | None: ...
+
+    @abstractmethod
+    def get_by_ids(self, account_ids: set[str]) -> list[AssetAccount]: ...
+
+    @abstractmethod
+    def get_by_institution_connection_id(
+        self, institution_connection_id: str
+    ) -> list[AssetAccount]: ...
+
+    @abstractmethod
+    def update(self, account: AssetAccount) -> None: ...
+
+    @abstractmethod
+    def get_account_map(self, user_id: str) -> AccountMap: ...
 
 
 class InstrumentRepository(ABC):

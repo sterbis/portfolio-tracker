@@ -25,25 +25,25 @@ class SqliteCredentialsRepository(CredentialsRepository):
 
         self._executor.execute(
             sql="""
-                INSERT INTO credentials (institution_id, institution_account_id, encrypted_parameters)
-                VALUES (:institution_id, :institution_account_id, :encrypted_parameters)
-                ON CONFLICT(institution_account_id) DO UPDATE SET
+                INSERT INTO credentials (institution_id, institution_connection_id, encrypted_parameters)
+                VALUES (:institution_id, :institution_connection_id, :encrypted_parameters)
+                ON CONFLICT(institution_connection_id) DO UPDATE SET
                 encrypted_parameters = EXCLUDED.encrypted_parameters;
             """,
             parameters={
                 "institution_id": credentials.institution_id,
-                "institution_account_id": credentials.institution_account_id,
+                "institution_connection_id": credentials.institution_connection_id,
                 "encrypted_parameters": encrypted_parameters,
             },
         )
 
-    def get(self, institution_account_id: str) -> Credentials | None:
+    def get(self, institution_connection_id: str) -> Credentials | None:
         cursor = self._executor.execute(
             sql="""
                 SELECT institution_id, encrypted_parameters FROM credentials
-                WHERE institution_account_id = :institution_account_id;
+                WHERE institution_connection_id = :institution_connection_id;
             """,
-            parameters={"institution_account_id": institution_account_id},
+            parameters={"institution_connection_id": institution_connection_id},
         )
 
         row = cursor.fetchone()
@@ -58,14 +58,14 @@ class SqliteCredentialsRepository(CredentialsRepository):
         parameters: dict[str, Any] = json.loads(json_string)
 
         return self._institution_registry.create_credentials(
-            institution_id, institution_account_id, parameters
+            institution_id, institution_connection_id, parameters
         )
 
-    def remove(self, institution_account_id: str) -> None:
+    def remove(self, institution_connection_id: str) -> None:
         self._executor.execute(
             sql="""
                 DELETE FROM credentials
-                WHERE institution_account_id = :institution_account_id;
+                WHERE institution_connection_id = :institution_connection_id;
             """,
-            parameters={"institution_account_id": institution_account_id},
+            parameters={"institution_connection_id": institution_connection_id},
         )

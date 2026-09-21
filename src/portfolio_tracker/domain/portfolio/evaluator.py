@@ -7,14 +7,16 @@ from portfolio_tracker.domain.instrument import (
     InstrumentMetadata,
     InstrumentType,
 )
-from portfolio_tracker.domain.portfolio.cash_balance import CashBalanceEvaluator
+from portfolio_tracker.domain.portfolio.cash_balance import (
+    CashBalanceEvaluator,
+)
 from portfolio_tracker.domain.portfolio.position import (
     PositionEvaluator,
     PositionValuation,
 )
 from portfolio_tracker.domain.shared import DualMoney, Money
 
-from .models import Portfolio, PortfolioValuation
+from .models import Portfolio, PortfolioValuation, ValuedPortfolio
 
 
 class PortfolioEvaluator:
@@ -26,7 +28,7 @@ class PortfolioEvaluator:
         self._cash_balance_evaluator = cash_balance_evaluator
         self._position_evaluator = position_evaluator
 
-    def evaluate(
+    def get_valuation(
         self,
         portfolio: Portfolio,
         instruments_metadata: list[InstrumentMetadata],
@@ -38,7 +40,7 @@ class PortfolioEvaluator:
             for instrument_metadata in instruments_metadata
         }
 
-        cash_balance_valuation = self._cash_balance_evaluator.evaluate(
+        cash_balance_valuation = self._cash_balance_evaluator.get_valuation(
             portfolio.cash_balance, portfolio.reporting_currency, rates
         )
 
@@ -46,7 +48,7 @@ class PortfolioEvaluator:
         is_partially_valued = False
 
         positions_market_value = Money.zero(portfolio.reporting_currency)
-        portfolio_unrealized_pnl_amount = Money.zero(portfolio.reporting_currency)
+        portfolio_unrealized_pnl = Money.zero(portfolio.reporting_currency)
         market_value_by_asset_class: dict[AssetClass, Money] = defaultdict(
             lambda: Money.zero(portfolio.reporting_currency)
         )
@@ -69,15 +71,13 @@ class PortfolioEvaluator:
             )
             market_price = DualMoney(native_market_price, native_market_price * rate)
 
-            position_valuation = self._position_evaluator.evaluate(
+            position_valuation = self._position_evaluator.get_valuation(
                 position, market_price
             )
             position_valuations[instrument_id] = position_valuation
 
             positions_market_value += position_valuation.market_value.reporting
-            portfolio_unrealized_pnl_amount += (
-                position_valuation.unrealized_pnl.reporting
-            )
+            portfolio_unrealized_pnl += position_valuation.unrealized_pnl.reporting
 
             market_value_by_asset_class[
                 instrument_metadata.asset_class
@@ -86,12 +86,12 @@ class PortfolioEvaluator:
                 instrument_metadata.type
             ] += position_valuation.market_value.reporting
 
-        total_balance = cash_balance_valuation.total_balance
-
-        portfolio_market_value = positions_market_value + total_balance
-
-        market_value_by_asset_class[AssetClass.CASH] = total_balance
-
+        portfolio_market_value = (
+            positions_market_value + cash_balance_valuation.total_balance
+        )
+        market_value_by_asset_class[AssetClass.CASH] = (
+            cash_balance_valuation.total_balance
+        )
         asset_allocation, instrument_type_allocation = self._get_allocations(
             portfolio_market_value,
             positions_market_value,
@@ -100,14 +100,27 @@ class PortfolioEvaluator:
         )
 
         return PortfolioValuation(
-            account_id=portfolio.account_id,
             positions=position_valuations,
             cash_balance=cash_balance_valuation,
             market_value=portfolio_market_value,
-            unrealized_pnl=portfolio_unrealized_pnl_amount,
+            unrealized_pnl=portfolio_unrealized_pnl,
             asset_allocation=asset_allocation,
             instrument_type_allocation=instrument_type_allocation,
             is_partially_valued=is_partially_valued,
+        )
+
+    def evaluate(
+        self,
+        portfolio: Portfolio,
+        instruments_metadata: list[InstrumentMetadata],
+        native_market_prices: dict[str, Money | None],
+        rates: FxRates,
+    ) -> ValuedPortfolio:
+        return ValuedPortfolio(
+            portfolio=portfolio,
+            valuation=self.get_valuation(
+                portfolio, instruments_metadata, native_market_prices, rates
+            ),
         )
 
     def _get_allocations(

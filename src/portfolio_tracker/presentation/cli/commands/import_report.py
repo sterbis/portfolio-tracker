@@ -23,22 +23,22 @@ import_app = GuardedTyper()
 @import_app.command(name="import")
 def import_report(
     ctx: typer.Context,
-    institution_account_id: Annotated[str | None, typer.Option()] = None,
+    institution_connection_id: Annotated[str | None, typer.Option()] = None,
     path: Annotated[str | None, typer.Option()] = None,
 ) -> None:
     environment = get_environment(ctx)
     container = get_container(ctx)
     user_id = get_logged_in_user_id(ctx)
 
-    resolved_institution_account_id = resolve_input(
-        "--account-id", institution_account_id, environment
+    resolved_institution_connection_id = resolve_input(
+        "--account-id", institution_connection_id, environment
     )
     resolved_path = resolve_file_input(
         "--path", path, environment, prompt="Report file"
     )
 
     command = ImportReportCommand(
-        institution_account_id=resolved_institution_account_id, path=resolved_path
+        institution_connection_id=resolved_institution_connection_id, path=resolved_path
     )
 
     asyncio.run(

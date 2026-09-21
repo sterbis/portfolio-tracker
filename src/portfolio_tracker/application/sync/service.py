@@ -29,11 +29,8 @@ from portfolio_tracker.application.shared.errors import (
     PortfolioTrackerError,
 )
 from portfolio_tracker.application.shared.service import Service
-from portfolio_tracker.domain.account import (
-    AssetAccount,
-    InstitutionAccount,
-)
-from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.domain.account import AssetAccount
+from portfolio_tracker.domain.institution import Credentials, InstitutionConnection
 from portfolio_tracker.domain.instrument import (
     DerivativeInstrumentBaseData,
     Instrument,
@@ -46,18 +43,18 @@ from portfolio_tracker.shared.async_utils import as_async_generator
 
 from .commands import (
     ImportReportCommand,
+    SyncAccountsCommand,
     SyncFxRatesCommand,
-    SyncInstitutionAccountsCommand,
     SyncInstrumentsCommand,
 )
 from .events import (
+    AccountsSyncCompleted,
+    AccountsSyncFailed,
+    AccountsSyncStarted,
     FxSyncCompleted,
     FxSyncFailed,
     FxSyncProgress,
     FxSyncStarted,
-    InstitutionAccountSyncCompleted,
-    InstitutionAccountSyncFailed,
-    InstitutionAccountSyncStarted,
     InstrumentsSyncCompleted,
     InstrumentsSyncFailed,
     InstrumentsSyncProgress,
@@ -69,8 +66,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class InstitutionAccountSyncResult:
-    institution_account: InstitutionAccount
+class AccountsSyncResult:
+    institution_connection: InstitutionConnection
     transaction_dates: set[date] = field(default_factory=set)
     error: Exception | None = None
 
@@ -99,40 +96,40 @@ class SyncService(Service):
             raise InstitutionReportNotFoundError()
 
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
-            institution_account = uow.accounts.get_institution_account_by_id(
-                command.institution_account_id
+            institution_connection = uow.institution_connections.get_by_id(
+                command.institution_connection_id
             )
 
-        yield InstitutionAccountSyncStarted(
-            account_id=institution_account.id, account_name=institution_account.name
+        yield AccountsSyncStarted(
+            institution_connection.id, institution_connection.name
         )
 
         try:
             with command.path.open("r", encoding="utf-8") as report:
                 parser = self._institution_registry.create_report_parser(
-                    institution_account.institution_id, institution_account.id
+                    institution_connection.institution_id, institution_connection.id
                 )
                 report_transactions = parser.parse(report)
 
                 with self._user_scoped_unit_of_work(user_id) as uow:
                     transaction_dates = self._process_transactions(
                         uow,
-                        institution_account,
-                        command.asset_account_ids,
+                        institution_connection,
+                        command.account_ids,
                         report_transactions,
                     )
                     uow.commit()
 
-            yield InstitutionAccountSyncCompleted(
-                account_id=institution_account.id,
-                account_name=institution_account.name,
+            yield AccountsSyncCompleted(
+                institution_connection.id,
+                institution_connection.name,
             )
 
         except PortfolioTrackerError as error:
             logger.error("Report import failed: %s", error.message, exc_info=error)
-            yield InstitutionAccountSyncFailed(
-                institution_account.id,
-                institution_account.name,
+            yield AccountsSyncFailed(
+                institution_connection.id,
+                institution_connection.name,
                 error,
             )
             return
@@ -142,20 +139,22 @@ class SyncService(Service):
 
         yield from self.sync_instruments(SyncInstrumentsCommand(new_only=True))
 
-    async def sync_institution_accounts(
-        self, user_id: str, command: SyncInstitutionAccountsCommand
+    async def sync_accounts(
+        self, user_id: str, command: SyncAccountsCommand
     ) -> AsyncGenerator[SyncEvent, None]:
-        institution_accounts = self._resolve_synced_accounts(user_id, command)
-        for institution_account in institution_accounts:
-            yield InstitutionAccountSyncStarted(
-                account_id=institution_account.id, account_name=institution_account.name
+        institution_connections = self._resolve_institution_connections(
+            user_id, command
+        )
+        for institution_connection in institution_connections:
+            yield AccountsSyncStarted(
+                institution_connection.id, institution_connection.name
             )
 
         tasks = [
             asyncio.create_task(
-                self._sync_institution_account_task(institution_account, command),
+                self._sync_institution_accounts_task(institution_connection, command),
             )
-            for institution_account in institution_accounts
+            for institution_connection in institution_connections
         ]
 
         transaction_dates: set[date] = set()
@@ -164,22 +163,22 @@ class SyncService(Service):
             result = await future
             if result.is_success:
                 transaction_dates.update(result.transaction_dates)
-                yield InstitutionAccountSyncCompleted(
-                    account_id=result.institution_account.id,
-                    account_name=result.institution_account.name,
+                yield AccountsSyncCompleted(
+                    result.institution_connection.id,
+                    result.institution_connection.name,
                 )
             else:
                 assert result.error is not None
                 logger.error(
-                    "'%s' account sync failed: %s",
-                    result.institution_account.name,
+                    "'%s' accounts sync failed: %s",
+                    result.institution_connection.name,
                     result.error,
                     exc_info=result.error,
                 )
-                yield InstitutionAccountSyncFailed(
-                    account_id=result.institution_account.id,
-                    account_name=result.institution_account.name,
-                    error=result.error,
+                yield AccountsSyncFailed(
+                    result.institution_connection.id,
+                    result.institution_connection.name,
+                    result.error,
                 )
 
         if transaction_dates:
@@ -193,109 +192,106 @@ class SyncService(Service):
         ):
             yield event
 
-    async def _sync_institution_account_task(
+    async def _sync_institution_accounts_task(
         self,
-        institution_account: InstitutionAccount,
-        command: SyncInstitutionAccountsCommand,
-    ) -> InstitutionAccountSyncResult:
+        institution_connection: InstitutionConnection,
+        command: SyncAccountsCommand,
+    ) -> AccountsSyncResult:
         try:
-            return await self._sync_institution_account(institution_account, command)
+            return await self._sync_institution_accounts(
+                institution_connection, command
+            )
         except PortfolioTrackerError as error:
-            return InstitutionAccountSyncResult(
-                institution_account,
+            return AccountsSyncResult(
+                institution_connection,
                 error=error,
             )
 
-    async def _sync_institution_account(
+    async def _sync_institution_accounts(
         self,
-        institution_account: InstitutionAccount,
-        command: SyncInstitutionAccountsCommand,
-    ) -> InstitutionAccountSyncResult:
-        credentials = self._get_credentials(institution_account.id)
+        institution_connection: InstitutionConnection,
+        command: SyncAccountsCommand,
+    ) -> AccountsSyncResult:
+        credentials = self._get_credentials(institution_connection.id)
         client = self._institution_registry.create_client(credentials)
 
-        start, end = self._resolve_sync_interval(institution_account, command)
+        start, end = self._resolve_sync_interval(institution_connection, command)
         report = client.fetch_report(start, end)
 
         parser = self._institution_registry.create_report_parser(
-            institution_account.institution_id, institution_account.id
+            institution_connection.institution_id, institution_connection.id
         )
         transaction_dates: set[date] = set()
 
-        with self._user_scoped_unit_of_work(institution_account.user_id) as uow:
+        with self._user_scoped_unit_of_work(institution_connection.user_id) as uow:
             async for report_chunk in report:
-                asset_account_ids = uow.accounts_map.institution_to_asset_account_ids[
-                    institution_account.id
+                account_ids = uow.account_map.institution_connection_id_to_account_ids[
+                    institution_connection.id
                 ]
-                required_asset_account_ids = command.asset_account_ids.intersection(
-                    asset_account_ids
-                )
+                required_account_ids = command.account_ids.intersection(account_ids)
                 report_transactions = parser.parse(report_chunk)
                 report_transaction_dates = self._process_transactions(
                     uow,
-                    institution_account,
-                    required_asset_account_ids,
+                    institution_connection,
+                    required_account_ids,
                     report_transactions,
                 )
                 transaction_dates.update(report_transaction_dates)
 
             if (
-                institution_account.last_synced_at is None
-                or end > institution_account.last_synced_at
+                institution_connection.last_synced_at is None
+                or end > institution_connection.last_synced_at
             ):
-                institution_account = institution_account.with_last_synced_at(end)
-                uow.accounts.update_institution_account(institution_account)
+                institution_connection = institution_connection.with_last_synced_at(end)
+                uow.institution_connections.update(institution_connection)
 
             uow.commit()
 
-        return InstitutionAccountSyncResult(institution_account, transaction_dates)
+        return AccountsSyncResult(institution_connection, transaction_dates)
 
     def _process_transactions(
         self,
         uow: UserScopedUnitOfWork,
-        institution_account: InstitutionAccount,
-        required_asset_account_ids: set[str],
+        institution_connection: InstitutionConnection,
+        required_account_ids: set[str],
         report_transactions: Iterator[ReportTransaction],
     ) -> set[date]:
         transaction_dates: set[date] = set()
         instrument_ids: set[str] = set()
-        ignored_asset_account_ids = (
-            uow.accounts_map.deactivated_asset_account_ids - required_asset_account_ids
+        ignored_account_ids = (
+            uow.account_map.deactivated_account_ids - required_account_ids
         )
 
         for report_transaction in report_transactions:
-            external_id = report_transaction.external_asset_account_id
-
-            asset_account_id = uow.accounts_map.external_to_asset_account_id.get(
-                external_id
+            account_external_id = report_transaction.account_external_id
+            account_id = uow.account_map.account_external_id_to_account_id.get(
+                account_external_id
             )
-            if not asset_account_id:
-                if required_asset_account_ids:
+
+            if not account_id:
+                if required_account_ids:
                     continue
 
-                asset_account = AssetAccount(
-                    institution_account_id=institution_account.id,
-                    external_id=external_id,
-                    name=f"{institution_account.name} asset account [{external_id}]",
+                account = AssetAccount(
+                    institution_connection_id=institution_connection.id,
+                    external_id=account_external_id,
+                    name=f"{institution_connection.name} account [{account_external_id}]",
                     is_active=True,
                 )
-                uow.accounts.ensure_asset_account(asset_account)
-                asset_account_id = asset_account.id
-                uow.accounts_map.add_asset_account(asset_account)
+                uow.accounts.ensure(account)
+                account_id = account.id
+                uow.account_map.add_account(account)
 
-            if (
-                required_asset_account_ids
-                and asset_account_id not in required_asset_account_ids
-            ):
+            if required_account_ids and account_id not in required_account_ids:
                 continue
 
-            if asset_account_id in ignored_asset_account_ids:
+            if account_id in ignored_account_ids:
                 continue
 
             transaction, instruments = self._resolve_transaction(
                 report_transaction,
-                asset_account_id,
-                institution_account.institution_id,
+                account_id,
+                institution_connection.institution_id,
             )
             for instrument in instruments:
                 if instrument.id not in instrument_ids:
@@ -316,9 +312,9 @@ class SyncService(Service):
             else:
                 transaction_dates = command.dates
 
-            rates_dates = uow.fx_rates.get_distinct_dates()
+            rate_dates = uow.fx_rates.get_distinct_dates()
 
-        missing_dates = transaction_dates - rates_dates
+        missing_dates = transaction_dates - rate_dates
         if not missing_dates:
             yield FxSyncCompleted()
             return
@@ -435,45 +431,45 @@ class SyncService(Service):
         else:
             yield InstrumentsSyncCompleted()
 
-    def _get_credentials(self, account_id: str) -> Credentials:
+    def _get_credentials(self, institution_connection_id: str) -> Credentials:
         with self._unit_of_work(read_only=True) as uow:
-            credentials = uow.credentials.get(account_id)
+            credentials = uow.credentials.get(institution_connection_id)
             if not credentials:
-                raise CredentialsNotFoundError(account_id)
+                raise CredentialsNotFoundError(institution_connection_id)
 
             return credentials
 
-    def _resolve_synced_accounts(
-        self, user_id: str, command: SyncInstitutionAccountsCommand
-    ) -> list[InstitutionAccount]:
+    def _resolve_institution_connections(
+        self, user_id: str, command: SyncAccountsCommand
+    ) -> list[InstitutionConnection]:
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
-            institution_account_ids = uow.accounts_map.resolve_institution_account_ids(
-                command.institution_account_ids,
-                command.asset_account_ids,
+            institution_connection_ids = (
+                uow.account_map.resolve_institution_connection_ids(
+                    command.institution_connection_ids,
+                    command.account_ids,
+                )
             )
-            institution_accounts = uow.accounts.get_institution_accounts_by_ids(
-                institution_account_ids
-            )
-            return institution_accounts
+            return uow.institution_connections.get_by_ids(institution_connection_ids)
 
     def _resolve_sync_interval(
         self,
-        institution_account: InstitutionAccount,
-        command: SyncInstitutionAccountsCommand,
+        institution_connection: InstitutionConnection,
+        command: SyncAccountsCommand,
     ) -> tuple[datetime, datetime]:
         now = datetime.now(tz=timezone.utc)
-        created_at = datetime.combine(
-            institution_account.created_on,
+        account_opened_at = datetime.combine(
+            institution_connection.account_opened_on,
             time.min,
             tzinfo=timezone.utc,
         )
         if command.restore:
-            start = created_at - timedelta(days=1)
-            end = institution_account.last_synced_at or now
+            start = account_opened_at - timedelta(days=1)
+            end = institution_connection.last_synced_at or now
 
         else:
             start = command.start or (
-                (institution_account.last_synced_at or created_at) - timedelta(days=1)
+                (institution_connection.last_synced_at or account_opened_at)
+                - timedelta(days=1)
             )
             end = command.end or now
 
@@ -482,7 +478,7 @@ class SyncService(Service):
     def _resolve_transaction(
         self,
         report_transaction: ReportTransaction,
-        asset_account_id: str,
+        account_id: str,
         institution_id: str,
     ) -> tuple[Transaction, list[Instrument]]:
         main_instrument_id = None
@@ -499,7 +495,7 @@ class SyncService(Service):
         transaction = Transaction(
             correlation_id=report_transaction.correlation_id,
             executed_at=report_transaction.executed_at,
-            asset_account_id=asset_account_id,
+            account_id=account_id,
             type=report_transaction.type,
             instrument_id=main_instrument_id,
             quantity=report_transaction.quantity,

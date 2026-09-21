@@ -28,4 +28,4 @@ class CashBalanceValuation:
 @dataclass(frozen=True)
 class ValuedCashBalance:
     balance: CashBalance
-    valuation: CashBalanceValuation
+    valuation: CashBalanceValuation | None

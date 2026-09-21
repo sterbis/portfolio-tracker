@@ -4,39 +4,39 @@ CREATE TABLE IF NOT EXISTS user (
     password_hash TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS  institution_account (
+CREATE TABLE IF NOT EXISTS  institution_connection (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
-    created_on DATE NOT NULL,
+    account_opened_on DATE NOT NULL,
     last_synced_at DATETIME NOT NULL,
 
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS credentials (
-    institution_account_id TEXT PRIMARY KEY REFERENCES institution_account(id) ON DELETE CASCADE,
+    institution_connection_id TEXT PRIMARY KEY REFERENCES institution_connection(id) ON DELETE CASCADE,
     institution_id TEXT NOT NULL,
     encrypted_parameters TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS asset_account (
+CREATE TABLE IF NOT EXISTS account (
     id TEXT PRIMARY KEY,
     external_id TEXT NOT NULL,
-    institution_account_id TEXT NOT NULL,
+    institution_connection_id TEXT NOT NULL,
     name TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
 
-    FOREIGN KEY (institution_account_id) REFERENCES institution_account(id) ON DELETE CASCADE
+    FOREIGN KEY (institution_connection_id) REFERENCES institution_connection(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS ledger (
     id TEXT PRIMARY KEY,
     correlation_id TEXT,
     checksum TEXT NOT NULL UNIQUE,
+    account_id TEXT NOT NULL,
     executed_at DATETIME NOT NULL,
-    asset_account_id TEXT NOT NULL,
     type TEXT NOT NULL,
     instrument_id TEXT,
     quantity DECIMAL_AS_TEXT NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS ledger (
     tax MONEY NOT NULL,
     cash_impact MONEY NOT NULL,
 
-    FOREIGN KEY (asset_account_id) REFERENCES asset_account(id),
+    FOREIGN KEY (account_id) REFERENCES account(id),
     FOREIGN KEY (instrument_id) REFERENCES instrument(id)
 );
 

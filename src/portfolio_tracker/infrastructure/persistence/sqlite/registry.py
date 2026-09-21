@@ -3,9 +3,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any
 
-from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
+from portfolio_tracker.domain.account import AssetAccount
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.domain.institution import Credentials, InstitutionConnection
 from portfolio_tracker.domain.instrument import (
     Bond,
     Cfd,
@@ -64,9 +64,9 @@ class SchemaRegistry:
 
 TABLES = {
     User: TableReference(name="user", alias="u"),
-    InstitutionAccount: TableReference(name="institution_account", alias="ia"),
+    InstitutionConnection: TableReference(name="institution_connection", alias="ic"),
     Credentials: TableReference(name="credentials", alias="c"),
-    AssetAccount: TableReference(name="asset_account", alias="aa"),
+    AssetAccount: TableReference(name="account", alias="aa"),
     Instrument: TableReference(name="instrument", alias="i"),
     InstrumentMetadata: TableReference(name="instrument", alias="i"),
     Bond: TableReference(name="bond", alias="b"),
@@ -83,16 +83,16 @@ TABLES = {
 }
 
 RELATIONS = {
-    ("institution_account", "user"): ("user_id", "id"),
-    ("credentials", "institution_account"): (
-        "institution_account_id",
+    ("institution_connection", "user"): ("user_id", "id"),
+    ("credentials", "institution_connection"): (
+        "institution_connection_id",
         "id",
     ),
-    ("asset_account", "institution_account"): (
-        "institution_account_id",
+    ("account", "institution_connection"): (
+        "institution_connection_id",
         "id",
     ),
-    ("transaction", "asset_account"): ("asset_account_id", "id"),
+    ("transaction", "account"): ("account_id", "id"),
     ("transaction", "instrument"): ("instrument_id", "id"),
     ("bond", "instrument"): ("id", "id"),
     ("cfd", "instrument"): ("id", "id"),

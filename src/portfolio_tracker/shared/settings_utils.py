@@ -30,7 +30,9 @@ class SettingsStore(ABC):
 
 
 class JsonSettingsStore(SettingsStore):
-    def __init__(self, settings_cls: type[DataclassInstance], settings_dir: Path) -> None:
+    def __init__(
+        self, settings_cls: type[DataclassInstance], settings_dir: Path
+    ) -> None:
         super().__init__(settings_cls)
         self._settings_dir = settings_dir
 

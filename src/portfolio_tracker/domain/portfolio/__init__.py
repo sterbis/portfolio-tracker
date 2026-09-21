@@ -1,14 +1,14 @@
 from .builder import PortfolioBuilder
 from .evaluator import PortfolioEvaluator
 from .models import (
-    ConsolidationScope,
     Portfolio,
     PortfolioValuation,
+    ScopeType,
     ValuedPortfolio,
 )
 
 __all__ = [
-    "ConsolidationScope",
+    "ScopeType",
     "Portfolio",
     "PortfolioBuilder",
     "PortfolioEvaluator",

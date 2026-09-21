@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
+from portfolio_tracker.domain.account import AssetAccount
 from portfolio_tracker.domain.fx import FxRates
+from portfolio_tracker.domain.institution import InstitutionConnection
 from portfolio_tracker.domain.instrument import Stock
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.shared import Currency, Money
@@ -18,6 +19,7 @@ from portfolio_tracker.infrastructure.persistence.sqlite.repositories import (
     SqliteAccountRepository,
     SqliteCredentialsRepository,
     SqliteFxRatesRepository,
+    SqliteInstitutionConnectionRepository,
     SqliteInstrumentRepository,
     SqliteMarketDataRepository,
     SqliteTransactionRepository,
@@ -42,32 +44,50 @@ def test_user_repository_round_trips_user(
     assert stored_user == sample_user
 
 
-def test_account_repository_round_trips_institution_and_asset_accounts(
+def test_institution_connection_repository_round_trips_institution_connection(
     initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
     sample_institution_registry: InstitutionRegistry,
-    sample_institution_account: InstitutionAccount,
-    sample_asset_account: AssetAccount,
+    sample_institution_connection: InstitutionConnection,
 ) -> None:
-    account_repository = SqliteAccountRepository(
-        sample_institution_registry,
+    repository = SqliteInstitutionConnectionRepository(
+        institution_registry=sample_institution_registry,
+        executor=SqliteExecutor(
+            connection=initialized_in_memory_db_connection_foreign_keys_off,
+            builder=statement_builder,
+        ),
+    )
+    repository.add(sample_institution_connection)
+    stored_institution_connection = repository.get_by_id(
+        sample_institution_connection.id
+    )
+    assert stored_institution_connection == sample_institution_connection
+
+
+def test_account_repository_round_trips_account(
+    initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    statement_builder: SqliteStatementBuilder,
+    sample_account: AssetAccount,
+) -> None:
+    repository = SqliteAccountRepository(
         SqliteExecutor(
             connection=initialized_in_memory_db_connection_foreign_keys_off,
             builder=statement_builder,
         ),
     )
-
-    account_repository.add_institution_account(sample_institution_account)
-    stored_institution_account = account_repository.get_institution_account_by_id(
-        sample_institution_account.id
+    repository.ensure(sample_account)
+    stored_asset_account = repository.get_by_id(sample_account.id)
+    stored_asset_account_2 = repository.get_by_external_id(
+        sample_account.institution_connection_id, sample_account.external_id
     )
-    assert stored_institution_account == sample_institution_account
-
-    account_repository.ensure_asset_account(sample_asset_account)
-    stored_asset_account = account_repository.get_asset_account_by_external_id(
-        sample_asset_account.institution_account_id, sample_asset_account.external_id
+    stored_asset_accounts = repository.get_by_institution_connection_id(
+        sample_account.institution_connection_id
     )
-    assert stored_asset_account == sample_asset_account
+
+    assert stored_asset_account == sample_account
+    assert stored_asset_account_2 == sample_account
+    assert len(stored_asset_accounts) == 1
+    assert stored_asset_accounts[0] == sample_account
 
 
 def test_credentials_repository_round_trips_credentials(
@@ -75,15 +95,15 @@ def test_credentials_repository_round_trips_credentials(
     statement_builder: SqliteStatementBuilder,
     mock_encryptor: MockEncryptor,
     sample_institution_registry: InstitutionRegistry,
-    sample_institution_account: InstitutionAccount,
+    sample_institution_connection: InstitutionConnection,
 ) -> None:
     parameters = {
         "api_key": "key_123",
         "api_secret": "secret_abc",
     }
     credentials = sample_institution_registry.create_credentials(
-        sample_institution_account.institution_id,
-        sample_institution_account.id,
+        sample_institution_connection.institution_id,
+        sample_institution_connection.id,
         parameters,
     )
 
@@ -97,14 +117,14 @@ def test_credentials_repository_round_trips_credentials(
     )
     credentials_repository.upsert(credentials)
 
-    stored_credentials = credentials_repository.get(sample_institution_account.id)
+    stored_credentials = credentials_repository.get(sample_institution_connection.id)
     assert stored_credentials == credentials
 
 
 def test_transaction_repository_round_trips_transaction(
     initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
-    sample_asset_account: AssetAccount,
+    sample_account: AssetAccount,
     googl_stock: Stock,
 ) -> None:
     transaction_repository = SqliteTransactionRepository(
@@ -116,7 +136,7 @@ def test_transaction_repository_round_trips_transaction(
 
     transaction = Transaction(
         executed_at=datetime(2026, 6, 1, 16, 15, 0, tzinfo=timezone.utc),
-        asset_account_id=sample_asset_account.id,
+        account_id=sample_account.id,
         type=TransactionType.BUY,
         instrument_id=googl_stock.id,
         quantity=Decimal("10"),

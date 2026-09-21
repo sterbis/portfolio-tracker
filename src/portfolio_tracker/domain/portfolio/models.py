@@ -9,16 +9,21 @@ from .cash_balance import CashBalance, CashBalanceValuation
 from .position import Position, PositionValuation
 
 
-class ConsolidationScope(IntEnum):
-    ASSET_ACCOUNT = 1
-    INSTITUTION_ACCOUNT = 2
+class ScopeType(IntEnum):
+    ACCOUNT = 1
+    INSTITUTION = 2
     GLOBAL = 3
 
 
 @dataclass(frozen=True)
+class Scope:
+    type: ScopeType
+    id: str | None
+
+
+@dataclass(frozen=True)
 class Portfolio:
-    scope: ConsolidationScope
-    account_id: str | None
+    scope: Scope
     reporting_currency: Currency
     positions: list[Position]
     cash_balance: CashBalance
@@ -37,26 +42,29 @@ class Portfolio:
                 f"Expected: {self.reporting_currency}, got: {other.reporting_currency}."
             )
 
-        if self.scope < other.scope:
+        if self.scope.type < other.scope.type:
             return other + self
 
-        if self.scope > other.scope:
+        if self.scope.type > other.scope.type:
             scope = self.scope
-            account_id = self.account_id
 
         else:
-            if self.scope == ConsolidationScope.GLOBAL:
+            if self.scope.type == ScopeType.GLOBAL:
                 raise ValueError("Cannot consolidate multiple global portfolios.")
 
-            if self.account_id == other.account_id:
+            if self.scope.id == other.scope.id:
                 raise ValueError(
-                    f"Cannot consolidate portfolio with itself. Portfolio account id: {self.account_id}."
+                    f"Cannot consolidate portfolio with itself. Portfolio scope id: {self.scope.id}."
                 )
 
-            scope = ConsolidationScope.GLOBAL
-            account_id = None
+            scope = Scope(
+                type=ScopeType.GLOBAL,
+                id=None,
+            )
 
+        combined_cash_balance = self.cash_balance + other.cash_balance
         combined_positions: dict[str, Position] = {}
+
         for position in self.positions + other.positions:
             instrument_id = position.instrument_id
             if instrument_id not in combined_positions:
@@ -66,17 +74,14 @@ class Portfolio:
 
         return Portfolio(
             scope=scope,
-            account_id=account_id,
             reporting_currency=self.reporting_currency,
             positions=list(combined_positions.values()),
-            cash_balance=self.cash_balance + other.cash_balance,
+            cash_balance=combined_cash_balance,
         )
 
 
 @dataclass(frozen=True)
 class PortfolioValuation:
-    account_id: str | None
-
     positions: dict[str, PositionValuation]
     cash_balance: CashBalanceValuation
 
@@ -91,4 +96,4 @@ class PortfolioValuation:
 @dataclass(frozen=True)
 class ValuedPortfolio:
     portfolio: Portfolio
-    valuation: PortfolioValuation
+    valuation: PortfolioValuation | None

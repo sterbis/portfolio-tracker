@@ -1,10 +1,10 @@
 from portfolio_tracker.domain.shared import DualMoney
 
-from .models import Position, PositionValuation
+from .models import Position, PositionValuation, ValuedPosition
 
 
 class PositionEvaluator:
-    def evaluate(
+    def get_valuation(
         self,
         position: Position,
         market_price: DualMoney,
@@ -26,7 +26,9 @@ class PositionEvaluator:
 
         tax_free_valuation = None
         if not position.is_tax_free and position.tax_free_position:
-            tax_free_valuation = self.evaluate(position.tax_free_position, market_price)
+            tax_free_valuation = self.get_valuation(
+                position.tax_free_position, market_price
+            )
 
         return PositionValuation(
             instrument_id=position.instrument_id,
@@ -37,4 +39,14 @@ class PositionEvaluator:
             reporting_unrealized_pnl_percent=reporting_unrealized_pnl_percent,
             is_tax_free=position.is_tax_free,
             _tax_free_valuation=tax_free_valuation,
+        )
+
+    def evaluate(
+        self,
+        position: Position,
+        market_price: DualMoney,
+    ) -> ValuedPosition:
+        return ValuedPosition(
+            position=position,
+            valuation=self.get_valuation(position, market_price),
         )

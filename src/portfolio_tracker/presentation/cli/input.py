@@ -9,14 +9,14 @@ from typing import Any, Callable, Generic, Literal, TypeVar, overload
 import typer
 from filterutils import Filter, FilterError, FilterExpressionParser, FilterTree
 
-from portfolio_tracker.application.institution import InstitutionService
+from portfolio_tracker.application.institution import InstitutionQueryService
 from portfolio_tracker.application.shared.errors import (
     InvalidCredentialParametersError,
 )
 from portfolio_tracker.application.views import (
     MoneyView,
+    PositionRowView,
     TransactionView,
-    ValuedPositionView,
 )
 from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.infrastructure.institution import InstitutionCode
@@ -341,7 +341,7 @@ def position_filter_input(
     field: str,
     value_parser: Callable[[str], Any] | None = None,
 ) -> FilterInput:
-    return FilterInput(parameter, value, ValuedPositionView, field, value_parser)
+    return FilterInput(parameter, value, PositionRowView, field, value_parser)
 
 
 def resolve_filter_inputs(inputs: list[FilterInput]) -> FilterTree:
@@ -753,7 +753,7 @@ def resolve_filter_expression_input(
 def resolve_credential_parameters(
     institution_id: InstitutionCode,
     credential_list: list[str] | None,
-    service: InstitutionService,
+    service: InstitutionQueryService,
     environment: CliEnvironment,
     default_parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:

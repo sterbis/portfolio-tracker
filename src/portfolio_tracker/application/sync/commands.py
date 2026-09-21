@@ -6,14 +6,14 @@ from pathlib import Path
 @dataclass(frozen=True)
 class ImportReportCommand:
     path: Path
-    institution_account_id: str
-    asset_account_ids: set[str] = field(default_factory=set)
+    institution_connection_id: str
+    account_ids: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
-class SyncInstitutionAccountsCommand:
-    institution_account_ids: set[str] = field(default_factory=set)
-    asset_account_ids: set[str] = field(default_factory=set)
+class SyncAccountsCommand:
+    institution_connection_ids: set[str] = field(default_factory=set)
+    account_ids: set[str] = field(default_factory=set)
     start: datetime | None = None
     end: datetime | None = None
     restore: bool = False

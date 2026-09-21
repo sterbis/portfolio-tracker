@@ -1,5 +1,5 @@
 import hashlib
-import uuid
+import secrets
 from abc import ABC, abstractmethod
 from dataclasses import InitVar, dataclass, field, fields
 from datetime import date, datetime
@@ -68,7 +68,7 @@ class InstrumentMetadata:
 
 @dataclass(frozen=True, kw_only=True)
 class Instrument(ABC):
-    id: str = field(default_factory=lambda: f"instr_{uuid.uuid4().hex[:16]}")
+    id: str = field(default_factory=lambda: f"instr_{secrets.token_urlsafe(8)}")
     checksum: str = field(init=False)
     provided_checksum: InitVar[str | None] = None
     type: InstrumentType

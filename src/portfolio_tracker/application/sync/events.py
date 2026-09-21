@@ -6,21 +6,21 @@ class SyncEvent: ...
 
 
 @dataclass(frozen=True)
-class InstitutionAccountSyncStarted(SyncEvent):
-    account_id: str
-    account_name: str
+class AccountsSyncStarted(SyncEvent):
+    institution_connection_id: str
+    institution_connection_name: str
 
 
 @dataclass(frozen=True)
-class InstitutionAccountSyncCompleted(SyncEvent):
-    account_id: str
-    account_name: str
+class AccountsSyncCompleted(SyncEvent):
+    institution_connection_id: str
+    institution_connection_name: str
 
 
 @dataclass(frozen=True)
-class InstitutionAccountSyncFailed(SyncEvent):
-    account_id: str
-    account_name: str
+class AccountsSyncFailed(SyncEvent):
+    institution_connection_id: str
+    institution_connection_name: str
     error: Exception
 
 

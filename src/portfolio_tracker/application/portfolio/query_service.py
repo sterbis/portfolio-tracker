@@ -7,23 +7,30 @@ from portfolio_tracker.application.persistence import (
     StorageConnectionFactory,
     UserScopedUnitOfWork,
 )
+from portfolio_tracker.application.shared.errors import (
+    FxClientError,
+    MarketDataClientError,
+)
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.shared.service import QueryService
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.views import (
+    CashBalanceRowView,
     PortfolioValuationView,
-    PortfolioView,
+    PositionRowView,
     ValuedPortfolioView,
     ViewBuilder,
 )
-from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
+from portfolio_tracker.domain.account import AssetAccount
+from portfolio_tracker.domain.institution import Institution, InstitutionConnection
 from portfolio_tracker.domain.instrument import Instrument
 from portfolio_tracker.domain.portfolio import (
-    ConsolidationScope,
     Portfolio,
     PortfolioBuilder,
     PortfolioEvaluator,
     PortfolioValuation,
+    ScopeType,
+    ValuedPortfolio,
 )
 from portfolio_tracker.domain.transaction import (
     Transaction,
@@ -35,7 +42,7 @@ from .queries import GetPortfoliosQuery
 
 
 class PortfolioQueryService(QueryService):
-    REQUIRED_TRANSACTION_SORT: Sort = Sort("executed_at", Transaction, "ASC")
+    _REQUIRED_TRANSACTION_SORT: Sort = Sort("executed_at", Transaction)
 
     def __init__(
         self,
@@ -60,75 +67,67 @@ class PortfolioQueryService(QueryService):
         self._portfolio_builder = portfolio_builder
         self._portfolio_evaluator = portfolio_evaluator
 
+    def get_cash_balances(
+        self, user_id: str, query: GetPortfoliosQuery
+    ) -> list[CashBalanceRowView]:
+        return self._view_builder.build_cash_balance_row_views(
+            portfolio_views=self.get_portfolios(user_id, query)
+        )
+
+    def get_positions(
+        self, user_id: str, query: GetPortfoliosQuery
+    ) -> list[PositionRowView]:
+        return list(
+            self._view_builder.build_position_row_views(
+                portfolio_views=self.get_portfolios(user_id, query)
+            ).values()
+        )
+
     def get_portfolios(
         self, user_id: str, query: GetPortfoliosQuery
-    ) -> list[PortfolioView]:
-        institution_accounts, asset_accounts, instruments, portfolios = (
-            self._get_portfolios(user_id, query)
+    ) -> list[ValuedPortfolioView]:
+        institutions, institution_connections, accounts, instruments, portfolios = (
+            self._build_portfolios(user_id, query)
         )
-        institutions = [
-            self._institution_registry.get_institution(
-                institution_account.institution_id
-            )
-            for institution_account in institution_accounts
-        ]
-        return self._view_builder.build_portfolio_views(
-            institutions,
-            institution_accounts,
-            asset_accounts,
-            instruments,
-            portfolios,
+        valued_portfolios = self._evaluate_portfolios(portfolios, instruments)
+        return list(
+            self._view_builder.build_valued_portfolio_views(
+                institutions,
+                institution_connections,
+                accounts,
+                instruments,
+                valued_portfolios,
+            ).values()
         )
 
     def get_portfolio_valuations(
         self, user_id: str, query: GetPortfoliosQuery
     ) -> dict[str | None, PortfolioValuationView]:
-        _, _, instruments, portfolios = self._get_portfolios(user_id, query)
-        portfolio_valuations = self._value_portfolios(portfolios, instruments)
+        _, _, _, instruments, portfolios = self._build_portfolios(user_id, query)
+        portfolio_valuations = self._get_portfolio_valuations(portfolios, instruments)
         return self._view_builder.build_portfolio_valuation_views(portfolio_valuations)
 
-    def get_valued_portfolios(
-        self, user_id: str, query: GetPortfoliosQuery
-    ) -> list[ValuedPortfolioView]:
-        institution_accounts, asset_accounts, instruments, portfolios = (
-            self._get_portfolios(user_id, query)
-        )
-        institutions = [
-            self._institution_registry.get_institution(
-                institution_account.institution_id
-            )
-            for institution_account in institution_accounts
-        ]
-        portfolio_valuations = self._value_portfolios(portfolios, instruments)
-        return self._view_builder.build_valued_portfolio_views(
-            institutions,
-            institution_accounts,
-            asset_accounts,
-            instruments,
-            portfolios,
-            portfolio_valuations,
-        )
-
-    def _get_portfolios(
+    def _build_portfolios(
         self,
         user_id: str,
         query: GetPortfoliosQuery,
     ) -> tuple[
-        list[InstitutionAccount],
+        list[Institution],
+        list[InstitutionConnection],
         list[AssetAccount],
         list[Instrument],
         list[Portfolio],
     ]:
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             transactions: Iterable[Transaction] = uow.transactions.get(
-                institution_account_ids=query.institution_account_ids,
-                asset_account_ids=query.asset_account_ids,
+                institution_connection_ids=query.institution_connection_ids,
+                account_ids=query.account_ids,
                 filter_=query.filter,
-                sorts=[self.REQUIRED_TRANSACTION_SORT],
+                sorts=[self._REQUIRED_TRANSACTION_SORT],
             )
             instrument_ids = uow.transactions.get_distinct_instrument_ids(
-                institution_account_ids=query.institution_account_ids,
-                asset_account_ids=query.asset_account_ids,
+                institution_connection_ids=query.institution_connection_ids,
+                account_ids=query.account_ids,
                 filter_=query.filter,
             )
             splits_list = uow.market_data.get_stock_splits_by_instrument_ids(
@@ -139,8 +138,8 @@ class PortfolioQueryService(QueryService):
             )
 
             transaction_dates = uow.transactions.get_distinct_dates(
-                institution_account_ids=query.institution_account_ids,
-                asset_account_ids=query.asset_account_ids,
+                institution_connection_ids=query.institution_connection_ids,
+                account_ids=query.account_ids,
                 filter_=query.filter,
             )
             rates_by_date = uow.fx_rates.get_required_rates_by_date_map(
@@ -155,7 +154,7 @@ class PortfolioQueryService(QueryService):
                 converted_transactions, query.reporting_currency
             )
             portfolios = self._portfolio_builder.consolidate(
-                portfolios, query.scope, uow.accounts_map
+                portfolios, query.scope, uow.account_map
             )
             instruments = uow.instruments.get_by_ids(
                 instrument_ids={
@@ -164,38 +163,50 @@ class PortfolioQueryService(QueryService):
                     for instrument_id in portfolio.instrument_ids
                 }
             )
-            institution_accounts, asset_accounts = self._get_portfolio_accounts(
-                uow, portfolios
+            institutions, institution_connections, accounts = (
+                self._get_portfolio_accounts(uow, portfolios)
             )
-            return institution_accounts, asset_accounts, instruments, portfolios
+            return (
+                institutions,
+                institution_connections,
+                accounts,
+                instruments,
+                portfolios,
+            )
 
     def _get_portfolio_accounts(
         self,
         uow: UserScopedUnitOfWork,
         portfolios: list[Portfolio],
-    ) -> tuple[list[InstitutionAccount], list[AssetAccount]]:
-        institution_account_ids: set[str] = set()
-        asset_account_ids: set[str] = set()
+    ) -> tuple[list[Institution], list[InstitutionConnection], list[AssetAccount]]:
+        institution_connection_ids: set[str] = set()
+        account_ids: set[str] = set()
 
         for portfolio in portfolios:
-            if portfolio.scope == ConsolidationScope.GLOBAL:
+            if portfolio.scope.type == ScopeType.GLOBAL:
                 continue
 
-            assert portfolio.account_id is not None
-            if portfolio.scope == ConsolidationScope.INSTITUTION_ACCOUNT:
-                institution_account_ids.add(portfolio.account_id)
+            assert portfolio.scope.id is not None
+            if portfolio.scope.type == ScopeType.INSTITUTION:
+                institution_connection_ids.add(portfolio.scope.id)
 
-            elif portfolio.scope == ConsolidationScope.ASSET_ACCOUNT:
-                asset_account_ids.add(portfolio.account_id)
+            elif portfolio.scope.type == ScopeType.ACCOUNT:
+                account_ids.add(portfolio.scope.id)
 
-        institution_accounts = uow.accounts.get_institution_accounts_by_ids(
-            institution_account_ids
+        accounts = uow.accounts.get_by_ids(account_ids)
+        institution_connections = uow.institution_connections.get_by_ids(
+            institution_connection_ids
         )
-        asset_accounts = uow.accounts.get_asset_accounts_by_ids(asset_account_ids)
+        institutions = [
+            self._institution_registry.get_institution(
+                institution_connection.institution_id
+            )
+            for institution_connection in institution_connections
+        ]
 
-        return institution_accounts, asset_accounts
+        return institutions, institution_connections, accounts
 
-    def _value_portfolios(
+    def _get_portfolio_valuations(
         self,
         portfolios: list[Portfolio],
         instruments: list[Instrument],
@@ -206,7 +217,7 @@ class PortfolioQueryService(QueryService):
         )
         spot_rates = self._fx_service.get_spot_rates()
         return {
-            portfolio.account_id: self._portfolio_evaluator.evaluate(
+            portfolio.scope.id: self._portfolio_evaluator.get_valuation(
                 portfolio,
                 instruments_metadata,
                 native_market_prices,
@@ -214,3 +225,20 @@ class PortfolioQueryService(QueryService):
             )
             for portfolio in portfolios
         }
+
+    def _evaluate_portfolios(
+        self,
+        portfolios: list[Portfolio],
+        instruments: list[Instrument],
+    ) -> list[ValuedPortfolio]:
+        try:
+            valuations = self._get_portfolio_valuations(portfolios, instruments)
+        except FxClientError, MarketDataClientError:
+            valuations = {}
+
+        return [
+            ValuedPortfolio(
+                portfolio=portfolio, valuation=valuations.get(portfolio.scope.id)
+            )
+            for portfolio in portfolios
+        ]

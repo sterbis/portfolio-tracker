@@ -1,4 +1,4 @@
-from portfolio_tracker.domain.account import UserAccountsMap
+from portfolio_tracker.domain.account import AccountMap
 
 from .repositories import (
     CredentialsRepository,
@@ -10,6 +10,7 @@ from .repositories import (
 from .unit_of_work import UnitOfWork
 from .user_scoped_repositories import (
     UserScopedAccountRepository,
+    UserScopedInstitutionConnectionRepository,
     UserScopedTransactionRepository,
 )
 
@@ -18,15 +19,18 @@ class UserScopedUnitOfWork:
     def __init__(
         self,
         uow: UnitOfWork,
-        accounts_map: UserAccountsMap,
+        account_map: AccountMap,
     ) -> None:
         self._uow = uow
-        self.accounts_map = accounts_map
+        self.account_map = account_map
         self.accounts = UserScopedAccountRepository(
-            self.accounts_map, self._uow.accounts
+            self.account_map, self._uow.accounts
+        )
+        self.institution_connections = UserScopedInstitutionConnectionRepository(
+            self.account_map, self._uow.institution_connections
         )
         self.transactions = UserScopedTransactionRepository(
-            self.accounts_map, self._uow.transactions
+            self.account_map, self._uow.transactions
         )
 
     @property

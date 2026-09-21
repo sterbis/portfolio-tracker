@@ -1,5 +1,5 @@
 import hashlib
-import uuid
+import secrets
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -25,11 +25,11 @@ class TransactionType(StrEnum):
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class Transaction:
-    id: str = field(default_factory=lambda: f"tr_{uuid.uuid4().hex[:16]}")
+    id: str = field(default_factory=lambda: f"txn_{secrets.token_urlsafe(8)}")
     correlation_id: str | None = None
     checksum: str = field(init=False)
     provided_checksum: InitVar[str | None] = None
-    asset_account_id: str
+    account_id: str
     executed_at: datetime
     type: TransactionType
     instrument_id: str | None = None
@@ -60,7 +60,7 @@ class Transaction:
             raise ValueError("Transaction price cannot be negative.")
 
         checksum_string = (
-            f"{self.asset_account_id}|"
+            f"{self.account_id}|"
             f"{self.executed_at.isoformat()}|"
             f"{self.type.value}|"
             f"{self.instrument_id if self.instrument_id else ''}|"
@@ -84,7 +84,7 @@ class ConvertedTransaction:
     id: str
     correlation_id: str | None
     checksum: str
-    asset_account_id: str
+    account_id: str
     executed_at: datetime
     type: TransactionType
     instrument_id: str | None

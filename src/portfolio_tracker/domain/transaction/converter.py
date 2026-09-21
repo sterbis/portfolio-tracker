@@ -20,7 +20,7 @@ class TransactionConverter:
             id=transaction.id,
             correlation_id=transaction.correlation_id,
             checksum=transaction.checksum,
-            asset_account_id=transaction.asset_account_id,
+            account_id=transaction.account_id,
             executed_at=transaction.executed_at,
             type=transaction.type,
             instrument_id=transaction.instrument_id,

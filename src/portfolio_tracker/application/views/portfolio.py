@@ -4,9 +4,9 @@ from decimal import Decimal
 
 from portfolio_tracker.domain.instrument import AssetClass, InstrumentType
 from portfolio_tracker.domain.portfolio import (
-    ConsolidationScope,
     Portfolio,
     PortfolioValuation,
+    ScopeType,
 )
 from portfolio_tracker.domain.portfolio.cash_balance import (
     CashBalance,
@@ -14,9 +14,55 @@ from portfolio_tracker.domain.portfolio.cash_balance import (
 )
 from portfolio_tracker.domain.portfolio.position import Position, PositionValuation
 
-from .account import AssetAccountView, InstitutionAccountView
 from .instrument import InstrumentView
 from .shared import DualMoneyView, MoneyView
+
+
+@dataclass(frozen=True)
+class ScopeView:
+    type: ScopeType
+    id: str | None
+    institution_name: str | None = None
+    institution_connection_name: str | None = None
+    account_name: str | None = None
+
+
+@dataclass(frozen=True)
+class CashBalanceView:
+    currencies: dict[str, MoneyView]
+
+    @classmethod
+    def from_domain(cls, balance: CashBalance) -> CashBalanceView:
+        return cls(
+            currencies={
+                currency: MoneyView.from_domain(currency_balance)
+                for currency, currency_balance in balance.currencies.items()
+            }
+        )
+
+
+@dataclass(frozen=True)
+class CashBalanceValuationView:
+    total_balance: MoneyView
+
+    @classmethod
+    def from_domain(cls, valuation: CashBalanceValuation) -> CashBalanceValuationView:
+        return cls(
+            total_balance=MoneyView.from_domain(valuation.total_balance),
+        )
+
+
+@dataclass(frozen=True)
+class ValuedCashBalanceView:
+    scope: ScopeView
+    balance: CashBalanceView
+    valuation: CashBalanceValuationView | None
+
+
+@dataclass(frozen=True)
+class CashBalanceRowView:
+    scope: ScopeView
+    balance: MoneyView
 
 
 @dataclass(frozen=True)
@@ -96,46 +142,15 @@ class PositionValuationView:
 
 
 @dataclass(frozen=True)
-class ValuedPositionView:
+class PositionRowView:
+    scope: ScopeView
     position: PositionView
     valuation: PositionValuationView | None
 
 
 @dataclass(frozen=True)
-class CashBalanceView:
-    currencies: dict[str, MoneyView]
-
-    @classmethod
-    def from_domain(cls, cash_balance: CashBalance) -> CashBalanceView:
-        return cls(
-            currencies={
-                currency: MoneyView.from_domain(balance)
-                for currency, balance in cash_balance.currencies.items()
-            }
-        )
-
-
-@dataclass(frozen=True)
-class CashBalanceValuationView:
-    total_balance: MoneyView
-
-    @classmethod
-    def from_domain(cls, valuation: CashBalanceValuation) -> CashBalanceValuationView:
-        return cls(
-            total_balance=MoneyView.from_domain(valuation.total_balance),
-        )
-
-
-@dataclass(frozen=True)
-class ValuedCashBalanceView:
-    cash_balance: CashBalanceView
-    valuation: CashBalanceValuationView
-
-
-@dataclass(frozen=True)
 class PortfolioView:
-    scope: ConsolidationScope
-    account: AssetAccountView | InstitutionAccountView | None
+    scope: ScopeView
     reporting_currency: str
     positions: list[PositionView]
     cash_balance: CashBalanceView
@@ -144,16 +159,15 @@ class PortfolioView:
     def from_domain(
         cls,
         portfolio: Portfolio,
-        account_view: AssetAccountView | InstitutionAccountView | None,
-        instrument_view: dict[str, InstrumentView],
+        scope_view: ScopeView,
+        instrument_views: dict[str, InstrumentView],
     ) -> PortfolioView:
         return cls(
-            scope=portfolio.scope,
-            account=account_view,
+            scope=scope_view,
             reporting_currency=portfolio.reporting_currency,
             positions=[
                 PositionView.from_domain(
-                    position, instrument_view[position.instrument_id]
+                    position, instrument_views[position.instrument_id]
                 )
                 for position in portfolio.positions
             ],
@@ -163,8 +177,6 @@ class PortfolioView:
 
 @dataclass(frozen=True)
 class PortfolioValuationView:
-    account_id: str | None
-
     positions: dict[str, PositionValuationView]
     cash_balance: CashBalanceValuationView
 
@@ -178,7 +190,6 @@ class PortfolioValuationView:
     @classmethod
     def from_domain(cls, valuation: PortfolioValuation) -> PortfolioValuationView:
         return cls(
-            account_id=valuation.account_id,
             positions={
                 instrument_id: PositionValuationView.from_domain(position_valuation)
                 for instrument_id, position_valuation in valuation.positions.items()

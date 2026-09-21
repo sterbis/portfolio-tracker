@@ -28,8 +28,8 @@ class InstrumentView(ABC):
     type: InstrumentType
     asset_class: AssetClass
     name: str
-    symbol: str
     exchange: str | None = None
+    symbol: str
     currency: str
     last_synced_at: datetime | None = None
 
@@ -49,15 +49,6 @@ class InstrumentView(ABC):
 
 @dataclass(frozen=True, kw_only=True)
 class InstrumentMetadataView(InstrumentView):
-    id: str
-    type: InstrumentType
-    asset_class: AssetClass
-    name: str
-    symbol: str
-    exchange: str | None = None
-    currency: str
-    last_synced_at: datetime | None = None
-
     @classmethod
     def from_domain(cls, metadata: InstrumentMetadata) -> InstrumentMetadataView:
         return cls(

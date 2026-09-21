@@ -40,7 +40,7 @@ class Service:
             self._storage_connection_factory.create(read_only=read_only) as connection,
             connection.unit_of_work() as uow,
         ):
-            accounts_map = uow.accounts.get_user_accounts_map(user_id)
+            accounts_map = uow.accounts.get_account_map(user_id)
             yield UserScopedUnitOfWork(uow, accounts_map)
 
 

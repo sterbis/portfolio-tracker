@@ -11,8 +11,8 @@ from portfolio_tracker.application.transaction import (
 )
 from portfolio_tracker.application.views import (
     MoneyView,
-    TransactionView,
     TransactionTotalView,
+    TransactionView,
 )
 from portfolio_tracker.domain.instrument import AssetClass, InstrumentType
 from portfolio_tracker.domain.shared import Currency
@@ -57,12 +57,10 @@ transaction_app = GuardedTyper()
 @transaction_app.command(name="list")
 def list_transactions(
     ctx: typer.Context,
-    institution_account_ids: Annotated[
-        list[str] | None, multi_value_option("--institution_account_id")
+    institution_connection_ids: Annotated[
+        list[str] | None, multi_value_option("--institution-connection-id")
     ] = None,
-    asset_account_ids: Annotated[
-        list[str] | None, multi_value_option("--asset_account_id")
-    ] = None,
+    account_ids: Annotated[list[str] | None, multi_value_option("--account-id")] = None,
     currency: Annotated[Currency | None, typer.Option(case_sensitive=False)] = None,
     executed_at: Annotated[str | None, typer.Option()] = None,
     type_: Annotated[str | None, typer.Option()] = None,
@@ -132,9 +130,8 @@ def list_transactions(
     ]
     filter_ = resolve_filter_inputs(filter_inputs)
 
-    transaction_table = get_view_table(TransactionView)
-
-    table_settings = settings.display.cli.tables[transaction_table.name]
+    table = get_view_table(TransactionView)
+    table_settings = settings.display.cli.tables[table.name]
     sort_columns = sort_columns or table_settings.sort_columns
     active_columns = active_columns or table_settings.active_columns
 
@@ -143,10 +140,10 @@ def list_transactions(
     ]
 
     query = GetTransactionsQuery(
-        institution_account_ids=(
-            set(institution_account_ids) if institution_account_ids else set()
+        institution_connection_ids=(
+            set(institution_connection_ids) if institution_connection_ids else set()
         ),
-        asset_account_ids=set(asset_account_ids) if asset_account_ids else set(),
+        account_ids=set(account_ids) if account_ids else set(),
         reporting_currency=reporting_currency,
         filter=filter_,
         sorts=sorts,
@@ -154,14 +151,16 @@ def list_transactions(
         offset=offset,
     )
 
-    views = container.transaction_query_service.get_transactions(user_id, query)
-    total_view = TransactionTotalView.from_views(views, reporting_currency)
+    transactions = container.transaction_query_service.get_transactions(user_id, query)
+    transactions_total = TransactionTotalView.from_views(
+        transactions, reporting_currency
+    )
 
-    rendered_table = transaction_table.render(
-        views,
+    rendered_table = table.render(
+        transactions,
         settings.display.cli,
         active_columns=active_columns,
-        total_view=total_view,
+        total_view=transactions_total,
     )
     console.print(rendered_table)
 
@@ -169,7 +168,7 @@ def list_transactions(
 @transaction_app.command(name="add")
 def add_transaction(
     ctx: typer.Context,
-    asset_account_id: Annotated[str | None, typer.Option()] = None,
+    account_id: Annotated[str | None, typer.Option()] = None,
     correlation_id: Annotated[str | None, typer.Option()] = None,
     executed_at: Annotated[str | None, typer.Option()] = None,
     type_: Annotated[str | None, typer.Option()] = None,
@@ -189,7 +188,7 @@ def add_transaction(
     zero_money = MoneyView(amount=Decimal("0"), currency=reporting_curreny)
 
     inputs: list[Input[Any, Any]] = [
-        required_str_input("--asset-account-id", asset_account_id),
+        required_str_input("--account-id", account_id),
         optional_prompt_str_input("--correlation-id", correlation_id),
         required_datetime_input("--executed-at", executed_at),
         required_enum_input("--type", type_, TransactionType),
@@ -204,7 +203,7 @@ def add_transaction(
 
     command = CreateTransactionCommand(
         payload=TransactionPayloadDto(
-            asset_account_id=values["--asset-account-id"],
+            account_id=values["--account-id"],
             correlation_id=values["--correlation-id"],
             executed_at=values["--executed-at"],
             type=values["--type"],
@@ -227,7 +226,7 @@ def add_transaction(
 def edit_transaction(
     ctx: typer.Context,
     transaction_id: Annotated[str | None, typer.Option()] = None,
-    asset_account_id: Annotated[str | None, typer.Option()] = None,
+    account_id: Annotated[str | None, typer.Option()] = None,
     correlation_id: Annotated[str | None, typer.Option()] = None,
     executed_at: Annotated[str | None, typer.Option()] = None,
     type_: Annotated[str | None, typer.Option()] = None,
@@ -251,9 +250,9 @@ def edit_transaction(
 
     inputs: list[Input[Any, Any]] = [
         optional_prompt_str_input(
-            "--asset-account-id",
-            asset_account_id,
-            default_value=transaction.asset_account_id,
+            "--account-id",
+            account_id,
+            default_value=transaction.account_id,
         ),
         optional_prompt_str_input(
             "--correlation-id", correlation_id, default_value=transaction.correlation_id
@@ -282,7 +281,7 @@ def edit_transaction(
     command = UpdateTransactionCommand(
         transaction_id=resolved_transaction_id,
         payload=TransactionPayloadDto(
-            asset_account_id=values["--asset-account-id"],
+            account_id=values["--account-id"],
             correlation_id=values["--correlation-id"],
             executed_at=values["--executed-at"],
             type=values["--type"],
@@ -325,5 +324,4 @@ def remove_transaction(
             return
 
     container.transaction_command_service.delete_transaction(user_id, transaction.id)
-
     console.print(f"Transaction ({transaction.id}) successfully removed.")

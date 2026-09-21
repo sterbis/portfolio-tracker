@@ -20,6 +20,7 @@ from .repositories import (
     SqliteAccountRepository,
     SqliteCredentialsRepository,
     SqliteFxRatesRepository,
+    SqliteInstitutionConnectionRepository,
     SqliteInstrumentRepository,
     SqliteMarketDataRepository,
     SqliteTransactionRepository,
@@ -48,8 +49,11 @@ class SqliteUnitOfWork(UnitOfWork):
 
         executor = SqliteExecutor(self._connection, self._builder)
 
-        self.accounts = SqliteAccountRepository(self._institution_registry, executor)
+        self.accounts = SqliteAccountRepository(executor)
         self.fx_rates = SqliteFxRatesRepository(executor)
+        self.institution_connections = SqliteInstitutionConnectionRepository(
+            self._institution_registry, executor
+        )
         self.instruments = SqliteInstrumentRepository(executor)
         self.market_data = SqliteMarketDataRepository(executor)
         self.transactions = SqliteTransactionRepository(executor)

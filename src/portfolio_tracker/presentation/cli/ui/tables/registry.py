@@ -1,12 +1,24 @@
 from typing import Any
 
-from portfolio_tracker.application.views import TransactionView
+from portfolio_tracker.application.views import (
+    AssetAccountView,
+    CashBalanceRowView,
+    InstitutionConnectionView,
+    PositionRowView,
+    TransactionView,
+)
 
+from .account import AssetAccountViewTable
+from .institution import InstitutionConnectionViewTable
+from .portfolio import CashBalanceRowViewTable, PositionRowViewTable
 from .transaction import TransactionViewTable
 from .view_table import ViewTable
 
-
 VIEW_TABLE_REGISTRY: dict[type, ViewTable[Any]] = {
+    AssetAccountView: AssetAccountViewTable(),
+    CashBalanceRowView: CashBalanceRowViewTable(),
+    PositionRowView: PositionRowViewTable(),
+    InstitutionConnectionView: InstitutionConnectionViewTable(),
     TransactionView: TransactionViewTable(),
 }
 

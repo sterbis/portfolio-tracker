@@ -6,9 +6,9 @@ from decimal import Decimal
 import pytest
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
+from portfolio_tracker.domain.account import AssetAccount
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.institution import Institution
+from portfolio_tracker.domain.institution import Institution, InstitutionConnection
 from portfolio_tracker.domain.instrument import Stock
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.shared import Currency
@@ -65,22 +65,22 @@ def sample_user_2() -> User:
 
 
 @pytest.fixture(scope="session")
-def sample_institution_account() -> InstitutionAccount:
-    return InstitutionAccount(
+def sample_institution_connection() -> InstitutionConnection:
+    return InstitutionConnection(
         id="inst_acc_001",
         user_id="usr_001",
         institution_id=MockInstitutionCode.TRADING_321,
         name="Trading 321 Account",
-        created_on=date(2026, 1, 1),
+        account_opened_on=date(2026, 1, 1),
         last_synced_at=datetime(2026, 6, 1, 12, 0, 0),
     )
 
 
 @pytest.fixture(scope="session")
-def sample_asset_account() -> AssetAccount:
+def sample_account() -> AssetAccount:
     return AssetAccount(
         id="ast_acc_001",
-        institution_account_id="inst_acc_001",
+        institution_connection_id="inst_acc_001",
         external_id="3210123",
         name="Invest",
     )

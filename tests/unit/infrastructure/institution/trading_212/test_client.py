@@ -21,7 +21,7 @@ def trading_212_client() -> Trading212Client:
     return Trading212Client(
         credentials=Trading212Credentials(
             institution_id=InstitutionCode.TRADING_212,
-            institution_account_id="inst_acc_001",
+            institution_connection_id="inst_acc_001",
             api_key="api_key",
             api_secret="api_secret",
         )

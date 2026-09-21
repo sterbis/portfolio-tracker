@@ -23,7 +23,7 @@ def test_transaction_adjuster_split_boundaries() -> None:
     transaction_before_split = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 6, 14, 10, 0, tzinfo=timezone.utc),
-        asset_account_id="acc_1",
+        account_id="acc_1",
         type=TransactionType.BUY,
         instrument_id="inst_aapl",
         quantity=Decimal("10"),
@@ -37,7 +37,7 @@ def test_transaction_adjuster_split_boundaries() -> None:
     transaction_after_split = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 6, 16, 10, 0, tzinfo=timezone.utc),
-        asset_account_id="acc_1",
+        account_id="acc_1",
         type=TransactionType.BUY,
         instrument_id="inst_aapl",
         quantity=Decimal("10"),
@@ -51,7 +51,7 @@ def test_transaction_adjuster_split_boundaries() -> None:
     transaction_exactly_at_split = Transaction(
         correlation_id=None,
         executed_at=split_date,
-        asset_account_id="acc_1",
+        account_id="acc_1",
         type=TransactionType.BUY,
         instrument_id="inst_aapl",
         quantity=Decimal("10"),
@@ -107,7 +107,7 @@ def test_transaction_adjuster_multiple_cumulative_splits() -> None:
     transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 6, 14, 0, 0, tzinfo=timezone.utc),
-        asset_account_id="acc_1",
+        account_id="acc_1",
         type=TransactionType.BUY,
         instrument_id="inst_aapl",
         quantity=Decimal("10"),
@@ -138,7 +138,7 @@ def test_transaction_adjuster_ignores_non_trades() -> None:
     deposit_transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 6, 14, 0, 0, tzinfo=timezone.utc),
-        asset_account_id="acc_1",
+        account_id="acc_1",
         type=TransactionType.DEPOSIT,
         instrument_id=None,
         quantity=Decimal("0"),

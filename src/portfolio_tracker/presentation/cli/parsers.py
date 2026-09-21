@@ -1,6 +1,6 @@
 import re
-import typing
 import types
+import typing
 from dataclasses import is_dataclass
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
@@ -8,12 +8,15 @@ from enum import StrEnum
 from types import NoneType
 from typing import Any, Callable, TypeVar
 
-from portfolio_tracker.application.views import MoneyView
 from portfolio_tracker.application.shared.sort import Sort
+from portfolio_tracker.application.views import MoneyView
 from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.presentation.cli.ui.tables import get_view_table
-from portfolio_tracker.shared.dataclass_utils import register_converter, resolve_field_type, structure
-
+from portfolio_tracker.shared.dataclass_utils import (
+    register_converter,
+    resolve_field_type,
+    structure,
+)
 
 TEnum = TypeVar("TEnum", bound=StrEnum)
 
@@ -164,11 +167,7 @@ def parse_sort_column(value: str, view_cls: type) -> Sort:
     view_table = get_view_table(view_cls)
     field = view_table.get_column_field(column_name)
 
-    return Sort(
-        field=field,
-        item_type=view_cls,
-        reverse=reverse
-    )
+    return Sort(field=field, item_type=view_cls, reverse=reverse)
 
 
 def sort_column_parser(view_cls: type) -> Callable[[str], Sort]:
@@ -197,15 +196,21 @@ def parse_settings_value(settings_cls: type, key: str, value: str) -> Any:
         if origin_type is list and len(typing.get_args(field_type)) == 1:
             item_type = typing.get_args(field_type)[0]
             try:
-                return [structure(item, item_type) for item in value.split(",") if item.strip()]
+                return [
+                    structure(item, item_type)
+                    for item in value.split(",")
+                    if item.strip()
+                ]
             except (TypeError, ValueError) as error:
-                raise ValueError(f"Invalid '{key}' settings value: '{value}'.") from error
+                raise ValueError(
+                    f"Invalid '{key}' settings value: '{value}'."
+                ) from error
 
         if origin_type in (typing.Union, types.UnionType):
             for field_type in typing.get_args(field_type):
                 try:
                     return structure(value, field_type)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     pass
 
             raise ValueError(f"Invalid '{key}' settings value: '{value}'.")

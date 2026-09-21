@@ -15,13 +15,12 @@ from portfolio_tracker.presentation.cli.parsers import parse_settings_value
 from portfolio_tracker.presentation.cli.settings import TableDisplaySettings
 from portfolio_tracker.presentation.cli.ui.fromatters import format_settings_values
 from portfolio_tracker.presentation.cli.ui.tables import get_view_table_by_name
+from portfolio_tracker.settings import Settings
 from portfolio_tracker.shared.dataclass_utils import (
     resolve_field_value,
     unstructure,
 )
 from portfolio_tracker.shared.settings_utils import merge_dicts
-from portfolio_tracker.settings import Settings
-
 
 settings_app = GuardedTyper()
 
@@ -37,29 +36,31 @@ def list_settings(
 
     overrides = cache.get_overrides(user_id)
     if key:
-        settings = _resolve_settings_section(cache.default_settings, key)
+        default_settings = _resolve_settings_section(cache.default_settings, key)
         for section_key in key.split("."):
             overrides = overrides.get(section_key, {})
 
     else:
-        settings = cache.default_settings
+        default_settings = cache.default_settings
 
     if as_json:
-        default_values = unstructure(settings)
+        default_values = unstructure(default_settings)
         values = merge_dicts(default_values, overrides)
         console.print_json(data=values)
         return
 
-    if isinstance(settings, TableDisplaySettings):
+    if isinstance(default_settings, TableDisplaySettings):
         assert key is not None
         table_name = key.split(".")[-1]
         view_table = get_view_table_by_name(table_name)
 
         configuration = view_table.render_configuration(
-            active_columns=overrides.get("active_columns", settings.active_columns),
-            default_active_columns=settings.active_columns,
-            sort_columns=overrides.get("sort_columns", settings.sort_columns),
-            default_sort_columns=settings.sort_columns,
+            active_columns=overrides.get(
+                "active_columns", default_settings.active_columns
+            ),
+            default_active_columns=default_settings.active_columns,
+            sort_columns=overrides.get("sort_columns", default_settings.sort_columns),
+            default_sort_columns=default_settings.sort_columns,
         )
 
         console.print(configuration)
@@ -71,7 +72,7 @@ def list_settings(
         )
 
     else:
-        default_values = unstructure(settings)
+        default_values = unstructure(default_settings)
         lines = format_settings_values(default_values, overrides, key)
         console.print("\n".join(lines))
 
@@ -130,7 +131,7 @@ def reset_settings(
             if not reset_all:
                 console.print("Operation cancelled.")
                 return
-                
+
         cache.reset_all(user_id)
         console.print("All settings sucessfully reset to defaults.")
         return

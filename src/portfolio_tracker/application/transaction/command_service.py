@@ -21,7 +21,7 @@ class TransactionCommandService(Service):
         transaction = Transaction(
             correlation_id=payload.correlation_id,
             executed_at=payload.executed_at,
-            asset_account_id=payload.asset_account_id,
+            account_id=payload.account_id,
             type=payload.type,
             instrument_id=payload.instrument_id,
             quantity=payload.quantity,
@@ -53,7 +53,7 @@ class TransactionCommandService(Service):
                 id=command.transaction_id,
                 correlation_id=payload.correlation_id,
                 executed_at=payload.executed_at,
-                asset_account_id=payload.asset_account_id,
+                account_id=payload.account_id,
                 type=payload.type,
                 instrument_id=payload.instrument_id,
                 quantity=payload.quantity,

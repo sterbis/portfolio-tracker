@@ -67,16 +67,16 @@ class AssetAccountAlreadyDeactivatedError(AssetAccountAlreadyHasStatusError):
     _status = "deactivated"
 
 
-class InstitutionAccountNotFoundError(ModelNotFoundError):
-    def __init__(self, account_id: str | set[str]) -> None:
-        super().__init__(model_name="Institution account", model_id=account_id)
+class InstitutionConnectionNotFoundError(ModelNotFoundError):
+    def __init__(self, connection_id: str | set[str]) -> None:
+        super().__init__(model_name="Institution connection", model_id=connection_id)
 
 
 class CredentialsNotFoundError(PortfolioTrackerError):
-    _message_template = "Credentials for institution account with ID {institution_account_id} not found."
+    _message_template = "Credentials for institution connection with ID {institution_connection_id} not found."
 
-    def __init__(self, institution_account_id: str) -> None:
-        super().__init__(institution_account_id=institution_account_id)
+    def __init__(self, institution_connection_id: str) -> None:
+        super().__init__(institution_connection_id=institution_connection_id)
 
 
 class InvalidCredentialsError(PortfolioTrackerError):

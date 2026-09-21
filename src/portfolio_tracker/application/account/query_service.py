@@ -3,9 +3,8 @@ from portfolio_tracker.application.persistence import StorageConnectionFactory
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.shared.service import QueryService
 from portfolio_tracker.application.views import (
-    AssetAccountOverviewView,
-    InstitutionAccountOverviewView,
-    InstitutionAccountView,
+    AssetAccountView,
+    InstitutionConnectionView,
     InstitutionView,
     ViewBuilder,
 )
@@ -25,55 +24,39 @@ class AccountQueryService(QueryService):
         )
         self._institution_registry = institution_registry
 
-    def get_accounts_overview(
-        self, user_id: str
-    ) -> list[InstitutionAccountOverviewView]:
+    def get_account(self, user_id: str, account_id: str) -> AssetAccountView:
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
-            accounts_overview: list[InstitutionAccountOverviewView] = []
-            institution_accounts = uow.accounts.get_institution_accounts_by_user_id(
-                user_id
+            account = uow.accounts.get_by_id(account_id)
+            institution_connection = uow.institution_connections.get_by_id(
+                account.institution_connection_id
             )
-            for institution_account in institution_accounts:
-                institution = self._institution_registry.get_institution(
-                    institution_account.institution_id
-                )
-                asset_accounts = (
-                    uow.accounts.get_asset_accounts_by_institution_account_id(
-                        institution_account.id
-                    )
-                )
-                accounts_overview.append(
-                    InstitutionAccountOverviewView.from_domain(
-                        institution_account=institution_account,
-                        institution_view=InstitutionView.from_domain(institution),
-                        asset_account_overview_views=[
-                            AssetAccountOverviewView.from_domain(asset_account)
-                            for asset_account in asset_accounts
-                        ],
-                    )
-                )
-
-            return accounts_overview
-
-    def get_institution_account(
-        self, user_id: str, account_id: str
-    ) -> InstitutionAccountView:
-        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
-            institution_account = uow.accounts.get_institution_account_by_id(account_id)
             institution = self._institution_registry.get_institution(
-                institution_account.institution_id
+                institution_connection.institution_id
             )
-            credentials = uow.credentials.get(institution_account.id)
-
-            return InstitutionAccountView.from_domain(
-                institution_account=institution_account,
-                institution_view=InstitutionView.from_domain(institution),
-                credentials=credentials,
+            return AssetAccountView.from_domain(
+                account,
+                institution_connection_view=InstitutionConnectionView.from_domain(
+                    institution_connection,
+                    institution_view=InstitutionView.from_domain(institution),
+                ),
             )
 
-    def get_asset_account_overview(
-        self, user_id: str, account_id: str
-    ) -> AssetAccountOverviewView:
+    def get_accounts(self, user_id: str) -> list[AssetAccountView]:
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
-            asset_account = uow.accounts.get_asset_account_by_id(account_id)
-            return AssetAccountOverviewView.from_domain(asset_account)
+            accounts = uow.accounts.get_by_ids(uow.account_map.account_ids)
+            institution_connections = uow.institution_connections.get_by_ids(
+                uow.account_map.institution_connection_ids
+            )
+            institutions = [
+                self._institution_registry.get_institution(
+                    institution_connection.institution_id
+                )
+                for institution_connection in institution_connections
+            ]
+            return list(
+                self._view_builder.build_account_views(
+                    institutions,
+                    institution_connections,
+                    accounts,
+                ).values()
+            )

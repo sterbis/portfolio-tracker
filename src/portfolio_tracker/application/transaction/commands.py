@@ -9,7 +9,7 @@ from portfolio_tracker.domain.transaction import TransactionType
 @dataclass(frozen=True)
 class TransactionPayloadDto:
     executed_at: datetime
-    asset_account_id: str
+    account_id: str
     type: TransactionType
     instrument_id: str | None
     quantity: Decimal

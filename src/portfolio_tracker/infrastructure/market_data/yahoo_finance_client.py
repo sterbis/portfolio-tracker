@@ -26,7 +26,6 @@ class YahooFinanceClient(MarketDataClient):
             return prices
 
         today = datetime.now(tz=timezone.utc).date()
-
         return self.fetch_historical_prices(symbols, today)
 
     def fetch_historical_prices(
@@ -80,7 +79,7 @@ class YahooFinanceClient(MarketDataClient):
 
         except Exception as error:
             raise MarketDataClientError(
-                "Fail to fetch yahoo finance market prices."
+                "Fail to fetch yahoo finance market data."
             ) from error
 
         prices: dict[str, Decimal | None] = {symbol: None for symbol in symbols}

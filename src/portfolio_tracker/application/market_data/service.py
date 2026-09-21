@@ -1,9 +1,6 @@
 from collections.abc import Iterable
 
-from portfolio_tracker.application.shared.errors import (
-    MarketDataClientError,
-    MarketDataIntegrityError,
-)
+from portfolio_tracker.application.shared.errors import MarketDataClientError
 from portfolio_tracker.domain.instrument import InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
 from portfolio_tracker.domain.shared import Money
@@ -26,16 +23,13 @@ class MarketDataService:
         )
         symbols = set(instrument_metadata_by_symbol.keys())
 
-        try:
-            price_by_symbol = self._market_data_client.fetch_spot_prices(symbols)
-        except MarketDataClientError:
-            pass
+        price_by_symbol = self._market_data_client.fetch_spot_prices(symbols)
 
         missing_symbols = symbols - price_by_symbol.keys()
         if missing_symbols:
             formatted_symbols = ", ".join(sorted(missing_symbols))
-            raise MarketDataIntegrityError(
-                detail=f"Missing spot price data for following symbols: {formatted_symbols}"
+            raise MarketDataClientError(
+                f"Failed to fetch spot prices for following symbols: {formatted_symbols}"
             )
 
         price_by_instrument_id: dict[str, Money | None] = {}

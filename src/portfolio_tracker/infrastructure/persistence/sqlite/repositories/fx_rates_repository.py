@@ -50,8 +50,8 @@ class SqliteFxRatesRepository(FxRatesRepository):
             fields=references,
             filter_=filter_,
             sorts=[
-                Sort("effective_on", FxRates, "ASC"),
-                Sort("base_currency", FxRates, "ASC"),
+                Sort("effective_on", FxRates),
+                Sort("base_currency", FxRates),
             ],
         )
 
@@ -107,7 +107,7 @@ class SqliteFxRatesRepository(FxRatesRepository):
         row = self._executor.select_one(
             model=FxRates,
             fields=[effective_on_field],
-            sorts=[Sort("effective_on", FxRates, "DESC")],
+            sorts=[Sort("effective_on", FxRates, reverse=True)],
         )
         if not row:
             return None

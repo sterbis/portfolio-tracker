@@ -40,12 +40,12 @@ class InstitutionRegistry:
     def create_credentials(
         self,
         institution_id: InstitutionId,
-        institution_account_id: str,
+        institution_connection_id: str,
         parameters: dict[str, Any],
     ) -> Credentials:
         return self.get_credentials_cls(institution_id)(
             institution_id=institution_id,
-            institution_account_id=institution_account_id,
+            institution_connection_id=institution_connection_id,
             **parameters,
         )
 
@@ -61,9 +61,9 @@ class InstitutionRegistry:
         return self._get(self._client_map, credentials.institution_id)(credentials)
 
     def create_report_parser(
-        self, institution_id: InstitutionId, institution_account_id: str
+        self, institution_id: InstitutionId, institution_connection_id: str
     ) -> InstitutionReportParser:
-        return self._get(self._parser_map, institution_id)(institution_account_id)
+        return self._get(self._parser_map, institution_id)(institution_connection_id)
 
     def parse_credential_parameters(
         self, institution_id: InstitutionId, parameters: dict[str, str]

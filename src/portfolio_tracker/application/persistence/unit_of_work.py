@@ -8,6 +8,7 @@ from .repositories import (
     AccountRepository,
     CredentialsRepository,
     FxRatesRepository,
+    InstitutionConnectionRepository,
     InstrumentRepository,
     MarketDataRepository,
     TransactionRepository,
@@ -18,6 +19,7 @@ from .repositories import (
 class UnitOfWork(ABC):
     accounts: AccountRepository
     fx_rates: FxRatesRepository
+    institution_connections: InstitutionConnectionRepository
     instruments: InstrumentRepository
     market_data: MarketDataRepository
     transactions: TransactionRepository

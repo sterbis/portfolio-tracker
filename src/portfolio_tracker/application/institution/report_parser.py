@@ -1,4 +1,4 @@
-import uuid
+import secrets
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -25,7 +25,7 @@ class ReportInstrument:
 
 @dataclass(frozen=True)
 class ReportTransaction:
-    external_asset_account_id: str
+    account_external_id: str
     external_transaction_id: str
     executed_at: datetime
     type: TransactionType
@@ -48,8 +48,8 @@ class InstitutionReportParser(ABC):
         TransactionType.WITHDRAWAL: -1,
     }
 
-    def __init__(self, institution_account_id: str) -> None:
-        self._institution_account_id = institution_account_id
+    def __init__(self, institution_connection_id: str) -> None:
+        self._institution_connection_id = institution_connection_id
 
     @abstractmethod
     def parse(self, report: Iterator[str]) -> Iterator[ReportTransaction]: ...
@@ -69,4 +69,4 @@ class InstitutionReportParser(ABC):
             ) from error
 
     def _generate_correlation_id(self) -> str:
-        return f"tr_{uuid.uuid4().hex[:16]}"
+        return f"txn_{secrets.token_urlsafe(8)}"

@@ -1,11 +1,6 @@
-from .account import (
-    AssetAccountOverviewView,
-    AssetAccountView,
-    InstitutionAccountOverviewView,
-    InstitutionAccountView,
-)
+from .account import AssetAccountView
 from .builder import ViewBuilder
-from .institution import InstitutionView
+from .institution import InstitutionConnectionView, InstitutionView
 from .instrument import (
     BondView,
     CfdView,
@@ -19,15 +14,16 @@ from .instrument import (
     StockView,
 )
 from .portfolio import (
+    CashBalanceRowView,
     CashBalanceValuationView,
     CashBalanceView,
     PortfolioValuationView,
     PortfolioView,
+    PositionRowView,
     PositionValuationView,
     PositionView,
     ValuedCashBalanceView,
     ValuedPortfolioView,
-    ValuedPositionView,
 )
 from .reqistry import VIEW_REGISTRY, FieldMap, FieldReference
 from .shared import DualMoneyView, MoneyView
@@ -36,10 +32,10 @@ from .user import UserView
 
 __all__ = [
     "VIEW_REGISTRY",
-    "AssetAccountOverviewView",
     "AssetAccountView",
     "BondView",
     "CashBalanceValuationView",
+    "CashBalanceRowView",
     "CashBalanceView",
     "CfdView",
     "CommodityView",
@@ -49,8 +45,7 @@ __all__ = [
     "FieldMap",
     "FieldReference",
     "FutureView",
-    "InstitutionAccountOverviewView",
-    "InstitutionAccountView",
+    "InstitutionConnectionView",
     "InstitutionView",
     "InstrumentMetadataView",
     "InstrumentView",
@@ -67,6 +62,6 @@ __all__ = [
     "UserView",
     "ValuedCashBalanceView",
     "ValuedPortfolioView",
-    "ValuedPositionView",
+    "PositionRowView",
     "ViewBuilder",
 ]

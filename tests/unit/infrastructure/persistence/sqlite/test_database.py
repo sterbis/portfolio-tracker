@@ -52,7 +52,7 @@ def test_database_initialization(
     tables = [row[0] for row in cursor.fetchall()]
     assert tables == [
         "user",
-        "institution_account",
+        "institution_connection",
         "credentials",
         "asset_account",
         "ledger",

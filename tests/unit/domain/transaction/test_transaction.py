@@ -10,7 +10,7 @@ from portfolio_tracker.domain.transaction.models import Transaction, Transaction
 def test_valid_buy_transaction() -> None:
     transaction = Transaction(
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-        asset_account_id="acc_abc",
+        account_id="acc_abc",
         type=TransactionType.BUY,
         instrument_id="inst_123",
         quantity=Decimal("10.5"),
@@ -19,7 +19,7 @@ def test_valid_buy_transaction() -> None:
         tax=Money(Decimal("0.5"), Currency.USD),
         cash_impact=Money(Decimal("-1576.5"), Currency.USD),
     )
-    assert transaction.id.startswith("tr_")
+    assert transaction.id.startswith("txn_")
     assert transaction.correlation_id is None
 
 
@@ -27,7 +27,7 @@ def test_valid_deposit_without_instrument() -> None:
     transaction = Transaction(
         correlation_id=None,
         executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-        asset_account_id="acc_abc",
+        account_id="acc_abc",
         type=TransactionType.DEPOSIT,
         instrument_id=None,
         quantity=Decimal("0.0"),
@@ -36,7 +36,7 @@ def test_valid_deposit_without_instrument() -> None:
         tax=Money(Decimal("0.0"), Currency.USD),
         cash_impact=Money(Decimal("1000.0"), Currency.USD),
     )
-    assert transaction.id.startswith("tr_")
+    assert transaction.id.startswith("txn_")
     assert transaction.instrument_id is None
 
 
@@ -45,7 +45,7 @@ def test_naive_datetime_raises_value_error() -> None:
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 1, 10, 0),  # Naive
-            asset_account_id="acc_abc",
+            account_id="acc_abc",
             type=TransactionType.DEPOSIT,
             instrument_id=None,
             quantity=Decimal("0.0"),
@@ -62,7 +62,7 @@ def test_non_utc_timezone_raises_value_error() -> None:
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=est),  # Non-UTC
-            asset_account_id="acc_abc",
+            account_id="acc_abc",
             type=TransactionType.DEPOSIT,
             instrument_id=None,
             quantity=Decimal("0.0"),
@@ -78,7 +78,7 @@ def test_buy_without_instrument_raises_value_error() -> None:
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-            asset_account_id="acc_abc",
+            account_id="acc_abc",
             type=TransactionType.BUY,
             instrument_id=None,  # Missing for BUY
             quantity=Decimal("10.0"),
@@ -94,7 +94,7 @@ def test_negative_quantity_raises_value_error() -> None:
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-            asset_account_id="acc_abc",
+            account_id="acc_abc",
             type=TransactionType.BUY,
             instrument_id="inst_123",
             quantity=Decimal("-1.0"),  # Negative quantity
@@ -110,7 +110,7 @@ def test_negative_price_raises_value_error() -> None:
         Transaction(
             correlation_id=None,
             executed_at=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc),
-            asset_account_id="acc_abc",
+            account_id="acc_abc",
             type=TransactionType.BUY,
             instrument_id="inst_123",
             quantity=Decimal("1.0"),

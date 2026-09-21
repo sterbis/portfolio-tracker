@@ -7,8 +7,9 @@ from portfolio_tracker.application.account import (
 from portfolio_tracker.application.container import Container
 from portfolio_tracker.application.fx import FxService
 from portfolio_tracker.application.institution import (
+    InstitutionCommandService,
+    InstitutionQueryService,
     InstitutionRegistry,
-    InstitutionService,
 )
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.persistence import (
@@ -78,7 +79,7 @@ def bootstrap(
     market_data_client = YahooFinanceClient()
     market_data_service = MarketDataService(market_data_client)
 
-    filter_mapper = FilterMapper(registry=VIEW_REGISTRY)
+    filter_mapper = FilterMapper(view_registry=VIEW_REGISTRY)
     filter_splitter = FilterSplitter(persisted_model_types=PERSISTED_MODEL_TYPES)
     transaction_adjuster = TransactionAdjuster()
     view_builder = ViewBuilder()
@@ -95,8 +96,15 @@ def bootstrap(
             view_builder=view_builder,
             institution_registry=institution_registry,
         ),
-        institution_service=InstitutionService(
+        institution_command_service=InstitutionCommandService(
             storage_connection_factory=storage_connection_factory,
+            institution_registry=institution_registry,
+        ),
+        institution_query_service=InstitutionQueryService(
+            storage_connection_factory=storage_connection_factory,
+            filter_mapper=filter_mapper,
+            filter_splitter=filter_splitter,
+            view_builder=view_builder,
             institution_registry=institution_registry,
         ),
         portfolio_query_service=PortfolioQueryService(

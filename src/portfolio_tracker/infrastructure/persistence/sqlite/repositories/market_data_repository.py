@@ -46,8 +46,8 @@ class SqliteMarketDataRepository(MarketDataRepository):
             fields=fields,
             filter_=filter_,
             sorts=[
-                Sort("instrument_id", StockSplits, "ASC"),
-                Sort("executed_at", StockSplits, "ASC"),
+                Sort("instrument_id", StockSplits),
+                Sort("executed_at", StockSplits),
             ],
         )
         return self._rows_to_splits(rows)

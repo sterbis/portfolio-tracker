@@ -24,7 +24,7 @@ def multi_value_option(
         items = list(itertools.chain.from_iterable(value))
         if value_parser is None:
             return items
-        
+
         return [value_parser(item) for item in items]
 
     return typer.Option(*param_decls, parser=parser, callback=callback, **option_kwargs)

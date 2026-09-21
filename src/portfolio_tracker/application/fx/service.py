@@ -28,13 +28,13 @@ class FxService:
         }
         self._cached_spot_rates: FxRates | None = None
         self._cached_spot_rates_ttl: int = 300
-        self._spot_rates_fetched_at: datetime | None = None
+        self._last_spot_rates_fetch_at: datetime | None = None
 
     def get_spot_rates(self, uow: UnitOfWork | None = None) -> FxRates:
         now = datetime.now(timezone.utc)
 
-        if self._cached_spot_rates and self._spot_rates_fetched_at:
-            age = (now - self._spot_rates_fetched_at).total_seconds()
+        if self._cached_spot_rates and self._last_spot_rates_fetch_at:
+            age = (now - self._last_spot_rates_fetch_at).total_seconds()
             if age < self._cached_spot_rates_ttl:
                 return self._cached_spot_rates
 
@@ -50,7 +50,7 @@ class FxService:
             rates = self._get_fallback_spot_rates(now.date(), uow)
 
         self._cached_spot_rates = rates
-        self._spot_rates_fetched_at = now
+        self._last_spot_rates_fetch_at = now
         return rates
 
     def get_rates_series(

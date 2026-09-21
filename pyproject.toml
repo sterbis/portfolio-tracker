@@ -32,7 +32,6 @@ portfolio_tracker = ["py.typed"]
 [tool.mypy]
 python_version = "3.14"
 strict = true
-files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
 module = "yfinance"
@@ -55,10 +54,9 @@ disable = [
 [tool.isort]
 profile = "black"
 line_length = 88
-src_paths = ["src", "tests"]
 
 [tool.taskipy.tasks]
-format = "black src tests && isort ."
+format = "isort src tests && black src tests"
 lint = "mypy src tests && pylint src tests"
 audit = "pip-audit"
 test = "pytest tests -v"

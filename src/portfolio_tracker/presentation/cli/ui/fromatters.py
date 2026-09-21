@@ -18,6 +18,9 @@ CURRENCY_ABBREVIATIONS = {
     Currency.CZK: "Kč",
 }
 
+CHECK_ICON = "[green]\N{HEAVY CHECK MARK}[/green]"
+CROSS_ICON = "[red]\N{HEAVY BALLOT X}[/red]"
+
 
 class _UndefinedType:
     pass
@@ -43,6 +46,10 @@ def format_profit_and_loss[TValue: (Number, MoneyView)](
         return formatted_value
 
     return formatter
+
+
+def format_bool(value: bool, _: CliDisplaySettings) -> str:
+    return CHECK_ICON if value else CROSS_ICON
 
 
 def format_date(value: date, settings: CliDisplaySettings) -> str:
@@ -117,9 +124,7 @@ def format_settings_values(
                     f"Invalid '{key}' settings override value: '{override_value}'."
                 )
 
-            lines.extend(
-                format_settings_values(default_value, override_value, key)
-            )
+            lines.extend(format_settings_values(default_value, override_value, key))
 
         else:
             formatted_value = format_settings_value(default_value, override_value)

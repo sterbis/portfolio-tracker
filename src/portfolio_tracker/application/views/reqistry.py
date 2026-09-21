@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Any
 
-from portfolio_tracker.domain.account import AssetAccount, InstitutionAccount
-from portfolio_tracker.domain.institution import Institution
+from portfolio_tracker.domain.account import AssetAccount
+from portfolio_tracker.domain.institution import Institution, InstitutionConnection
 from portfolio_tracker.domain.instrument import (
     Bond,
     Cfd,
@@ -17,8 +17,8 @@ from portfolio_tracker.domain.instrument import (
 from portfolio_tracker.domain.transaction import ConvertedTransaction, Transaction
 from portfolio_tracker.domain.user import User
 
-from .account import AssetAccountView, InstitutionAccountView
-from .institution import InstitutionView
+from .account import AssetAccountView
+from .institution import InstitutionConnectionView, InstitutionView
 from .instrument import (
     BondView,
     CfdView,
@@ -27,22 +27,9 @@ from .instrument import (
     EtfView,
     FutureView,
     InstrumentMetadataView,
-    InstrumentView,
     OptionView,
     StockView,
 )
-
-# from .portfolio import (
-#     CashBalanceValuationView,
-#     CashBalanceView,
-#     PortfolioView,
-#     PortfolioValuationView,
-#     PositionValuationView,
-#     PositionView,
-#     ValuedCashBalanceView,
-#     ValuedPortfolioView,
-#     ValuedPositionView,
-# )
 from .transaction import TransactionView
 from .user import UserView
 
@@ -52,33 +39,12 @@ type FieldMap = dict[str, FieldReference]
 
 @dataclass(frozen=True)
 class FieldReference:
-    model: Model | tuple[Model, ...]
+    model: Model
     name: str
 
 
 def prefix_field_map(field_map: FieldMap, prefix: str) -> FieldMap:
     return {f"{prefix}.{field_name}": field for field_name, field in field_map.items()}
-
-
-def merge_field_maps(*field_maps: FieldMap) -> FieldMap:
-    models_by_field: dict[str, set[Model]] = {}
-
-    for field_map in field_maps:
-        for field_name, field in field_map.items():
-            models: set[Model] | tuple[Model, ...] = (
-                field.model if isinstance(field.model, tuple) else (field.model,)
-            )
-            models_by_field.setdefault(field_name, set()).update(models)
-
-    merged_map: FieldMap = {}
-
-    for field_name, models in models_by_field.items():
-        if len(models) == 1:
-            merged_map[field_name] = FieldReference(models.pop(), field_name)
-        else:
-            merged_map[field_name] = FieldReference(tuple(models), field_name)
-
-    return merged_map
 
 
 USER_FIELD_MAP = {
@@ -91,11 +57,11 @@ INSTITUTION_FIELD_MAP = {
     "name": FieldReference(Institution, "name"),
 }
 
-INSTITUTION_ACCOUNT_FIELD_MAP = {
-    "id": FieldReference(InstitutionAccount, "id"),
-    "name": FieldReference(InstitutionAccount, "name"),
-    "created_on": FieldReference(InstitutionAccount, "created_on"),
-    "last_synced_at": FieldReference(InstitutionAccount, "last_synced_at"),
+INSTITUTION_CONNECTION_FIELD_MAP = {
+    "id": FieldReference(InstitutionConnection, "id"),
+    "name": FieldReference(InstitutionConnection, "name"),
+    "account_opened_on": FieldReference(InstitutionConnection, "account_opened_on"),
+    "last_synced_at": FieldReference(InstitutionConnection, "last_synced_at"),
     **prefix_field_map(INSTITUTION_FIELD_MAP, "institution"),
 }
 
@@ -104,10 +70,10 @@ ASSET_ACCOUNT_FIELD_MAP = {
     "external_id": FieldReference(AssetAccount, "external_id"),
     "name": FieldReference(AssetAccount, "name"),
     "is_active": FieldReference(AssetAccount, "is_active"),
-    **prefix_field_map(INSTITUTION_ACCOUNT_FIELD_MAP, "institution_account"),
+    **prefix_field_map(INSTITUTION_CONNECTION_FIELD_MAP, "institution_connection"),
 }
 
-INSTRUMENT_BASE_FIELD_MAP = {
+INSTRUMENT_FIELD_MAP = {
     "id": FieldReference(Instrument, "id"),
     "type": FieldReference(Instrument, "type"),
     "asset_class": FieldReference(Instrument, "asset_class"),
@@ -120,7 +86,7 @@ INSTRUMENT_BASE_FIELD_MAP = {
 
 INSTRUMENT_METADATA_FIELD_MAP = {
     field_name: FieldReference(InstrumentMetadata, field_name)
-    for field_name in INSTRUMENT_BASE_FIELD_MAP
+    for field_name in INSTRUMENT_FIELD_MAP
 }
 
 BOND_DETAILS_FIELD_MAP = {
@@ -164,20 +130,6 @@ STOCK_DETAILS_FIELD_MAP = {
     "isin": FieldReference(Stock, "isin"),
 }
 
-INSTRUMENT_FIELD_MAP = {
-    **INSTRUMENT_BASE_FIELD_MAP,
-    **merge_field_maps(
-        BOND_DETAILS_FIELD_MAP,
-        CFD_DETAILS_FIELD_MAP,
-        COMMODITY_DETAILS_FIELD_MAP,
-        CFD_DETAILS_FIELD_MAP,
-        ETF_DETAILS_FIELD_MAP,
-        FUTURE_DETAILS_FIELD_MAP,
-        OPTION_DETAILS_FIELD_MAP,
-        STOCK_DETAILS_FIELD_MAP,
-    ),
-}
-
 TRANSACTION_FIELD_MAP = {
     "id": FieldReference(Transaction, "id"),
     "correlation_id": FieldReference(Transaction, "correlation_id"),
@@ -194,24 +146,23 @@ TRANSACTION_FIELD_MAP = {
     "cash_impact.reporting": FieldReference(
         ConvertedTransaction, "cash_impact.reporting"
     ),
-    **prefix_field_map(ASSET_ACCOUNT_FIELD_MAP, "asset_account"),
+    **prefix_field_map(ASSET_ACCOUNT_FIELD_MAP, "account"),
     **prefix_field_map(INSTRUMENT_FIELD_MAP, "instrument"),
 }
 
 VIEW_REGISTRY = {
     UserView: USER_FIELD_MAP,
     InstitutionView: INSTITUTION_FIELD_MAP,
-    InstitutionAccountView: INSTITUTION_ACCOUNT_FIELD_MAP,
+    InstitutionConnectionView: INSTITUTION_CONNECTION_FIELD_MAP,
     AssetAccountView: ASSET_ACCOUNT_FIELD_MAP,
-    InstrumentView: INSTRUMENT_FIELD_MAP,
-    InstrumentMetadataView: INSTRUMENT_METADATA_FIELD_MAP,
-    BondView: INSTRUMENT_BASE_FIELD_MAP | BOND_DETAILS_FIELD_MAP,
-    CfdView: INSTRUMENT_BASE_FIELD_MAP | CFD_DETAILS_FIELD_MAP,
-    CommodityView: INSTRUMENT_BASE_FIELD_MAP | COMMODITY_DETAILS_FIELD_MAP,
-    CryptoView: INSTRUMENT_BASE_FIELD_MAP | CRYPTO_DETAILS_FIELD_MAP,
-    EtfView: INSTRUMENT_BASE_FIELD_MAP | ETF_DETAILS_FIELD_MAP,
-    FutureView: INSTRUMENT_BASE_FIELD_MAP | FUTURE_DETAILS_FIELD_MAP,
-    OptionView: INSTRUMENT_BASE_FIELD_MAP | OPTION_DETAILS_FIELD_MAP,
-    StockView: INSTRUMENT_BASE_FIELD_MAP | STOCK_DETAILS_FIELD_MAP,
+    InstrumentMetadataView: INSTRUMENT_FIELD_MAP,
+    BondView: INSTRUMENT_FIELD_MAP | BOND_DETAILS_FIELD_MAP,
+    CfdView: INSTRUMENT_FIELD_MAP | CFD_DETAILS_FIELD_MAP,
+    CommodityView: INSTRUMENT_FIELD_MAP | COMMODITY_DETAILS_FIELD_MAP,
+    CryptoView: INSTRUMENT_FIELD_MAP | CRYPTO_DETAILS_FIELD_MAP,
+    EtfView: INSTRUMENT_FIELD_MAP | ETF_DETAILS_FIELD_MAP,
+    FutureView: INSTRUMENT_FIELD_MAP | FUTURE_DETAILS_FIELD_MAP,
+    OptionView: INSTRUMENT_FIELD_MAP | OPTION_DETAILS_FIELD_MAP,
+    StockView: INSTRUMENT_FIELD_MAP | STOCK_DETAILS_FIELD_MAP,
     TransactionView: TRANSACTION_FIELD_MAP,
 }

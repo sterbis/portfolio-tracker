@@ -1,11 +1,11 @@
 from collections.abc import Iterable
 
-from portfolio_tracker.domain.account import UserAccountsMap
+from portfolio_tracker.domain.account import AccountMap
 from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import ConvertedTransaction, TransactionType
 
 from .cash_balance import CashBalanceBuilder
-from .models import ConsolidationScope, Portfolio
+from .models import Portfolio, Scope, ScopeType
 from .position import AccountingMethod, PositionBuilder
 
 
@@ -27,24 +27,24 @@ class PortfolioBuilder:
 
         portfolios: list[Portfolio] = []
 
-        for asset_account_id in position_builders.keys() | cash_balance_builders.keys():
+        for account_id in position_builders.keys() | cash_balance_builders.keys():
             positions = []
 
-            for position_builder in position_builders.get(
-                asset_account_id, {}
-            ).values():
+            for position_builder in position_builders.get(account_id, {}).values():
                 if position_builder.quantity == 0:
                     continue
 
                 positions.append(position_builder.get_position_snapshot())
 
-            cash_balance_builder = cash_balance_builders[asset_account_id]
+            cash_balance_builder = cash_balance_builders[account_id]
             cash_balance = cash_balance_builder.get_cash_balance_snapshot()
 
             portfolios.append(
                 Portfolio(
-                    scope=ConsolidationScope.ASSET_ACCOUNT,
-                    account_id=asset_account_id,
+                    scope=Scope(
+                        type=ScopeType.ACCOUNT,
+                        id=account_id,
+                    ),
                     reporting_currency=reporting_currency,
                     positions=positions,
                     cash_balance=cash_balance,
@@ -61,7 +61,7 @@ class PortfolioBuilder:
         cash_balance_builder: dict[str, CashBalanceBuilder] = {}
 
         for transaction in transactions:
-            asset_account_id = transaction.asset_account_id
+            asset_account_id = transaction.account_id
 
             if asset_account_id not in cash_balance_builder:
                 cash_balance_builder[asset_account_id] = CashBalanceBuilder()
@@ -92,38 +92,43 @@ class PortfolioBuilder:
     def consolidate(
         self,
         portfolios: list[Portfolio],
-        scope: ConsolidationScope,
-        accounts_map: UserAccountsMap,
+        scope_type: ScopeType,
+        accounts_map: AccountMap,
     ) -> list[Portfolio]:
-        if scope == ConsolidationScope.ASSET_ACCOUNT:
+        if scope_type == ScopeType.ACCOUNT:
             return portfolios
 
-        if scope == ConsolidationScope.INSTITUTION_ACCOUNT:
+        if scope_type == ScopeType.INSTITUTION:
             consolidated_portfolios: dict[str, Portfolio] = {}
             for portfolio in portfolios:
-                assert portfolio.account_id is not None
-                institution_account_id = accounts_map.asset_to_institution_account_id[
-                    portfolio.account_id
-                ]
+                assert portfolio.scope.id is not None
+                institution_connection_id = (
+                    accounts_map.account_id_to_institution_connection_id[
+                        portfolio.scope.id
+                    ]
+                )
 
-                if institution_account_id not in consolidated_portfolios:
-                    consolidated_portfolios[institution_account_id] = Portfolio(
-                        scope=ConsolidationScope.INSTITUTION_ACCOUNT,
-                        account_id=institution_account_id,
+                if institution_connection_id not in consolidated_portfolios:
+                    consolidated_portfolios[institution_connection_id] = Portfolio(
+                        scope=Scope(
+                            type=ScopeType.INSTITUTION,
+                            id=institution_connection_id,
+                        ),
                         reporting_currency=portfolio.reporting_currency,
                         positions=portfolio.positions,
                         cash_balance=portfolio.cash_balance,
                     )
+
                 else:
-                    consolidated_portfolios[institution_account_id] += portfolio
+                    consolidated_portfolios[institution_connection_id] += portfolio
 
             return list(consolidated_portfolios.values())
 
-        if scope == ConsolidationScope.GLOBAL:
+        if scope_type == ScopeType.GLOBAL:
             consolidated_portfolio = portfolios[0]
             for portfolio in portfolios[1:]:
                 consolidated_portfolio += portfolio
 
             return [consolidated_portfolio]
 
-        raise ValueError(f"Unexpected consolidation scope: {scope}.")
+        raise ValueError(f"Unexpected consolidation scope type: {scope_type}.")

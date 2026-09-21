@@ -1,5 +1,5 @@
-import typing
 import types
+import typing
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass, replace
 from datetime import date, datetime
@@ -78,6 +78,9 @@ def resolve_field_type(cls: type, field_: str) -> Any:
 def resolve_field_value(obj: Any, field: str) -> Any:
     value = obj
     for name in field.split("."):
+        if value is None:
+            return None
+
         value = value[name] if isinstance(value, Mapping) else getattr(value, name)
 
     return value
@@ -105,9 +108,7 @@ def unstructure(value: Any) -> Any:
     if adapter := _ADAPTERS.get(type(value)):
         return adapter(value)
 
-    raise TypeError(
-        f"No adapter registered for object of type {type(value).__name__}."
-    )
+    raise TypeError(f"No adapter registered for object of type {type(value).__name__}.")
 
 
 def structure(value: Any, cls: type[T]) -> T:
@@ -131,9 +132,7 @@ def structure(value: Any, cls: type[T]) -> T:
         ) from error
 
 
-def structure_dataclass(
-    values: dict[str, Any], cls: type[TDataclass]
-) -> TDataclass:
+def structure_dataclass(values: dict[str, Any], cls: type[TDataclass]) -> TDataclass:
     structured_values: dict[str, Any] = {}
     annotations = typing.get_type_hints(cls)
 
@@ -164,7 +163,9 @@ def structure_dataclass(
 
         elif field_type is list and isinstance(value, list):
             item_type = typing.get_args(annotation)[0]
-            structured_values[filed_name] = [structure(item, item_type) for item in value]
+            structured_values[filed_name] = [
+                structure(item, item_type) for item in value
+            ]
 
         else:
             structured_values[filed_name] = structure(value, field_type)
@@ -253,7 +254,9 @@ def prune_replacement_values(
         if isinstance(replacement_value, dict) and (
             isinstance(original_value, dict) or _is_dataclass_instance(original_value)
         ):
-            nested_pruned_values = prune_replacement_values(replacement_value, original_value)
+            nested_pruned_values = prune_replacement_values(
+                replacement_value, original_value
+            )
             if nested_pruned_values:
                 pruned_values[key] = nested_pruned_values
 

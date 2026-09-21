@@ -11,7 +11,7 @@ class TableDisplaySettings:
 class CliDisplaySettings:
     date_format: str = "%d/%m/%Y"
     time_format: str = "%H:%M:%S.%f"
-    none_string: str = "N/A"
+    none_value: str = "N/A"
     quantity_decimal_places: int = 4
     percent_decimal_places: int = 2
     money_decimal_places: int = 2

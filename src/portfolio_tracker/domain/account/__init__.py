@@ -1,7 +1,6 @@
-from .models import AssetAccount, InstitutionAccount, UserAccountsMap
+from .models import AccountMap, AssetAccount
 
 __all__ = [
     "AssetAccount",
-    "InstitutionAccount",
-    "UserAccountsMap",
+    "AccountMap",
 ]

@@ -6,16 +6,17 @@ from rich.table import Table
 from rich.text import Text
 
 from portfolio_tracker.presentation.cli.settings import CliDisplaySettings
-from portfolio_tracker.shared.dataclass_utils import resolve_field_value
-
-from ..fromatters import (
+from portfolio_tracker.presentation.cli.ui.fromatters import (
+    format_bool,
+    format_date,
     format_datetime,
     format_money,
-    format_profit_and_loss_money,
-    format_quantity,
+    format_number,
     format_percent,
+    format_profit_and_loss_money,
     format_profit_and_loss_percent,
 )
+from portfolio_tracker.shared.dataclass_utils import resolve_field_value
 
 TView = TypeVar("TView")
 Justify = Literal["left", "center", "right"]
@@ -29,9 +30,6 @@ class Column:
     justify: Justify = "left"
     formatter: Callable[[Any, CliDisplaySettings], Text | str] | None = None
     total_field: str | None = None
-
-    def extract(self, view: Any) -> Any:
-        return resolve_field_value(view, self.field)
 
     def render_header(self, _: CliDisplaySettings) -> Text | str:
         if self.header is None:
@@ -47,7 +45,7 @@ class Column:
 
     def render_cell(self, view: Any, settings: CliDisplaySettings) -> Text | str:
         value = resolve_field_value(view, self.field)
-        return self._format_value(value, settings, none_string=settings.none_string)
+        return self._format_value(value, settings, none_value=settings.none_value)
 
     def render_footer(
         self, total_view: Any, settings: CliDisplaySettings
@@ -59,10 +57,10 @@ class Column:
         return self._format_value(value, settings)
 
     def _format_value(
-        self, value: Any | None, settings: CliDisplaySettings, none_string: str = ""
+        self, value: Any | None, settings: CliDisplaySettings, none_value: str = ""
     ) -> Text | str:
         if value is None:
-            return none_string
+            return none_value
 
         if self.formatter:
             return self.formatter(value, settings)
@@ -84,6 +82,36 @@ def text_column(
     )
 
 
+def bool_column(
+    field: str,
+    header: str | None = None,
+    style: str | None = None,
+    justify: Justify = "center",
+) -> Column:
+    return Column(
+        field=field,
+        header=header,
+        style=style,
+        justify=justify,
+        formatter=format_bool,
+    )
+
+
+def date_column(
+    field: str,
+    header: str | None = None,
+    style: str | None = None,
+    justify: Justify = "left",
+) -> Column:
+    return Column(
+        field=field,
+        header=header,
+        style=style,
+        justify=justify,
+        formatter=format_date,
+    )
+
+
 def datetime_column(
     field: str,
     header: str | None = None,
@@ -99,18 +127,28 @@ def datetime_column(
     )
 
 
-def quantity_column(
+def number_column(
     field: str,
     header: str | None = None,
     style: str | None = None,
     justify: Justify = "right",
+    decimal_places: int = 2,
+    thousand_separator: bool = False,
+    formatter: Callable[[Any, CliDisplaySettings], Text | str] | None = None,
 ) -> Column:
+    if formatter is None:
+
+        def format_(value: Any, _: CliDisplaySettings) -> str:
+            return format_number(value, decimal_places, thousand_separator)
+
+        formatter = format_
+
     return Column(
         field=field,
         header=header,
         style=style,
         justify=justify,
-        formatter=format_quantity,
+        formatter=formatter,
     )
 
 
@@ -159,7 +197,9 @@ class ViewTable(Generic[TView]):
             if isinstance(value, Column):
                 cls._columns[name] = value
 
-    def _sort_key(self, view: TView, column_name: str, reverse: bool) -> tuple[bool, Any]:
+    def _sort_key(
+        self, view: TView, column_name: str, reverse: bool
+    ) -> tuple[bool, Any]:
         value = resolve_field_value(view, self._columns[column_name].field)
         return value is not None if reverse else value is None, value
 
@@ -185,7 +225,7 @@ class ViewTable(Generic[TView]):
         title: str | None = None,
         active_columns: list[str] | None = None,
         sort_columns: list[str] | None = None,
-        total_view: Any | None = None
+        total_view: Any | None = None,
     ) -> Table:
         title = title or self.title
         active_columns = active_columns or list(self._columns)
@@ -208,9 +248,7 @@ class ViewTable(Generic[TView]):
             )
 
         for view in views:
-            table.add_row(
-                *[column.render_cell(view, settings) for column in columns]
-            )
+            table.add_row(*[column.render_cell(view, settings) for column in columns])
 
         return table
 

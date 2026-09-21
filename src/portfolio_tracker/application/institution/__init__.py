@@ -5,19 +5,24 @@ from .client import (
     RateLimit,
     ReportChunk,
 )
+from .command_service import InstitutionCommandService
+from .commands import ConnectInstitutionCommand, UpdateInstitutionConnectionCommand
+from .query_service import InstitutionQueryService
 from .registry import InstitutionRegistry
 from .report_parser import InstitutionReportParser, ReportInstrument, ReportTransaction
-from .service import InstitutionService
 
 __all__ = [
     "ApiEndpoint",
+    "ConnectInstitutionCommand",
     "HttpMethod",
     "InstitutionClient",
-    "InstitutionService",
+    "InstitutionCommandService",
+    "InstitutionQueryService",
     "InstitutionRegistry",
     "InstitutionReportParser",
     "RateLimit",
     "ReportChunk",
     "ReportInstrument",
     "ReportTransaction",
+    "UpdateInstitutionConnectionCommand",
 ]

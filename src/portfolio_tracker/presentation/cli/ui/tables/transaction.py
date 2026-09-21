@@ -1,11 +1,12 @@
 from portfolio_tracker.application.views import TransactionView
+from portfolio_tracker.presentation.cli.ui.fromatters import format_quantity
 
 from .view_table import (
     ViewTable,
     datetime_column,
-    text_column,
     money_column,
-    quantity_column,
+    number_column,
+    text_column,
 )
 
 
@@ -17,7 +18,7 @@ class TransactionViewTable(ViewTable[TransactionView]):
     account_name = text_column("asset_account.name", "Account")
     type = text_column("type", "Type")
     instrument_symbol = text_column("instrument.symbol", "Symbol")
-    quantity = quantity_column("quantity", "Quantity")
+    quantity = number_column("quantity", "Quantity", formatter=format_quantity)
     price = money_column("price.native", "Price")
     fee = money_column("fee.native", "Fee")
     tax = money_column("tax.native", "Tax")

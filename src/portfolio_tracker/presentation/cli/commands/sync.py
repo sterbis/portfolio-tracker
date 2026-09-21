@@ -4,8 +4,8 @@ from typing import Annotated
 import typer
 
 from portfolio_tracker.application.sync import (
+    SyncAccountsCommand,
     SyncFxRatesCommand,
-    SyncInstitutionAccountsCommand,
     SyncInstrumentsCommand,
 )
 from portfolio_tracker.presentation.cli.console import error_console
@@ -38,21 +38,16 @@ def sync_callback(ctx: typer.Context) -> None:
 @sync_app.command(name="account")
 def sync_accounts(
     ctx: typer.Context,
-    institution_account_id: Annotated[list[str] | None, multi_value_option()] = None,
-    asset_account_id: Annotated[
-        list[str] | None, multi_value_option("--asset-account-id")
+    institution_connection_ids: Annotated[
+        list[str] | None, multi_value_option("--institution-connection-id")
     ] = None,
+    account_ids: Annotated[list[str] | None, multi_value_option("--account-id")] = None,
     start: Annotated[str | None, typer.Option()] = None,
     end: Annotated[str | None, typer.Option()] = None,
     restore: Annotated[bool, typer.Option()] = False,
 ) -> None:
     container = get_container(ctx)
     user_id = get_logged_in_user_id(ctx)
-
-    institution_account_ids = (
-        set(institution_account_id) if institution_account_id else set()
-    )
-    asset_account_ids = set(asset_account_id) if asset_account_id else set()
 
     resolved_start = resolve_optional_input(
         parameter="--start",
@@ -71,32 +66,32 @@ def sync_accounts(
         )
         raise typer.Exit(code=1)
 
-    command = SyncInstitutionAccountsCommand(
-        institution_account_ids=set(institution_account_ids),
-        asset_account_ids=set(asset_account_ids),
+    command = SyncAccountsCommand(
+        institution_connection_ids=(
+            set(institution_connection_ids) if institution_connection_ids else set()
+        ),
+        account_ids=set(account_ids) if account_ids else set(),
         start=resolved_start,
         end=resolved_end,
         restore=restore,
     )
     asyncio.run(
-        render_sync_progress(
-            container.sync_service.sync_institution_accounts, user_id, command
-        )
+        render_sync_progress(container.sync_service.sync_accounts, user_id, command)
     )
 
 
 @sync_app.command(name="fx")
 def sync_fx_rates(
     ctx: typer.Context,
-    date_: Annotated[list[str] | None, multi_value_option()] = None,
+    dates: Annotated[list[str] | None, multi_value_option("--date")] = None,
     all_: Annotated[bool, typer.Option()] = False,
 ) -> None:
     container = get_container(ctx)
-    dates = resolve_optional_multi_value_input(
-        "--date", date_, value_parser=date_parser
+    resolved_dates = resolve_optional_multi_value_input(
+        "--date", dates, value_parser=date_parser
     )
     command = SyncFxRatesCommand(
-        dates=set(dates) if dates else set(),
+        dates=set(resolved_dates) if resolved_dates else set(),
         all=all_,
     )
     asyncio.run(
@@ -109,16 +104,16 @@ def sync_fx_rates(
 @sync_app.command(name="instrument")
 def sync_instruments(
     ctx: typer.Context,
-    symbol: Annotated[list[str] | None, multi_value_option()] = None,
+    symbols: Annotated[list[str] | None, multi_value_option("--symbol")] = None,
     new_only: Annotated[bool, typer.Option()] = False,
     all_: Annotated[bool, typer.Option()] = False,
 ) -> None:
     container = get_container(ctx)
-    symbols = resolve_optional_multi_value_input(
-        "--symbol", symbol, value_parser=lambda value: value.upper()
+    resolved_symbols = resolve_optional_multi_value_input(
+        "--symbol", symbols, value_parser=lambda value: value.upper()
     )
     command = SyncInstrumentsCommand(
-        symbols=set(symbols) if symbols else set(),
+        symbols=set(resolved_symbols) if resolved_symbols else set(),
         new_only=new_only,
         all=all_,
     )
