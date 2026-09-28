@@ -30,46 +30,37 @@ class TransactionDetails:
 
 class Trading212ReportParser(InstitutionReportParser):
     _transaction_type_by_action = {
-        "Currency conversion": TransactionType.CURRENCY_EXCHANGE,
-        "Deposit": TransactionType.DEPOSIT,
-        "Dividend (Dividend)": TransactionType.DIVIDEND,
-        "Interest on cash": TransactionType.INTEREST,
-        "Market buy": TransactionType.BUY,
-        "Market sell": TransactionType.SELL,
-        "Withdrawal": TransactionType.WITHDRAWAL,
+        "currency conversion": TransactionType.CURRENCY_EXCHANGE,
+        "deposit": TransactionType.DEPOSIT,
+        "dividend (dividend)": TransactionType.DIVIDEND,
+        "interest on cash": TransactionType.INTEREST,
+        "withdrawal": TransactionType.WITHDRAWAL,
     }
 
     def __init__(self, institution_connection_id: str) -> None:
         super().__init__(institution_connection_id)
-        self._action_parsers: dict[
-            str, Callable[[dict[str, Any]], list[TransactionDetails]]
+        self._row_parsers: dict[
+            TransactionType, Callable[[dict[str, Any]], list[TransactionDetails]]
         ] = {
-            "Currency conversion": self._parse_currency_conversion_action,
-            "Deposit": self._parse_cash_movement_action,
-            "Dividend (Dividend)": self._parse_dividend_action,
-            "Interest on cash": self._parse_cash_movement_action,
-            "Market buy": self._parse_trade_action,
-            "Market sell": self._parse_trade_action,
-            "Withdrawal": self._parse_cash_movement_action,
+            TransactionType.CURRENCY_EXCHANGE: self._parse_currency_conversion_row,
+            TransactionType.DEPOSIT: self._parse_cash_movement_row,
+            TransactionType.DIVIDEND: self._parse_dividend_row,
+            TransactionType.INTEREST: self._parse_cash_movement_row,
+            TransactionType.WITHDRAWAL: self._parse_cash_movement_row,
         }
 
     def parse(self, report: Iterator[str]) -> Iterator[ReportTransaction]:
         reader = csv.DictReader(report)
 
         for row in reader:
-            action = row["Action"]
-            parser = self._action_parsers.get(action)
-            if parser is None:
-                raise InstitutionReportParserError(
-                    message=f"Unsupported report action: {action}."
-                )
+            parser = self._get_row_parser(row)
 
             for details in parser(row):
                 yield ReportTransaction(
-                    correlation_id=details.correlation_id,
                     account_external_id=self._institution_connection_id,
-                    external_transaction_id=row["ID"],
+                    external_id=self._parse_external_id(row),
                     executed_at=self._parse_datetime(row),
+                    correlation_id=details.correlation_id,
                     type=details.type,
                     instrument=details.instrument,
                     quantity=details.quantity,
@@ -78,6 +69,21 @@ class Trading212ReportParser(InstitutionReportParser):
                     tax=details.tax,
                     cash_impact=details.cash_impact,
                 )
+
+    def _get_row_parser(
+        self, row: dict[str, Any]
+    ) -> Callable[[dict[str, Any]], list[TransactionDetails]]:
+        transaction_type = self._parse_transaction_type(row)
+        if transaction_type in (TransactionType.BUY, TransactionType.SELL):
+            return self._parse_trade_row
+
+        parser = self._row_parsers.get(transaction_type)
+        if parser is None:
+            raise InstitutionReportParserError(
+                message=f"Unsupported transaction type: '{transaction_type.value}'."
+            )
+
+        return parser
 
     def _add_currency_conversion_details(
         self,
@@ -90,7 +96,7 @@ class Trading212ReportParser(InstitutionReportParser):
         to_currency: Currency,
         expected_to_amount: Decimal | None = None,
     ) -> None:
-        correlation_id = self._generate_correlation_id()
+        correlation_id = self._generate_event_id(record_id=self._parse_external_id(row))
         for details in details_list:
             details.correlation_id = correlation_id
 
@@ -106,7 +112,7 @@ class Trading212ReportParser(InstitutionReportParser):
             )
         )
 
-    def _parse_trade_action(self, row: dict[str, Any]) -> list[TransactionDetails]:
+    def _parse_trade_row(self, row: dict[str, Any]) -> list[TransactionDetails]:
         details_list: list[TransactionDetails] = []
 
         transaction_type = self._parse_transaction_type(row)
@@ -154,7 +160,7 @@ class Trading212ReportParser(InstitutionReportParser):
 
         return details_list
 
-    def _parse_currency_conversion_action(
+    def _parse_currency_conversion_row(
         self, row: dict[str, Any]
     ) -> list[TransactionDetails]:
         from_amount = self._parse_currency_conversion_from_amount(row)
@@ -171,7 +177,7 @@ class Trading212ReportParser(InstitutionReportParser):
             )
         )
 
-    def _parse_dividend_action(self, row: dict[str, Any]) -> list[TransactionDetails]:
+    def _parse_dividend_row(self, row: dict[str, Any]) -> list[TransactionDetails]:
         details_list: list[TransactionDetails] = []
 
         quantity = self._parse_quantity(row)
@@ -209,9 +215,7 @@ class Trading212ReportParser(InstitutionReportParser):
 
         return details_list
 
-    def _parse_cash_movement_action(
-        self, row: dict[str, Any]
-    ) -> list[TransactionDetails]:
+    def _parse_cash_movement_row(self, row: dict[str, Any]) -> list[TransactionDetails]:
         transaction_type = self._parse_transaction_type(row)
         direction = self._get_cash_impact_direction(transaction_type)
         total = self._parse_total(row)
@@ -296,15 +300,28 @@ class Trading212ReportParser(InstitutionReportParser):
         )
 
     def _parse_transaction_type(self, row: dict[str, Any]) -> TransactionType:
-        try:
-            return self._transaction_type_by_action[row["Action"]]
-        except KeyError as error:
+        action: str = row["Action"].strip().lower()
+
+        if action.endswith("buy"):
+            return TransactionType.BUY
+
+        if action.endswith("sell"):
+            return TransactionType.SELL
+
+        transaction_type = self._transaction_type_by_action.get(action)
+
+        if transaction_type is None:
             raise InstitutionReportParserError(
-                message=f"Unsupported report action: {row['Action']}."
-            ) from error
+                message=f"Unsupported report action: '{action}'."
+            )
+
+        return transaction_type
+
+    def _parse_external_id(self, row: dict[str, Any]) -> str:
+        return str(row["ID"])
 
     def _parse_datetime(self, row: dict[str, Any]) -> datetime:
-        return datetime.fromisoformat(row["Time"]).replace(tzinfo=timezone.utc)
+        return datetime.fromisoformat(row["Time (UTC)"]).replace(tzinfo=timezone.utc)
 
     def _parse_quantity(self, row: dict[str, Any]) -> Decimal:
         return self._to_abs_decimal(row["No. of shares"])

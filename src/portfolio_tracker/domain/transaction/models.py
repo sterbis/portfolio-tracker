@@ -1,11 +1,10 @@
-import hashlib
-import secrets
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
 
 from portfolio_tracker.domain.shared import DualMoney, Money
+from portfolio_tracker.shared.id_utils import generate_deterministic_hex_id
 
 
 class TransactionType(StrEnum):
@@ -25,10 +24,9 @@ class TransactionType(StrEnum):
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class Transaction:
-    id: str = field(default_factory=lambda: f"txn_{secrets.token_urlsafe(8)}")
+    id: str = field(init=False)
+    provided_id: InitVar[str | None] = None
     correlation_id: str | None = None
-    checksum: str = field(init=False)
-    provided_checksum: InitVar[str | None] = None
     account_id: str
     executed_at: datetime
     type: TransactionType
@@ -39,7 +37,7 @@ class Transaction:
     tax: Money
     cash_impact: Money
 
-    def __post_init__(self, provided_checksum: str | None) -> None:
+    def __post_init__(self, provided_id: str | None) -> None:
         if (
             self.executed_at.tzinfo is None
             or self.executed_at.utcoffset() != timezone.utc.utcoffset(None)
@@ -59,7 +57,7 @@ class Transaction:
         if self.price.amount < 0:
             raise ValueError("Transaction price cannot be negative.")
 
-        checksum_string = (
+        data = (
             f"{self.account_id}|"
             f"{self.executed_at.isoformat()}|"
             f"{self.type.value}|"
@@ -68,22 +66,21 @@ class Transaction:
             f"{self.price}|"
             f"{self.fee}|"
             f"{self.tax}|"
+            f"{self.cash_impact}|"
         )
-        checksum = hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()[:16]
-
-        if provided_checksum and provided_checksum != checksum:
+        id_ = generate_deterministic_hex_id(prefix="txn", data=data)
+        if provided_id and provided_id != id_:
             raise ValueError(
-                f"Provided transaction checksum '{provided_checksum}' does not match computed checksum '{checksum}'."
+                f"Provided transaction id '{provided_id}' does not match generated id '{id_}'."
             )
 
-        object.__setattr__(self, "checksum", checksum)
+        object.__setattr__(self, "id", id_)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class ConvertedTransaction:
     id: str
     correlation_id: str | None
-    checksum: str
     account_id: str
     executed_at: datetime
     type: TransactionType

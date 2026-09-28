@@ -14,14 +14,15 @@ from portfolio_tracker.presentation.cli.context import (
     get_loggin_session_store,
     get_settings,
 )
+from portfolio_tracker.presentation.cli.guarded_typer import GuardedTyper
 from portfolio_tracker.presentation.cli.input import (
     resolve_input,
 )
 
-user_app = typer.Typer()
+user_app = GuardedTyper()
 
 
-@user_app.command(name="register")
+@user_app.command(name="register", login_required=False)
 def register(
     ctx: typer.Context,
     username: Annotated[str | None, typer.Option()] = None,
@@ -31,22 +32,25 @@ def register(
     container = get_container(ctx)
 
     resolved_username = resolve_input("--username", username, environment)
-    resolved_password = resolve_input("--password", password, environment, secret=True)
+    resolved_password = resolve_input(
+        "--password", password, environment, hide_input=True, confirmation_prompt=True
+    )
 
-    container.user_service.register(
+    user_id = container.user_service.register(
         command=RegisterUserCommand(
             username=resolved_username, password=resolved_password
         )
     )
-    console.print(f"User '{username}' successfully registered.")
+    console.print(f"User '{resolved_username}' ({user_id}) successfully registered.")
     ctx.invoke(
         login,
+        ctx=ctx,
         username=resolved_username,
         password=resolved_password,
     )
 
 
-@user_app.command(name="login")
+@user_app.command(name="login", login_required=False)
 def login(
     ctx: typer.Context,
     username: Annotated[str | None, typer.Option()] = None,
@@ -59,7 +63,9 @@ def login(
     session_store.clear()
 
     resolved_username = resolve_input("--username", username, environment)
-    resolved_password = resolve_input("--password", password, environment, secret=True)
+    resolved_password = resolve_input(
+        "--password", password, environment, hide_input=True
+    )
 
     user_id = container.user_service.authenticate(
         command=AuthenticateUserCommand(
@@ -70,10 +76,10 @@ def login(
     settings = get_settings(ctx, user_id)
     session_store.save(user_id, settings.application.cli_login_session_ttl)
 
-    console.print(f"User '{resolved_username}' successfully logged in.")
+    console.print(f"User '{resolved_username}' ({user_id}) successfully logged in.")
 
 
-@user_app.command(name="logout")
+@user_app.command(name="logout", login_required=False)
 def logout(ctx: typer.Context) -> None:
     environment = get_environment(ctx)
     session_store = get_loggin_session_store(ctx)

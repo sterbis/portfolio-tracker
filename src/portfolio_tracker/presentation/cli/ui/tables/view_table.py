@@ -29,7 +29,14 @@ class Column:
     style: str | None = None
     justify: Justify = "left"
     formatter: Callable[[Any, CliDisplaySettings], Text | str] | None = None
+    formatter_handles_none: bool = False
     total_field: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.formatter_handles_none and self.formatter is None:
+            raise ValueError(
+                "formatter_handles_none=True requires a formatter to be provided."
+            )
 
     def render_header(self, _: CliDisplaySettings) -> Text | str:
         if self.header is None:
@@ -59,7 +66,7 @@ class Column:
     def _format_value(
         self, value: Any | None, settings: CliDisplaySettings, none_value: str = ""
     ) -> Text | str:
-        if value is None:
+        if value is None and not self.formatter_handles_none:
             return none_value
 
         if self.formatter:
@@ -94,6 +101,7 @@ def bool_column(
         style=style,
         justify=justify,
         formatter=format_bool,
+        formatter_handles_none=True,
     )
 
 

@@ -34,8 +34,8 @@ overview_app = GuardedTyper()
 @overview_app.command(name="cash-balance")
 def list_cash_balance(
     ctx: typer.Context,
-    institution_connection_ids: Annotated[
-        list[str] | None, multi_value_option("--institution-connection-id")
+    connection_ids: Annotated[
+        list[str] | None, multi_value_option("--connection-id")
     ] = None,
     account_ids: Annotated[list[str] | None, multi_value_option("--account-id")] = None,
     scope: Annotated[ScopeType | None, typer.Option(case_sensitive=False)] = None,
@@ -61,9 +61,7 @@ def list_cash_balance(
     ]
 
     query = GetPortfoliosQuery(
-        institution_connection_ids=(
-            set(institution_connection_ids) if institution_connection_ids else set()
-        ),
+        connection_ids=(set(connection_ids) if connection_ids else set()),
         account_ids=set(account_ids) if account_ids else set(),
         scope=scope,
         reporting_currency=reporting_currency,
@@ -82,14 +80,16 @@ def list_cash_balance(
 @overview_app.command(name="positions")
 def list_positions(
     ctx: typer.Context,
-    institution_connection_id: Annotated[list[str] | None, multi_value_option()] = None,
-    asset_account_id: Annotated[list[str] | None, multi_value_option()] = None,
+    connection_ids: Annotated[
+        list[str] | None, multi_value_option("--connection-id")
+    ] = None,
+    account_ids: Annotated[list[str] | None, multi_value_option("--account-id")] = None,
     scope: Annotated[ScopeType | None, typer.Option(case_sensitive=False)] = None,
     currency: Annotated[Currency | None, typer.Option(case_sensitive=False)] = None,
-    type_: Annotated[str | None, typer.Option()] = None,
-    asset_class: Annotated[str | None, typer.Option()] = None,
-    symbol: Annotated[str | None, typer.Option()] = None,
-    name: Annotated[str | None, typer.Option()] = None,
+    instrument_type: Annotated[str | None, typer.Option()] = None,
+    instrument_asset_class: Annotated[str | None, typer.Option()] = None,
+    instrument_symbol: Annotated[str | None, typer.Option()] = None,
+    instrument_name: Annotated[str | None, typer.Option()] = None,
     quantity: Annotated[str | None, typer.Option()] = None,
     cost_basis: Annotated[str | None, typer.Option()] = None,
     market_value: Annotated[str | None, typer.Option()] = None,
@@ -103,11 +103,6 @@ def list_positions(
     user_id = get_logged_in_user_id(ctx)
     settings = get_settings(ctx)
 
-    institution_connection_ids = (
-        set(institution_connection_id) if institution_connection_id else set()
-    )
-    asset_account_ids = set(asset_account_id) if asset_account_id else set()
-
     scope = scope or settings.application.consolidation_scope
     reporting_currency = currency or settings.application.reporting_currency
     reporting_currency_money_parser = money_parser(reporting_currency)
@@ -115,23 +110,23 @@ def list_positions(
     filter_inputs = [
         position_filter_input(
             "--type",
-            type_,
+            instrument_type,
             "position.instrument.type",
             enum_parser(InstrumentType),
         ),
         position_filter_input(
             "--asset-class",
-            asset_class,
+            instrument_asset_class,
             "position.instrument.asset_class",
             enum_parser(AssetClass),
         ),
         position_filter_input(
             "--symbol",
-            symbol,
+            instrument_symbol,
             "position.instrument.symbol",
             lambda value: value.upper(),
         ),
-        position_filter_input("--name", name, "position.instrument.name"),
+        position_filter_input("--name", instrument_name, "position.instrument.name"),
         position_filter_input("--quantity", quantity, "position.quantity", Decimal),
         position_filter_input(
             "--cost-basis",
@@ -175,8 +170,8 @@ def list_positions(
     ]
 
     query = GetPortfoliosQuery(
-        institution_connection_ids=institution_connection_ids,
-        account_ids=asset_account_ids,
+        connection_ids=set(connection_ids) if connection_ids else set(),
+        account_ids=set(account_ids) if account_ids else set(),
         scope=scope,
         reporting_currency=reporting_currency,
         filter=filter_,

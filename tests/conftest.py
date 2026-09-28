@@ -71,7 +71,7 @@ def sample_institution_connection() -> InstitutionConnection:
         user_id="usr_001",
         institution_id=MockInstitutionCode.TRADING_321,
         name="Trading 321 Account",
-        account_opened_on=date(2026, 1, 1),
+        sync_from=date(2026, 1, 1),
         last_synced_at=datetime(2026, 6, 1, 12, 0, 0),
     )
 

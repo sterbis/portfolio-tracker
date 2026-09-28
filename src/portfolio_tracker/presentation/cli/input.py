@@ -37,8 +37,20 @@ TParsedValue = TypeVar("TParsedValue")
 TModel = TypeVar("TModel", bound=type)
 
 
+def _mask_value(
+    value: Any, visible_chars: int = 3, min_masked_chars: int = 4, mask_char: str = "•"
+) -> str:
+    value_string = str(value)
+    if len(value_string) <= visible_chars + min_masked_chars:
+        return mask_char * len(value_string)
+
+    return (mask_char * (len(value_string) - visible_chars)) + value_string[
+        -visible_chars:
+    ]
+
+
 def _prompt(parameter: str) -> str:
-    return parameter.replace("_", " ").replace("-", " ").capitalize()
+    return parameter.replace("_", " ").replace("-", " ").strip().capitalize()
 
 
 def _enum_prompt(parameter: str, enum_cls: type[StrEnum]) -> str:
@@ -373,7 +385,8 @@ def prompt_value(
     default_value: TParsedValue | str | None = None,
     value_parser: Callable[[str], TParsedValue] | None = None,
     optional: Literal[True],
-    secret: bool = False,
+    hide_input: bool = False,
+    confirmation_prompt: bool = False,
 ) -> TParsedValue | str | None: ...
 
 
@@ -385,7 +398,8 @@ def prompt_value(
     default_value: TParsedValue | str | None = None,
     value_parser: Callable[[str], TParsedValue] | None = None,
     optional: Literal[False] = False,
-    secret: bool = False,
+    hide_input: bool = False,
+    confirmation_prompt: bool = False,
 ) -> TParsedValue | str: ...
 
 
@@ -396,7 +410,8 @@ def prompt_value(
     default_value: TParsedValue | str | None = None,
     value_parser: Callable[[str], TParsedValue] | None = None,
     optional: bool = False,
-    secret: bool = False,
+    hide_input: bool = False,
+    confirmation_prompt: bool = False,
 ) -> TParsedValue | str | None:
     def parser(value: TParsedValue | str) -> TParsedValue | str | None:
         if default_value and value == default_value:
@@ -415,20 +430,27 @@ def prompt_value(
 
         return parse_input_value(parameter, value, value_parser)
 
-    prompt = prompt or parameter.replace("_", " ").replace("-", " ").capitalize()
+    prompt = prompt or _prompt(parameter)
 
-    if optional and default_value is None:
-        prompt = f"{prompt} (optional, press Enter to skip)"
-        default_value = ""
+    if default_value is None:
+        show_default = False
+        if optional:
+            prompt += " (optional, press Enter to skip)"
+            default_value = ""
 
-    show_default = default_value not in (None, "")
+    elif hide_input:
+        prompt += f" [{_mask_value(default_value)}]"
+        show_default = False
+
+    else:
+        show_default = True
 
     parsed_value: TParsedValue | str | None = typer.prompt(
         prompt,
         default=default_value,
         show_default=show_default,
-        hide_input=secret,
-        confirmation_prompt=secret,
+        hide_input=hide_input,
+        confirmation_prompt=confirmation_prompt,
         value_proc=parser,
     )
     return parsed_value
@@ -443,7 +465,8 @@ def resolve_input(
     prompt: str | None = None,
     default_value: None = None,
     value_parser: None = None,
-    secret: bool = False,
+    hide_input: bool = False,
+    confirmation_prompt: bool = False,
 ) -> str: ...
 
 
@@ -456,7 +479,8 @@ def resolve_input(
     prompt: str | None = None,
     default_value: TParsedValue,
     value_parser: None = None,
-    secret: bool = False,
+    hide_input: bool = False,
+    confirmation_prompt: bool = False,
 ) -> TParsedValue | str: ...
 
 
@@ -469,7 +493,8 @@ def resolve_input(
     prompt: str | None = None,
     default_value: None = None,
     value_parser: Callable[[str], TParsedValue],
-    secret: bool = False,
+    hide_input: bool = False,
+    confirmation_prompt: bool = False,
 ) -> TParsedValue: ...
 
 
@@ -482,7 +507,8 @@ def resolve_input(
     prompt: str | None = None,
     default_value: TParsedValue,
     value_parser: Callable[[str], TParsedValue],
-    secret: bool = False,
+    hide_input: bool = False,
+    confirmation_prompt: bool = False,
 ) -> TParsedValue: ...
 
 
@@ -494,7 +520,8 @@ def resolve_input(
     prompt: str | None = None,
     default_value: TParsedValue | None = None,
     value_parser: Callable[[str], TParsedValue] | None = None,
-    secret: bool = False,
+    hide_input: bool = False,
+    confirmation_prompt: bool = False,
 ) -> TParsedValue | str:
     if value is None:
         if environment.is_interactive:
@@ -503,7 +530,8 @@ def resolve_input(
                 prompt=prompt,
                 default_value=default_value,
                 value_parser=value_parser,
-                secret=secret,
+                hide_input=hide_input,
+                confirmation_prompt=confirmation_prompt,
             )
 
         if default_value is not None:
@@ -751,7 +779,7 @@ def resolve_filter_expression_input(
 
 
 def resolve_credential_parameters(
-    institution_id: InstitutionCode,
+    institution_code: InstitutionCode,
     credential_list: list[str] | None,
     service: InstitutionQueryService,
     environment: CliEnvironment,
@@ -761,7 +789,7 @@ def resolve_credential_parameters(
 
     try:
         return service.parse_credential_parameters(
-            institution_id=institution_id, parameters=parameters
+            institution_id=institution_code, parameters=parameters
         )
 
     except InvalidCredentialParametersError as error:
@@ -780,7 +808,7 @@ def resolve_credential_parameters(
 
             raise typer.BadParameter(error.message) from error
 
-    credentials_cls = service.get_credentials_cls(institution_id)
+    credentials_cls = service.get_credentials_cls(institution_code)
     secret_parameters = credentials_cls.secret_parameter_names()
 
     for missing_parameter in missing_parameters:
@@ -793,14 +821,14 @@ def resolve_credential_parameters(
                 else str(default_value)
             )
 
-        secret = missing_parameter in secret_parameters
+        hide_input = missing_parameter in secret_parameters
         parameters[missing_parameter] = prompt_value(
-            missing_parameter, default_value=default_value, secret=secret
+            missing_parameter, default_value=default_value, hide_input=hide_input
         )
 
     try:
         return service.parse_credential_parameters(
-            institution_id=institution_id, parameters=parameters
+            institution_id=institution_code, parameters=parameters
         )
 
     except InvalidCredentialParametersError as error:

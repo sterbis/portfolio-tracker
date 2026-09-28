@@ -19,7 +19,6 @@ class TransactionConverter:
         return ConvertedTransaction(
             id=transaction.id,
             correlation_id=transaction.correlation_id,
-            checksum=transaction.checksum,
             account_id=transaction.account_id,
             executed_at=transaction.executed_at,
             type=transaction.type,

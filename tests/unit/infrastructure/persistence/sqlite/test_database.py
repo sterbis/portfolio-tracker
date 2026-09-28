@@ -54,7 +54,7 @@ def test_database_initialization(
         "user",
         "institution_connection",
         "credentials",
-        "asset_account",
+        "account",
         "ledger",
         "instrument",
         "bond",

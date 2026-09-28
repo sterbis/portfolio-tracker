@@ -116,10 +116,45 @@ class SqliteFxRatesRepository(FxRatesRepository):
 
     def get_distinct_dates(self) -> set[date]:
         effective_on_field = FieldReference(FxRates, "effective_on")
-
         rows = self._executor.select(
             model=FxRates,
             fields=[effective_on_field],
             distinct=True,
         )
-        return {row[effective_on_field].date() for row in rows}
+        return {row[effective_on_field] for row in rows}
+
+    def get_missing_dates(
+        self,
+        required_dates: set[date],
+        base_currency: Currency,
+        quote_currencies: set[Currency],
+    ) -> set[date]:
+        required_dates_parameters = {
+            f"required_date_{index}": required_date
+            for index, required_date in enumerate(required_dates, start=1)
+        }
+        quote_currency_parameters = {
+            f"quote_currency_{index}": quote_currency
+            for index, quote_currency in enumerate(quote_currencies, start=1)
+        }
+
+        cursor = self._executor.execute(
+            sql=f"""
+                SELECT effective_on 
+                FROM fx_rate
+                WHERE 
+                effective_on IN ({', '.join(f':{parameter}' for parameter in required_dates_parameters)})
+                AND base_currency = :base_currency
+                AND quote_currency IN ({', '.join(f':{parameter}' for parameter in quote_currency_parameters)})
+                GROUP BY effective_on 
+                HAVING COUNT(DISTINCT quote_currency) = :quote_currency_count;
+            """,
+            parameters={
+                **required_dates_parameters,
+                "base_currency": base_currency,
+                **quote_currency_parameters,
+                "quote_currency_count": len(quote_currencies),
+            },
+        )
+        found_dates = {row["effective_on"] for row in cursor.fetchall()}
+        return required_dates - found_dates

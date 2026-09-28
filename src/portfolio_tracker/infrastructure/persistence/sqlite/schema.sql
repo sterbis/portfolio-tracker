@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS  institution_connection (
     institution_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
-    account_opened_on DATE NOT NULL,
-    last_synced_at DATETIME NOT NULL,
+    sync_from DATE NOT NULL,
+    last_synced_at DATETIME,
 
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
 );
@@ -34,7 +34,6 @@ CREATE TABLE IF NOT EXISTS account (
 CREATE TABLE IF NOT EXISTS ledger (
     id TEXT PRIMARY KEY,
     correlation_id TEXT,
-    checksum TEXT NOT NULL UNIQUE,
     account_id TEXT NOT NULL,
     executed_at DATETIME NOT NULL,
     type TEXT NOT NULL,
@@ -51,7 +50,6 @@ CREATE TABLE IF NOT EXISTS ledger (
 
 CREATE TABLE IF NOT EXISTS instrument (
     id TEXT PRIMARY KEY,
-    checksum TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL,
     asset_class TEXT NOT NULL,
     name TEXT NOT NULL,

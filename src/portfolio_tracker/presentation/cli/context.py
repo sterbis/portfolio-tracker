@@ -4,6 +4,7 @@ from typer._click.core import Context
 
 from portfolio_tracker.application.container import Container
 from portfolio_tracker.application.shared.errors import UserNotLoggedInError
+from portfolio_tracker.infrastructure.configuration import DesktopConfiguration
 from portfolio_tracker.settings import Settings
 from portfolio_tracker.shared.settings_utils import SettingsCache
 
@@ -13,6 +14,7 @@ from .login import LoginSession, LoginSessionStore
 TContextMetadata = TypeVar("TContextMetadata")
 
 
+CONFIGURATION_KEY = f"{__name__}.configuration"
 ENVIRONMENT_KEY = f"{__name__}.environment"
 LOGIN_SESSION_STORE_KEY = f"{__name__}.login_session_store"
 LOGIN_SESSION_KEY = f"{__name__}.login_session"
@@ -30,6 +32,10 @@ def get_container(ctx: Context) -> Container:
 
 def get_environment(ctx: Context) -> CliEnvironment:
     return _get_context_metadata(ctx, ENVIRONMENT_KEY, CliEnvironment)
+
+
+def get_configuration(ctx: Context) -> DesktopConfiguration:
+    return _get_context_metadata(ctx, CONFIGURATION_KEY, DesktopConfiguration)
 
 
 def get_loggin_session_store(ctx: Context) -> LoginSessionStore:

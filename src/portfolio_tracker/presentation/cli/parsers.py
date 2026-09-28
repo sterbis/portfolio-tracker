@@ -1,5 +1,4 @@
 import re
-import types
 import typing
 from dataclasses import is_dataclass
 from datetime import date, datetime, time, timezone
@@ -15,7 +14,7 @@ from portfolio_tracker.presentation.cli.ui.tables import get_view_table
 from portfolio_tracker.shared.dataclass_utils import (
     register_converter,
     resolve_field_type,
-    structure,
+    structure_field,
 )
 
 TEnum = TypeVar("TEnum", bound=StrEnum)
@@ -189,35 +188,17 @@ def parse_settings_value(settings_cls: type, key: str, value: str) -> Any:
     except ValueError as error:
         raise KeyError(f"Invalid settings key: '{key}'.") from error
 
-    if is_dataclass(field_type):
-        raise KeyError(f"Invalid settings key: '{key}'. Key points to a section.")
+    origin_type = typing.get_origin(field_type)
+    if is_dataclass(field_type) or field_type is dict or origin_type is dict:
+        raise KeyError(
+            f"Invalid settings key: '{key}'. Key points to a section not a value."
+        )
 
-    if origin_type := typing.get_origin(field_type):
-        if origin_type is list and len(typing.get_args(field_type)) == 1:
-            item_type = typing.get_args(field_type)[0]
-            try:
-                return [
-                    structure(item, item_type)
-                    for item in value.split(",")
-                    if item.strip()
-                ]
-            except (TypeError, ValueError) as error:
-                raise ValueError(
-                    f"Invalid '{key}' settings value: '{value}'."
-                ) from error
-
-        if origin_type in (typing.Union, types.UnionType):
-            for field_type in typing.get_args(field_type):
-                try:
-                    return structure(value, field_type)
-                except TypeError, ValueError:
-                    pass
-
-            raise ValueError(f"Invalid '{key}' settings value: '{value}'.")
-
-        raise KeyError(f"Invalid settings key: '{key}'.")
+    parsed_value: str | list[str] = value
+    if origin_type in (list, tuple, set) or field_type in (list, tuple, set):
+        parsed_value = [item for item in value.split(",") if item.strip()]
 
     try:
-        return structure(value, field_type)
+        return structure_field(parsed_value, field_type)
     except (TypeError, ValueError) as error:
         raise ValueError(f"Invalid '{key}' settings value: '{value}'.") from error

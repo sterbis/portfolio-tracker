@@ -40,8 +40,8 @@ class Service:
             self._storage_connection_factory.create(read_only=read_only) as connection,
             connection.unit_of_work() as uow,
         ):
-            accounts_map = uow.accounts.get_account_map(user_id)
-            yield UserScopedUnitOfWork(uow, accounts_map)
+            account_map = uow.accounts.get_account_map(user_id)
+            yield UserScopedUnitOfWork(uow, account_map)
 
 
 class QueryService(Service):
@@ -79,5 +79,4 @@ class QueryService(Service):
 
         start = offset or 0
         end = (start + limit) if limit is not None else None
-
         return views[start:end]

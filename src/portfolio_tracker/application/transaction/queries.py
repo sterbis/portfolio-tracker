@@ -8,7 +8,7 @@ from portfolio_tracker.domain.shared import Currency
 
 @dataclass(frozen=True, kw_only=True)
 class GetTransactionsQuery:
-    institution_connection_ids: set[str] = field(default_factory=set)
+    connection_ids: set[str] = field(default_factory=set)
     account_ids: set[str] = field(default_factory=set)
     reporting_currency: Currency
     filter: Filter | None = None

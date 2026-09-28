@@ -10,7 +10,7 @@ from portfolio_tracker.application.views import (
 
 from .account import AssetAccountViewTable
 from .institution import InstitutionConnectionViewTable
-from .portfolio import CashBalanceRowViewTable, PositionRowViewTable
+from .overview import CashBalanceRowViewTable, PositionRowViewTable
 from .transaction import TransactionViewTable
 from .view_table import ViewTable
 

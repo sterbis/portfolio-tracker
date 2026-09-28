@@ -60,7 +60,7 @@ INSTITUTION_FIELD_MAP = {
 INSTITUTION_CONNECTION_FIELD_MAP = {
     "id": FieldReference(InstitutionConnection, "id"),
     "name": FieldReference(InstitutionConnection, "name"),
-    "account_opened_on": FieldReference(InstitutionConnection, "account_opened_on"),
+    "sync_from": FieldReference(InstitutionConnection, "sync_from"),
     "last_synced_at": FieldReference(InstitutionConnection, "last_synced_at"),
     **prefix_field_map(INSTITUTION_FIELD_MAP, "institution"),
 }

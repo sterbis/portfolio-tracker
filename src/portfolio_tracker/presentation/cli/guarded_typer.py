@@ -1,17 +1,27 @@
 import functools
+import logging
 from typing import Any, Callable, TypeVar
 
 import typer
 from typer._click.core import Context
+from typer._click.exceptions import ClickException
 from typer.core import TyperCommand
 
-from portfolio_tracker.bootstrap import desktop_bootstrap
+from portfolio_tracker.application.shared.errors import PortfolioTrackerError
+from portfolio_tracker.bootstrap import bootstrap_desktop
 
 from .console import error_console
-from .context import LOGIN_SESSION_KEY, SETTINGS_CACHE_KEY, get_loggin_session_store
+from .context import (
+    LOGIN_SESSION_KEY,
+    SETTINGS_CACHE_KEY,
+    get_configuration,
+    get_loggin_session_store,
+)
 from .login import LoginSession, LoginSessionStore
 
 TFunction = TypeVar("TFunction", bound=Callable[..., Any])
+
+logger = logging.getLogger(__name__)
 
 
 class GuardedCommand(TyperCommand):
@@ -28,7 +38,9 @@ class GuardedCommand(TyperCommand):
             session = session_store.load()
 
             if session.user_id is None:
-                error_console.print("Error: Login required. Run `login` or `register`.")
+                error_console.print(
+                    "Error: Login required. Run `portfolio login` or `portfolio register`."
+                )
                 raise typer.Exit(code=1)
 
             if session.is_expired:
@@ -36,7 +48,8 @@ class GuardedCommand(TyperCommand):
                 error_console.print("Error: Session expired. Please log in again.")
                 raise typer.Exit(code=1)
 
-        container, settings_cache = desktop_bootstrap()
+        configuration = get_configuration(ctx)
+        container, settings_cache = bootstrap_desktop(configuration)
         ctx.obj = container
         ctx.meta[SETTINGS_CACHE_KEY] = settings_cache
 
@@ -47,7 +60,26 @@ class GuardedCommand(TyperCommand):
             )
             ctx.meta[LOGIN_SESSION_KEY] = session
 
-        return super().invoke(ctx)
+        try:
+            return super().invoke(ctx)
+
+        except (typer.Exit, typer.Abort, ClickException) as error:
+            raise error
+
+        except Exception as error:
+            if isinstance(error, PortfolioTrackerError):
+                message = error.message
+                logger.error(message)
+
+            else:
+                message = (
+                    "Unexpected critical error occurred. "
+                    "Please check application log for more details."
+                )
+                logger.critical(message, exc_info=error)
+
+            error_console.print(f"Error: {message}")
+            raise typer.Exit(code=1)
 
 
 class GuardedTyper(typer.Typer):

@@ -9,7 +9,7 @@ from portfolio_tracker.domain.shared import Currency
 
 @dataclass(frozen=True, kw_only=True)
 class GetPortfoliosQuery:
-    institution_connection_ids: set[str] = field(default_factory=set)
+    connection_ids: set[str] = field(default_factory=set)
     account_ids: set[str] = field(default_factory=set)
     scope: ScopeType
     reporting_currency: Currency

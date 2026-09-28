@@ -20,7 +20,7 @@ class SqliteAccountRepository(AccountRepository):
     def ensure(self, account: AssetAccount) -> None:
         self._executor.insert_on_conflict_do_nothing(
             model=AssetAccount,
-            values=self._asset_account_to_values(account),
+            values=self._account_to_values(account),
             conflict_field_names=["id"],
         )
 
@@ -39,14 +39,14 @@ class SqliteAccountRepository(AccountRepository):
             limit=limit,
             offset=offset,
         )
-        return [self._row_to_asset_account(row) for row in rows]
+        return [self._row_to_account(row) for row in rows]
 
     def get_by_id(self, account_id: str) -> AssetAccount | None:
         row = self._executor.select_one(
             model=AssetAccount,
             filter_=FilterNode("id", Operator.EQ, account_id, AssetAccount),
         )
-        return self._row_to_asset_account(row) if row else None
+        return self._row_to_account(row) if row else None
 
     def get_by_external_id(
         self, institution_connection_id: str, external_id: str
@@ -67,7 +67,7 @@ class SqliteAccountRepository(AccountRepository):
             model=AssetAccount,
             filter_=filter_,
         )
-        return self._row_to_asset_account(row) if row else None
+        return self._row_to_account(row) if row else None
 
     def get_by_ids(self, account_ids: set[str]) -> list[AssetAccount]:
         if not account_ids:
@@ -92,25 +92,37 @@ class SqliteAccountRepository(AccountRepository):
     def update(self, account: AssetAccount) -> None:
         self._executor.update(
             model=AssetAccount,
-            values=self._asset_account_to_values(account),
+            values=self._account_to_values(account),
             filter_=FilterNode("id", Operator.EQ, account.id, AssetAccount),
         )
 
     def get_account_map(self, user_id: str) -> AccountMap:
+        field = FieldReference(InstitutionConnection, "id")
+        rows = self._executor.select(
+            model=InstitutionConnection,
+            fields=[field],
+            filter_=FilterNode("user_id", Operator.EQ, user_id, InstitutionConnection),
+        )
+
+        institution_connection_ids: set[str] = set(row[field] for row in rows)
+
         fields = [
             FieldReference(AssetAccount, "institution_connection_id"),
             FieldReference(AssetAccount, "id"),
             FieldReference(AssetAccount, "external_id"),
             FieldReference(AssetAccount, "is_active"),
         ]
-
         rows = self._executor.select(
             model=AssetAccount,
             fields=fields,
-            filter_=FilterNode("user_id", Operator.EQ, user_id, InstitutionConnection),
+            filter_=FilterNode(
+                "institution_connection_id",
+                Operator.IN,
+                institution_connection_ids,
+                AssetAccount,
+            ),
         )
 
-        institution_connection_ids: set[str] = set()
         account_id_to_institution_connection_id: dict[str, str] = {}
         account_id_to_account_external_id: dict[str, str] = {}
         deactivated_account_ids: set[str] = set()
@@ -123,7 +135,6 @@ class SqliteAccountRepository(AccountRepository):
                 is_active,
             ) = row.unpack(*fields)
 
-            institution_connection_ids.add(institution_connection_id)
             account_id_to_institution_connection_id[account_id] = (
                 institution_connection_id
             )
@@ -139,7 +150,7 @@ class SqliteAccountRepository(AccountRepository):
             deactivated_account_ids=deactivated_account_ids,
         )
 
-    def _asset_account_to_values(self, account: AssetAccount) -> dict[str, Any]:
+    def _account_to_values(self, account: AssetAccount) -> dict[str, Any]:
         return {
             "id": account.id,
             "external_id": account.external_id,
@@ -148,7 +159,7 @@ class SqliteAccountRepository(AccountRepository):
             "is_active": account.is_active,
         }
 
-    def _row_to_asset_account(self, row: dict[FieldReference, Any]) -> AssetAccount:
+    def _row_to_account(self, row: dict[FieldReference, Any]) -> AssetAccount:
         def field(field: str) -> FieldReference:
             return FieldReference(AssetAccount, field)
 

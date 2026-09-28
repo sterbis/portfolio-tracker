@@ -45,7 +45,7 @@ class ColumnReference:
 
     @property
     def qualified_name(self) -> str:
-        return f"{self.table.alias}.{self.name}"
+        return f"{self.table.name}.{self.name}"
 
     @property
     def alias(self) -> str:
@@ -92,8 +92,8 @@ RELATIONS = {
         "institution_connection_id",
         "id",
     ),
-    ("transaction", "account"): ("account_id", "id"),
-    ("transaction", "instrument"): ("instrument_id", "id"),
+    ("ledger", "account"): ("account_id", "id"),
+    ("ledger", "instrument"): ("instrument_id", "id"),
     ("bond", "instrument"): ("id", "id"),
     ("cfd", "instrument"): ("id", "id"),
     ("commodity", "instrument"): ("id", "id"),

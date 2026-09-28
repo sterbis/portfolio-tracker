@@ -34,8 +34,7 @@ DERIVATIVE_INSTRUMENT_CLS_BY_TYPE: dict[InstrumentType, type[DerivativeInstrumen
 
 
 class InstrumentBaseData(TypedDict):
-    id: NotRequired[str]
-    provided_checksum: NotRequired[str]
+    provided_id: NotRequired[str]
     name: str
     symbol: str
     exchange: str | None

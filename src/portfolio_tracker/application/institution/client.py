@@ -1,10 +1,12 @@
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
+from pprint import pformat
 from typing import Any, AsyncIterator, Generic, TypeVar
 
 import requests
@@ -14,6 +16,8 @@ from portfolio_tracker.domain.institution import Credentials
 
 ReportChunk = Iterator[str]
 TCredentials = TypeVar("TCredentials", bound=Credentials)
+
+logger = logging.getLogger(__name__)
 
 
 class HttpMethod(StrEnum):
@@ -56,6 +60,18 @@ class InstitutionClient(ABC, Generic[TCredentials]):
     @abstractmethod
     def verify_connection(self) -> None: ...
 
+    def _get_report_chunk_intervals(
+        self, start: datetime, end: datetime, max_chunk_days: int
+    ) -> list[tuple[datetime, datetime]]:
+        intervals: list[tuple[datetime, datetime]] = []
+        current_start = start
+        while current_start < end:
+            current_end = min(current_start + timedelta(days=max_chunk_days), end)
+            intervals.append((current_start, current_end))
+            current_start = current_end
+
+        return intervals
+
     async def _request(
         self,
         endpoint: ApiEndpoint,
@@ -70,13 +86,27 @@ class InstitutionClient(ABC, Generic[TCredentials]):
         initial_backoff: float = 5.0,
         exponential_backoff: bool = True,
     ) -> requests.Response:
+        method = endpoint.method.value
         url = endpoint.build_url(self._BASE_URL)
 
         for attempt in range(1, max_attempts + 1):
             try:
+                logger.debug(
+                    "Sending request.\n"
+                    "Method: %s\n"
+                    "URL: %s\n"
+                    "Headers: %s\n"
+                    "Parameters: %s\n"
+                    "JSON: %s\n",
+                    method,
+                    url,
+                    pformat(headers, sort_dicts=False),
+                    pformat(params, sort_dicts=False),
+                    pformat(json, sort_dicts=False),
+                )
                 response = await asyncio.to_thread(
                     requests.request,
-                    method=endpoint.method.value,
+                    method=method,
                     url=url,
                     params=params,
                     json=json,
@@ -93,6 +123,17 @@ class InstitutionClient(ABC, Generic[TCredentials]):
                     error.response.status_code if error.response else "Unknown"
                 )
                 reason = error.response.reason if error.response else "Unknown"
+                logger.debug(
+                    "Request failed.\n"
+                    "Method: %s\n"
+                    "URL: %s\n"
+                    "Status code: %s\n"
+                    "Reason: %s\n",
+                    method,
+                    url,
+                    status_code,
+                    reason,
+                )
 
                 if attempt < max_attempts:
                     interval = self._get_retry_after_interval(
@@ -102,12 +143,13 @@ class InstitutionClient(ABC, Generic[TCredentials]):
                         response=error.response if status_code == 429 else None,
                         endpoint=endpoint if status_code == 429 else None,
                     )
+                    logger.debug("Retry request after %s seconds", interval)
                     await asyncio.sleep(interval)
                     continue
 
                 raise InstitutionClientError(
-                    f"Request to {url} failed after {max_attempts} attempts. "
-                    f"Status: {status_code}, reason: {reason}"
+                    f"{method} request to {url} failed after {max_attempts} attempts. "
+                    f"Status code: {status_code}, reason: {reason}"
                 ) from error
 
         raise RuntimeError("Never")

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import IntEnum
+from enum import StrEnum
+from functools import total_ordering
+from typing import Any
 
 from portfolio_tracker.domain.instrument import AssetClass, InstrumentType
 from portfolio_tracker.domain.shared import Currency, Money
@@ -9,10 +11,42 @@ from .cash_balance import CashBalance, CashBalanceValuation
 from .position import Position, PositionValuation
 
 
-class ScopeType(IntEnum):
-    ACCOUNT = 1
-    INSTITUTION = 2
-    GLOBAL = 3
+@total_ordering
+class ScopeType(StrEnum):
+    ACCOUNT = "ACCOUNT"
+    INSTITUTION = "INSTITUTION"
+    GLOBAL = "GLOBAL"
+
+    @property
+    def level(self) -> int:
+        try:
+            return _SCOPE_LEVELS[self]
+        except KeyError as error:
+            raise ValueError(f"Unexpected scope type: '{self}'.") from error
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, ScopeType):
+            return False
+
+        return self is other
+
+    def __lt__(self, other: Any) -> bool:
+        if not isinstance(other, ScopeType):
+            raise TypeError(
+                f"'<' not supported between instances of 'ScopeType' and '{type(other).__name__}'"
+            )
+
+        return self.level < other.level
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
+
+_SCOPE_LEVELS = {
+    ScopeType.ACCOUNT: 0,
+    ScopeType.INSTITUTION: 1,
+    ScopeType.GLOBAL: 2,
+}
 
 
 @dataclass(frozen=True)
@@ -36,6 +70,11 @@ class Portfolio:
         if not isinstance(other, Portfolio):
             return NotImplemented
 
+        if self.scope.id == other.scope.id:
+            raise ValueError(
+                f"Cannot consolidate portfolio with itself. Portfolio scope id: {self.scope.id}."
+            )
+
         if self.reporting_currency != other.reporting_currency:
             raise ValueError(
                 "Currecy mismatch. Cannot consolidate portfolios with different reporting currencies. "
@@ -48,19 +87,11 @@ class Portfolio:
         if self.scope.type > other.scope.type:
             scope = self.scope
 
+        elif self.scope.type == ScopeType.GLOBAL:
+            raise ValueError("Cannot consolidate multiple global portfolios.")
+
         else:
-            if self.scope.type == ScopeType.GLOBAL:
-                raise ValueError("Cannot consolidate multiple global portfolios.")
-
-            if self.scope.id == other.scope.id:
-                raise ValueError(
-                    f"Cannot consolidate portfolio with itself. Portfolio scope id: {self.scope.id}."
-                )
-
-            scope = Scope(
-                type=ScopeType.GLOBAL,
-                id=None,
-            )
+            scope = Scope(type=ScopeType.GLOBAL, id=None)
 
         combined_cash_balance = self.cash_balance + other.cash_balance
         combined_positions: dict[str, Position] = {}

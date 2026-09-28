@@ -1,5 +1,3 @@
-import hashlib
-import secrets
 from abc import ABC, abstractmethod
 from dataclasses import InitVar, dataclass, field, fields
 from datetime import date, datetime
@@ -7,6 +5,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from portfolio_tracker.domain.shared import Currency
+from portfolio_tracker.shared.id_utils import generate_deterministic_hex_id
 
 
 class AssetClass(StrEnum):
@@ -56,7 +55,6 @@ class OptionType(StrEnum):
 @dataclass(frozen=True)
 class InstrumentMetadata:
     id: str
-    checksum: str
     type: InstrumentType
     asset_class: AssetClass
     name: str
@@ -68,9 +66,8 @@ class InstrumentMetadata:
 
 @dataclass(frozen=True, kw_only=True)
 class Instrument(ABC):
-    id: str = field(default_factory=lambda: f"instr_{secrets.token_urlsafe(8)}")
-    checksum: str = field(init=False)
-    provided_checksum: InitVar[str | None] = None
+    id: str = field(init=False)
+    provided_id: InitVar[str | None] = None
     type: InstrumentType
     asset_class: AssetClass
     name: str
@@ -92,16 +89,16 @@ class Instrument(ABC):
             }
         )
 
-    def __post_init__(self, provided_checksum: str | None) -> None:
-        checksum_string = f"{self.type.value}|{self._identifier}"
-        checksum = hashlib.sha256(checksum_string.encode("utf-8")).hexdigest()[:16]
+    def __post_init__(self, provided_id: str | None) -> None:
+        data = f"{self.type.value}|{self._identifier}"
+        id_ = generate_deterministic_hex_id(prefix="instr", data=data)
 
-        if provided_checksum and provided_checksum != checksum:
+        if provided_id and provided_id != id_:
             raise ValueError(
-                f"Provided instrument checksum {provided_checksum} does not match computed checksum {checksum}."
+                f"Provided instrument id {provided_id} does not match generated id {id_}."
             )
 
-        object.__setattr__(self, "checksum", checksum)
+        object.__setattr__(self, "id", id_)
 
 
 @dataclass(frozen=True, kw_only=True)

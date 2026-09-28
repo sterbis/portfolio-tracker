@@ -1,5 +1,4 @@
 import json
-from collections import defaultdict
 from collections.abc import Iterator
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -77,7 +76,13 @@ class FrankfurterClient(FxClient):
         required_quote_currencies: set[str],
         required_dates: set[str],
     ) -> Iterator[FxRates]:
-        buffer: dict[str, dict[str, str]] = defaultdict(dict)
+        if not required_dates:
+            return
+
+        sorted_required_dates = sorted(required_dates)
+        required_date = sorted_required_dates[0]
+        latest_rates: dict[str, str] = {}
+        rates_verified: bool = False
 
         for line in response.iter_lines(decode_unicode=True):
             data: dict[str, str] = json.loads(line)
@@ -87,35 +92,59 @@ class FrankfurterClient(FxClient):
             quote_currency = data["quote"].upper()
             rate = str(data["rate"])
 
-            if required_dates and date_ not in required_dates:
-                continue
-
             if base_currency != required_base_currency:
                 raise FxClientError(
                     f"Unexpected base currency data returned."
                     f"Requested: {required_base_currency}, got: {base_currency}."
                 )
 
-            buffer[date_][quote_currency] = rate
+            latest_rates[quote_currency] = rate
 
-            if buffer[date_].keys() == required_quote_currencies:
+            while date_ > required_date:
+                if not rates_verified:
+                    self._verify_available_rates(
+                        set(latest_rates), required_quote_currencies, required_date
+                    )
+                    rates_verified = True
+
                 yield FxRates(
-                    effective_on=date.fromisoformat(date_),
+                    effective_on=date.fromisoformat(required_date),
                     base_currency=Currency(base_currency),
                     rates={
                         Currency(quote_currency): Decimal(rate)
-                        for quote_currency, rate in buffer.pop(date_).items()
+                        for quote_currency, rate in latest_rates.items()
                     },
                 )
+                sorted_required_dates.pop(0)
+                if not sorted_required_dates:
+                    return
 
-        for date_, rates in buffer.items():
+                required_date = sorted_required_dates[0]
+
+        if not rates_verified:
+            self._verify_available_rates(
+                set(latest_rates), required_quote_currencies, required_date
+            )
+
+        for required_date in sorted_required_dates:
             yield FxRates(
-                effective_on=date.fromisoformat(date_),
-                base_currency=Currency(base_currency),
+                effective_on=date.fromisoformat(required_date),
+                base_currency=Currency(required_base_currency),
                 rates={
                     Currency(quote_currency): Decimal(rate)
-                    for quote_currency, rate in rates.items()
+                    for quote_currency, rate in latest_rates.items()
                 },
+            )
+
+    def _verify_available_rates(
+        self,
+        quote_currencies: set[str],
+        required_quote_currencies: set[str],
+        date_: str,
+    ) -> None:
+        if missing_currencies := required_quote_currencies - quote_currencies:
+            raise FxClientError(
+                f"Missing FX rates for quote currencies {', '.join(missing_currencies)} on date {date_}"
             )
 
     def _fetch_rates(

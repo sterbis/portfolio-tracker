@@ -29,7 +29,7 @@ class InstitutionConnectionView:
     id: str
     institution: InstitutionView
     name: str
-    account_opened_on: date
+    sync_from: date
     last_synced_at: datetime | None
     credentials: Credentials | None
 
@@ -44,7 +44,7 @@ class InstitutionConnectionView:
             id=institution_connection.id,
             institution=institution_view,
             name=institution_connection.name,
-            account_opened_on=institution_connection.account_opened_on,
+            sync_from=institution_connection.sync_from,
             last_synced_at=institution_connection.last_synced_at,
             credentials=credentials,
         )

@@ -50,7 +50,6 @@ class TransactionCommandService(Service):
 
             payload = command.payload
             updated_transaction = Transaction(
-                id=command.transaction_id,
                 correlation_id=payload.correlation_id,
                 executed_at=payload.executed_at,
                 account_id=payload.account_id,
@@ -65,7 +64,7 @@ class TransactionCommandService(Service):
                 ),
             )
 
-            if updated_transaction.checksum == transaction.checksum:
+            if updated_transaction.id == transaction.id:
                 uow.transactions.update(updated_transaction)
                 uow.commit()
                 return

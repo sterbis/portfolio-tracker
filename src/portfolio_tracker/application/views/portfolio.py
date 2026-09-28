@@ -23,7 +23,7 @@ class ScopeView:
     type: ScopeType
     id: str | None
     institution_name: str | None = None
-    institution_connection_name: str | None = None
+    connection_name: str | None = None
     account_name: str | None = None
 
 

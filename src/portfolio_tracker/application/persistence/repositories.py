@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from filterutils import Filter
 
-from portfolio_tracker.application.institution import InstitutionRegistry
+from portfolio_tracker.application.institution.registry import InstitutionRegistry
 from portfolio_tracker.application.shared.errors import FxDataIntegrityError
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.account import (
@@ -14,6 +14,7 @@ from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.institution import Credentials, InstitutionConnection
 from portfolio_tracker.domain.instrument import Instrument, InstrumentMetadata
 from portfolio_tracker.domain.market_data import StockSplits
+from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
 
@@ -65,6 +66,9 @@ class CredentialsRepository(ABC):
 
     @abstractmethod
     def get(self, institution_connection_id: str) -> Credentials | None: ...
+
+    @abstractmethod
+    def get_by_ids(self, institution_connection_ids: set[str]) -> list[Credentials]: ...
 
     @abstractmethod
     def remove(self, institution_connection_id: str) -> None: ...
@@ -171,13 +175,10 @@ class TransactionRepository(ABC):
     def remove_by_id(self, transaction_id: str) -> None: ...
 
     @abstractmethod
-    def remove_by_asset_account_id(self, account_id: str) -> None: ...
+    def remove_by_account_id(self, account_id: str) -> None: ...
 
     @abstractmethod
-    def exists(self, filter_: Filter) -> bool: ...
-
-    @abstractmethod
-    def exists_by_checksum(self, checksum: str) -> bool: ...
+    def exists(self, transaction_id: str) -> bool: ...
 
 
 class FxRatesRepository(ABC):
@@ -195,6 +196,14 @@ class FxRatesRepository(ABC):
 
     @abstractmethod
     def get_distinct_dates(self) -> set[date]: ...
+
+    @abstractmethod
+    def get_missing_dates(
+        self,
+        required_dates: set[date],
+        base_currency: Currency,
+        quote_currencies: set[Currency],
+    ) -> set[date]: ...
 
     def get_required_rates_by_date_map(self, dates: set[date]) -> dict[date, FxRates]:
         rates_list = self.get_by_dates(dates)

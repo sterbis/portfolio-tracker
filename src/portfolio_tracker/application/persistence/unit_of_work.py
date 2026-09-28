@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import Self
 
-from portfolio_tracker.application.institution import InstitutionRegistry
+from portfolio_tracker.application.institution.registry import InstitutionRegistry
 
 from .repositories import (
     AccountRepository,

@@ -1,11 +1,12 @@
-import secrets
 from collections import defaultdict
 from dataclasses import dataclass, field
+
+from portfolio_tracker.shared.id_utils import generate_random_hex_id
 
 
 @dataclass(frozen=True, kw_only=True)
 class AssetAccount:
-    id: str = field(default_factory=lambda: f"acc_{secrets.token_urlsafe(8)}")
+    id: str = field(default_factory=lambda: generate_random_hex_id(prefix="acc"))
     institution_connection_id: str
     external_id: str
     name: str

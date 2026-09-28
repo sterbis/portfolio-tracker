@@ -1,7 +1,11 @@
 from typing import Iterable
 
 from portfolio_tracker.domain.account import AssetAccount
-from portfolio_tracker.domain.institution import Institution, InstitutionConnection
+from portfolio_tracker.domain.institution import (
+    Credentials,
+    Institution,
+    InstitutionConnection,
+)
 from portfolio_tracker.domain.instrument import (
     Bond,
     Cfd,
@@ -61,12 +65,22 @@ class ViewBuilder:
         self,
         institutions: Iterable[Institution],
         institution_connections: Iterable[InstitutionConnection],
+        credentials_list: Iterable[Credentials] | None = None,
     ) -> dict[str, InstitutionConnectionView]:
         institution_views = self.build_institution_views(institutions)
+        credentials_map = (
+            {
+                credentials.institution_connection_id: credentials
+                for credentials in credentials_list
+            }
+            if credentials_list
+            else {}
+        )
         return {
             institution_connection.id: InstitutionConnectionView.from_domain(
                 institution_connection,
                 institution_views[institution_connection.institution_id],
+                credentials_map.get(institution_connection.id),
             )
             for institution_connection in institution_connections
         }
@@ -187,9 +201,9 @@ class ViewBuilder:
 
     def build_position_row_views(
         self, portfolio_views: list[ValuedPortfolioView]
-    ) -> dict[str | None, PositionRowView]:
-        return {
-            portfolio_view.portfolio.scope.id: PositionRowView(
+    ) -> list[PositionRowView]:
+        return [
+            PositionRowView(
                 scope=portfolio_view.portfolio.scope,
                 position=position_view,
                 valuation=(
@@ -200,7 +214,7 @@ class ViewBuilder:
             )
             for portfolio_view in portfolio_views
             for position_view in portfolio_view.portfolio.positions
-        }
+        ]
 
     def build_portfolio_views(
         self,
@@ -244,7 +258,7 @@ class ViewBuilder:
                 type=portfolio.scope.type,
                 id=portfolio.scope.id,
                 institution_name=institution.name if institution else None,
-                institution_connection_name=(
+                connection_name=(
                     institution_connection.name if institution_connection else None
                 ),
                 account_name=account.name if account else None,

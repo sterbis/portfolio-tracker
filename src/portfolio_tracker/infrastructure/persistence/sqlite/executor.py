@@ -30,13 +30,13 @@ class SqliteExecutor:
     def _log_sql(self, sql: str, parameters: dict[str, Any] | None) -> None:
         formatted_sql = sqlparse.format(
             sql, reindent=True, keyword_case="upper", indent_width=2
-        )
+        ).strip()
         args = [formatted_sql]
 
-        message = "Executing SQL:\n%s\n"
+        message = "Executing SQL:\n%s"
         if parameters:
             message += "\nParameters:\n%s"
-            args.append(pformat(parameters, indent=2))
+            args.append(pformat(parameters, indent=2, sort_dicts=False))
 
         logger.debug(message, *args)
 

@@ -80,7 +80,8 @@ def format_quantity(value: Decimal, settings: CliDisplaySettings) -> str:
 
 
 def format_percent(value: Number, settings: CliDisplaySettings) -> str:
-    return f"{format_number(value, settings.percent_decimal_places, thousand_separator=True)} %"
+    percent = value * 100
+    return f"{format_number(percent, settings.percent_decimal_places, thousand_separator=True)} %"
 
 
 @format_profit_and_loss
@@ -135,7 +136,10 @@ def format_settings_values(
 
 def format_settings_value(value: Any, override_value: Any = _UNDEFINED) -> str:
     if isinstance(value, list):
-        formatted_value = ", ".join(str(item) for item in value)
+        formatted_value = f'"{", ".join(str(item) for item in value)}"'
+
+    elif isinstance(value, str):
+        formatted_value = f'"{value}"'
 
     else:
         formatted_value = str(value)
@@ -144,4 +148,4 @@ def format_settings_value(value: Any, override_value: Any = _UNDEFINED) -> str:
         return formatted_value
 
     formatted_override_value = format_settings_value(override_value)
-    return f"{formatted_override_value} [default={formatted_value}]"
+    return f"{formatted_override_value} \\[default={formatted_value}]"

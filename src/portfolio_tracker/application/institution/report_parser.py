@@ -1,4 +1,3 @@
-import secrets
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -10,6 +9,7 @@ from portfolio_tracker.application.shared.errors import InstitutionReportParserE
 from portfolio_tracker.domain.instrument import InstrumentType
 from portfolio_tracker.domain.shared import Currency, Money
 from portfolio_tracker.domain.transaction import TransactionType
+from portfolio_tracker.shared.id_utils import generate_deterministic_hex_id
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class ReportInstrument:
 @dataclass(frozen=True)
 class ReportTransaction:
     account_external_id: str
-    external_transaction_id: str
+    external_id: str
     executed_at: datetime
     type: TransactionType
     instrument: ReportInstrument | None
@@ -65,8 +65,8 @@ class InstitutionReportParser(ABC):
             return self._CASH_IMPACT_DIRECTION[transaction_type]
         except KeyError as error:
             raise InstitutionReportParserError(
-                message=f"Cash impact direction not available for transaction type: {transaction_type}."
+                message=f"Cash impact direction not defined for transaction type: {transaction_type}."
             ) from error
 
-    def _generate_correlation_id(self) -> str:
-        return f"txn_{secrets.token_urlsafe(8)}"
+    def _generate_event_id(self, record_id: str) -> str:
+        return generate_deterministic_hex_id("evt", record_id)

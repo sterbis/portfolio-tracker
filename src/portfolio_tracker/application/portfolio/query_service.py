@@ -1,5 +1,7 @@
 from collections.abc import Iterable
 
+from filterutils import Filter
+
 from portfolio_tracker.application.fx import FxService
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.market_data import MarketDataService
@@ -70,24 +72,29 @@ class PortfolioQueryService(QueryService):
     def get_cash_balances(
         self, user_id: str, query: GetPortfoliosQuery
     ) -> list[CashBalanceRowView]:
-        return self._view_builder.build_cash_balance_row_views(
+        views = self._view_builder.build_cash_balance_row_views(
             portfolio_views=self.get_portfolios(user_id, query)
         )
+        return self._apply_view_options(views, sorts=query.sorts)
 
     def get_positions(
         self, user_id: str, query: GetPortfoliosQuery
     ) -> list[PositionRowView]:
-        return list(
-            self._view_builder.build_position_row_views(
-                portfolio_views=self.get_portfolios(user_id, query)
-            ).values()
+        _, memory_filter = self._resolve_filters(query.filter)
+        views = self._view_builder.build_position_row_views(
+            portfolio_views=self.get_portfolios(user_id, query)
         )
+        if memory_filter:
+            views = list(memory_filter.apply(views))
+
+        return self._apply_view_options(views, sorts=query.sorts)
 
     def get_portfolios(
         self, user_id: str, query: GetPortfoliosQuery
     ) -> list[ValuedPortfolioView]:
+        repository_filter, _ = self._resolve_filters(query.filter)
         institutions, institution_connections, accounts, instruments, portfolios = (
-            self._build_portfolios(user_id, query)
+            self._build_portfolios(user_id, query, repository_filter)
         )
         valued_portfolios = self._evaluate_portfolios(portfolios, instruments)
         return list(
@@ -103,7 +110,10 @@ class PortfolioQueryService(QueryService):
     def get_portfolio_valuations(
         self, user_id: str, query: GetPortfoliosQuery
     ) -> dict[str | None, PortfolioValuationView]:
-        _, _, _, instruments, portfolios = self._build_portfolios(user_id, query)
+        repository_filter, _ = self._resolve_filters(query.filter)
+        _, _, _, instruments, portfolios = self._build_portfolios(
+            user_id, query, repository_filter
+        )
         portfolio_valuations = self._get_portfolio_valuations(portfolios, instruments)
         return self._view_builder.build_portfolio_valuation_views(portfolio_valuations)
 
@@ -111,6 +121,7 @@ class PortfolioQueryService(QueryService):
         self,
         user_id: str,
         query: GetPortfoliosQuery,
+        filter_: Filter | None,
     ) -> tuple[
         list[Institution],
         list[InstitutionConnection],
@@ -120,15 +131,15 @@ class PortfolioQueryService(QueryService):
     ]:
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             transactions: Iterable[Transaction] = uow.transactions.get(
-                institution_connection_ids=query.institution_connection_ids,
+                institution_connection_ids=query.connection_ids,
                 account_ids=query.account_ids,
-                filter_=query.filter,
+                filter_=filter_,
                 sorts=[self._REQUIRED_TRANSACTION_SORT],
             )
             instrument_ids = uow.transactions.get_distinct_instrument_ids(
-                institution_connection_ids=query.institution_connection_ids,
+                institution_connection_ids=query.connection_ids,
                 account_ids=query.account_ids,
-                filter_=query.filter,
+                filter_=filter_,
             )
             splits_list = uow.market_data.get_stock_splits_by_instrument_ids(
                 instrument_ids
@@ -138,9 +149,9 @@ class PortfolioQueryService(QueryService):
             )
 
             transaction_dates = uow.transactions.get_distinct_dates(
-                institution_connection_ids=query.institution_connection_ids,
+                institution_connection_ids=query.connection_ids,
                 account_ids=query.account_ids,
-                filter_=query.filter,
+                filter_=filter_,
             )
             rates_by_date = uow.fx_rates.get_required_rates_by_date_map(
                 transaction_dates,
@@ -192,6 +203,11 @@ class PortfolioQueryService(QueryService):
 
             elif portfolio.scope.type == ScopeType.ACCOUNT:
                 account_ids.add(portfolio.scope.id)
+                institution_connection_ids.add(
+                    uow.account_map.account_id_to_institution_connection_id[
+                        portfolio.scope.id
+                    ]
+                )
 
         accounts = uow.accounts.get_by_ids(account_ids)
         institution_connections = uow.institution_connections.get_by_ids(

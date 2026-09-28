@@ -57,8 +57,8 @@ transaction_app = GuardedTyper()
 @transaction_app.command(name="list")
 def list_transactions(
     ctx: typer.Context,
-    institution_connection_ids: Annotated[
-        list[str] | None, multi_value_option("--institution-connection-id")
+    connection_ids: Annotated[
+        list[str] | None, multi_value_option("--connection-id")
     ] = None,
     account_ids: Annotated[list[str] | None, multi_value_option("--account-id")] = None,
     currency: Annotated[Currency | None, typer.Option(case_sensitive=False)] = None,
@@ -134,15 +134,12 @@ def list_transactions(
     table_settings = settings.display.cli.tables[table.name]
     sort_columns = sort_columns or table_settings.sort_columns
     active_columns = active_columns or table_settings.active_columns
-
     sorts = [
         parse_sort_column(sort_column, TransactionView) for sort_column in sort_columns
     ]
 
     query = GetTransactionsQuery(
-        institution_connection_ids=(
-            set(institution_connection_ids) if institution_connection_ids else set()
-        ),
+        connection_ids=(set(connection_ids) if connection_ids else set()),
         account_ids=set(account_ids) if account_ids else set(),
         reporting_currency=reporting_currency,
         filter=filter_,

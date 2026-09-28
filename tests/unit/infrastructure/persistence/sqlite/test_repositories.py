@@ -64,32 +64,6 @@ def test_institution_connection_repository_round_trips_institution_connection(
     assert stored_institution_connection == sample_institution_connection
 
 
-def test_account_repository_round_trips_account(
-    initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
-    statement_builder: SqliteStatementBuilder,
-    sample_account: AssetAccount,
-) -> None:
-    repository = SqliteAccountRepository(
-        SqliteExecutor(
-            connection=initialized_in_memory_db_connection_foreign_keys_off,
-            builder=statement_builder,
-        ),
-    )
-    repository.ensure(sample_account)
-    stored_asset_account = repository.get_by_id(sample_account.id)
-    stored_asset_account_2 = repository.get_by_external_id(
-        sample_account.institution_connection_id, sample_account.external_id
-    )
-    stored_asset_accounts = repository.get_by_institution_connection_id(
-        sample_account.institution_connection_id
-    )
-
-    assert stored_asset_account == sample_account
-    assert stored_asset_account_2 == sample_account
-    assert len(stored_asset_accounts) == 1
-    assert stored_asset_accounts[0] == sample_account
-
-
 def test_credentials_repository_round_trips_credentials(
     initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
     statement_builder: SqliteStatementBuilder,
@@ -98,6 +72,7 @@ def test_credentials_repository_round_trips_credentials(
     sample_institution_connection: InstitutionConnection,
 ) -> None:
     parameters = {
+        "account_id": "0123456",
         "api_key": "key_123",
         "api_secret": "secret_abc",
     }
@@ -119,6 +94,32 @@ def test_credentials_repository_round_trips_credentials(
 
     stored_credentials = credentials_repository.get(sample_institution_connection.id)
     assert stored_credentials == credentials
+
+
+def test_account_repository_round_trips_account(
+    initialized_in_memory_db_connection_foreign_keys_off: sqlite3.Connection,
+    statement_builder: SqliteStatementBuilder,
+    sample_account: AssetAccount,
+) -> None:
+    repository = SqliteAccountRepository(
+        SqliteExecutor(
+            connection=initialized_in_memory_db_connection_foreign_keys_off,
+            builder=statement_builder,
+        ),
+    )
+    repository.ensure(sample_account)
+    stored_account = repository.get_by_id(sample_account.id)
+    stored_account_2 = repository.get_by_external_id(
+        sample_account.institution_connection_id, sample_account.external_id
+    )
+    stored_accounts = repository.get_by_institution_connection_id(
+        sample_account.institution_connection_id
+    )
+
+    assert stored_account == sample_account
+    assert stored_account_2 == sample_account
+    assert len(stored_accounts) == 1
+    assert stored_accounts[0] == sample_account
 
 
 def test_transaction_repository_round_trips_transaction(

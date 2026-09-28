@@ -12,7 +12,7 @@ from .position import AccountingMethod, PositionBuilder
 class PortfolioBuilder:
     def __init__(
         self,
-        accounting_method: AccountingMethod = AccountingMethod.FIFO,
+        accounting_method: AccountingMethod = AccountingMethod.AVERAGE_COST,
     ):
         self._accounting_method = accounting_method
 
@@ -61,12 +61,12 @@ class PortfolioBuilder:
         cash_balance_builder: dict[str, CashBalanceBuilder] = {}
 
         for transaction in transactions:
-            asset_account_id = transaction.account_id
+            account_id = transaction.account_id
 
-            if asset_account_id not in cash_balance_builder:
-                cash_balance_builder[asset_account_id] = CashBalanceBuilder()
+            if account_id not in cash_balance_builder:
+                cash_balance_builder[account_id] = CashBalanceBuilder()
 
-            cash_balance_builder[asset_account_id].add(transaction)
+            cash_balance_builder[account_id].add(transaction)
 
             if transaction.type not in (TransactionType.BUY, TransactionType.SELL):
                 continue
@@ -74,18 +74,18 @@ class PortfolioBuilder:
             assert transaction.instrument_id is not None
             instrument_id = transaction.instrument_id
 
-            if asset_account_id not in position_builders:
-                position_builders[asset_account_id] = {}
+            if account_id not in position_builders:
+                position_builders[account_id] = {}
 
-            if instrument_id not in position_builders[asset_account_id]:
-                position_builders[asset_account_id][instrument_id] = PositionBuilder(
+            if instrument_id not in position_builders[account_id]:
+                position_builders[account_id][instrument_id] = PositionBuilder(
                     instrument_id=instrument_id,
                     native_currency=transaction.price.native.currency,
                     reporting_currency=transaction.price.reporting.currency,
                     accounting_method=self._accounting_method,
                 )
 
-            position_builders[asset_account_id][instrument_id].add(transaction)
+            position_builders[account_id][instrument_id].add(transaction)
 
         return position_builders, cash_balance_builder
 
@@ -93,7 +93,7 @@ class PortfolioBuilder:
         self,
         portfolios: list[Portfolio],
         scope_type: ScopeType,
-        accounts_map: AccountMap,
+        account_map: AccountMap,
     ) -> list[Portfolio]:
         if scope_type == ScopeType.ACCOUNT:
             return portfolios
@@ -103,7 +103,7 @@ class PortfolioBuilder:
             for portfolio in portfolios:
                 assert portfolio.scope.id is not None
                 institution_connection_id = (
-                    accounts_map.account_id_to_institution_connection_id[
+                    account_map.account_id_to_institution_connection_id[
                         portfolio.scope.id
                     ]
                 )

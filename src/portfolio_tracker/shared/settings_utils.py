@@ -2,12 +2,13 @@ import copy
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from portfolio_tracker.shared.dataclass_utils import (
     prune_replacement_values,
     replace_dataclass_values,
-    structure,
+    replace_dict_values,
+    structure_values_from_dataclass,
     unstructure,
 )
 
@@ -42,7 +43,7 @@ class JsonSettingsStore(SettingsStore):
             return {}
 
         overrides = json.loads(path.read_text())
-        return structure(overrides, cast(type, self._settings_cls))
+        return structure_values_from_dataclass(overrides, self._settings_cls)
 
     def save(self, user_id: str, overrides: dict[str, Any]) -> None:
         self._path(user_id).write_text(json.dumps(unstructure(overrides), indent=2))
@@ -78,22 +79,23 @@ class SettingsCache(Generic[TSettings]):
         section[value_key] = value
         return self._update_settings(user_id, overrides)
 
-    def reset_value(self, user_id: str, key: str) -> tuple[TSettings, bool]:
+    def reset_value(self, user_id: str, key: str) -> bool:
         overrides = copy.deepcopy(self.get_overrides(user_id))
         section_overrides = overrides
         *section_keys, value_key = key.split(".")
         for section_key in section_keys:
             child_section_overrides = section_overrides.get(section_key)
             if not isinstance(child_section_overrides, dict):
-                return self.get_settings(user_id), False
+                return False
 
             section_overrides = child_section_overrides
 
         if value_key not in section_overrides:
-            return self.get_settings(user_id), False
+            return False
 
         del section_overrides[value_key]
-        return self._save_overrides(user_id, overrides), True
+        self._save_overrides(user_id, overrides)
+        return True
 
     def reset_all(self, user_id: str) -> TSettings:
         return self._save_overrides(user_id, {})
@@ -115,7 +117,7 @@ class SettingsCache(Generic[TSettings]):
 
     def _update_settings(self, user_id: str, overrides: dict[str, Any]) -> TSettings:
         current_overrides = self.get_overrides(user_id)
-        merged_overrides = merge_dicts(current_overrides, overrides)
+        merged_overrides = replace_dict_values(current_overrides, overrides)
         return self._save_overrides(user_id, merged_overrides)
 
     def _save_overrides(self, user_id: str, overrides: dict[str, Any]) -> TSettings:
@@ -125,15 +127,3 @@ class SettingsCache(Generic[TSettings]):
             self._default_settings, overrides
         )
         return self._cache[user_id]
-
-
-def merge_dicts(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
-    merged = dict(base)
-
-    for key, value in updates.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            merged[key] = merge_dicts(merged[key], value)
-        else:
-            merged[key] = value
-
-    return merged

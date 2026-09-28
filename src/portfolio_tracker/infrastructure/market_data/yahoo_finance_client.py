@@ -75,6 +75,7 @@ class YahooFinanceClient(MarketDataClient):
                 end=end,
                 prepost=extended_hours,
                 group_by="ticker",
+                progress=False,
             )
 
         except Exception as error:

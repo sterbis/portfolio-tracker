@@ -1,7 +1,7 @@
 from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 from portfolio_tracker.domain.shared import Currency, DualMoney
 from portfolio_tracker.domain.transaction import ConvertedTransaction, TransactionType
@@ -9,7 +9,7 @@ from portfolio_tracker.domain.transaction import ConvertedTransaction, Transacti
 from .models import Position, TaxLot
 
 
-class AccountingMethod(Enum):
+class AccountingMethod(StrEnum):
     AVERAGE_COST = "AVERAGE_COST"
     FIFO = "FIFO"
 

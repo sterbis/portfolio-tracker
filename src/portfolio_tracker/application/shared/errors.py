@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Iterable
 from pprint import pformat
 from typing import Any
 
@@ -16,7 +16,12 @@ class PortfolioTrackerError(Exception):
     def message(self) -> str:
         return self._message_template.format(
             **{
-                key: ", ".join(value) if isinstance(value, Sequence) else str(value)
+                key: (
+                    ", ".join(str(item) for item in value)
+                    if isinstance(value, Iterable)
+                    and not isinstance(value, (str, bytes))
+                    else value
+                )
                 for key, value in self.context.items()
             }
         )
@@ -40,7 +45,7 @@ class InvalidFilterError(PortfolioTrackerError):
 
 
 class ModelNotFoundError(PortfolioTrackerError):
-    _message_template = "{model_name} with ID {model_id} not found."
+    _message_template = "{model_name} with ID '{model_id}' not found."
 
     def __init__(self, model_name: str, model_id: str | set[str]) -> None:
         super().__init__(model_name=model_name, model_id=model_id)

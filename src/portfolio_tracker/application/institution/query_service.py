@@ -53,18 +53,23 @@ class InstitutionQueryService(QueryService):
             institution_connections = uow.institution_connections.get_by_user_id(
                 user_id
             )
-            institution_ids = {
-                institution_connection.institution_id
-                for institution_connection in institution_connections
-            }
+            credentials_list = uow.credentials.get_by_ids(
+                {
+                    institution_connection.id
+                    for institution_connection in institution_connections
+                }
+            )
             institutions = [
-                self._institution_registry.get_institution(institution_id)
-                for institution_id in institution_ids
+                self._institution_registry.get_institution(
+                    institution_connection.institution_id
+                )
+                for institution_connection in institution_connections
             ]
             return list(
                 self._view_builder.build_institution_connection_views(
                     institutions,
                     institution_connections,
+                    credentials_list,
                 ).values()
             )
 

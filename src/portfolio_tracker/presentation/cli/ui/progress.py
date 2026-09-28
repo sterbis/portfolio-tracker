@@ -4,17 +4,17 @@ import typer
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 
 from portfolio_tracker.application.sync import (
-    AccountsSyncCompleted,
-    AccountsSyncFailed,
-    AccountsSyncStarted,
     FxSyncCompleted,
     FxSyncFailed,
     FxSyncProgress,
     FxSyncStarted,
-    InstrumentsSyncCompleted,
-    InstrumentsSyncFailed,
-    InstrumentsSyncProgress,
-    InstrumentsSyncStarted,
+    InstitutionSyncCompleted,
+    InstitutionSyncFailed,
+    InstitutionSyncStarted,
+    InstrumentSyncCompleted,
+    InstrumentSyncFailed,
+    InstrumentSyncProgress,
+    InstrumentSyncStarted,
     SyncEvent,
 )
 
@@ -37,32 +37,34 @@ async def render_sync_progress(
     ) as progress:
         async for event in sync_function(*args, **kwargs):
             match event:
-                case AccountsSyncStarted(
-                    institution_connection_id=account_id,
-                    institution_connection_name=account_name,
+                case InstitutionSyncStarted(
+                    connection_id=connection_id,
+                    connection_name=connection_name,
                 ):
-                    task_id = progress.add_task(f"Syncing {account_name}...", total=100)
-                    task_ids[account_id] = task_id
+                    task_id = progress.add_task(
+                        f"Syncing '{connection_name}' ({connection_id})...", total=100
+                    )
+                    task_ids[connection_id] = task_id
 
-                case AccountsSyncCompleted(
-                    institution_connection_id=account_id,
-                    institution_connection_name=account_name,
+                case InstitutionSyncCompleted(
+                    connection_id=connection_id,
+                    connection_name=connection_name,
                 ):
                     progress.update(
-                        task_ids[account_id],
+                        task_ids[connection_id],
                         completed=100,
-                        description=f"[green]✔ {account_name} sync completed[/green]",
+                        description=f"[green]✔ '{connection_name}' ({connection_id}) sync completed[/green]",
                     )
 
-                case AccountsSyncFailed(
-                    institution_connection_id=account_id,
-                    institution_connection_name=account_name,
+                case InstitutionSyncFailed(
+                    connection_id=connection_id,
+                    connection_name=connection_name,
                     error=error,
                 ):
                     progress.update(
-                        task_ids[account_id],
+                        task_ids[connection_id],
                         completed=100,
-                        description=f"[red]✖ {account_name} sync failed: {error}[/red]",
+                        description=f"[red]✖ '{connection_name}' ({connection_id}) sync failed. {error}[/red]",
                     )
                     failed = True
 
@@ -88,22 +90,22 @@ async def render_sync_progress(
                     )
                     failed = True
 
-                case InstrumentsSyncStarted(total=total):
+                case InstrumentSyncStarted(total=total):
                     task_id = progress.add_task(
                         f"Syncing market data for {total} instruments...", total=total
                     )
                     task_ids["market_data"] = task_id
 
-                case InstrumentsSyncProgress(completed=completed, total=total):
+                case InstrumentSyncProgress(completed=completed, total=total):
                     progress.update(task_ids["market_data"], completed=completed)
 
-                case InstrumentsSyncCompleted():
+                case InstrumentSyncCompleted():
                     progress.update(
                         task_ids["market_data"],
                         description="[green]✔ Market data sync completed[/green]",
                     )
 
-                case InstrumentsSyncFailed(error=error):
+                case InstrumentSyncFailed(error=error):
                     progress.update(
                         task_ids["market_data"],
                         description=f"[red]✖ Market data sync failed: {error}[/red]",
@@ -112,9 +114,9 @@ async def render_sync_progress(
 
     if failed:
         if len(task_ids) > 1:
-            error_console.print("[bold red]Some sync operations failed[/bold red]")
+            error_console.print("[bold red]Some sync operations failed.[/bold red]")
 
         raise typer.Exit(1)
 
     if len(task_ids) > 1:
-        console.print("[bold green]All sync operations completed[/bold green]")
+        console.print("[bold green]All sync operations completed.[/bold green]")

@@ -1,9 +1,10 @@
-import secrets
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Any
+
+from portfolio_tracker.shared.id_utils import generate_random_hex_id
 
 
 class InstitutionId(StrEnum): ...
@@ -18,11 +19,11 @@ class Institution:
 
 @dataclass(frozen=True, kw_only=True)
 class InstitutionConnection:
-    id: str = field(default_factory=lambda: f"conn_{secrets.token_urlsafe(8)}")
+    id: str = field(default_factory=lambda: generate_random_hex_id(prefix="conn"))
     institution_id: InstitutionId
     user_id: str
     name: str
-    account_opened_on: date
+    sync_from: date
     last_synced_at: datetime | None = None
 
     def with_last_synced_at(self, last_synced_at: datetime) -> InstitutionConnection:

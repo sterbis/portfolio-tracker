@@ -6,13 +6,13 @@ from pathlib import Path
 @dataclass(frozen=True)
 class ImportReportCommand:
     path: Path
-    institution_connection_id: str
+    connection_id: str
     account_ids: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
-class SyncAccountsCommand:
-    institution_connection_ids: set[str] = field(default_factory=set)
+class SyncCommand:
+    connection_ids: set[str] = field(default_factory=set)
     account_ids: set[str] = field(default_factory=set)
     start: datetime | None = None
     end: datetime | None = None

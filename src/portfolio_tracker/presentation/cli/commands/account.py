@@ -21,7 +21,7 @@ from portfolio_tracker.presentation.cli.input import (
 )
 from portfolio_tracker.presentation.cli.ui.tables import get_view_table
 
-from .sync import sync_accounts
+from .sync import sync_portfolio
 
 account_app = GuardedTyper()
 
@@ -113,7 +113,8 @@ def activate_account(
 
     if sync:
         ctx.invoke(
-            sync_accounts,
+            sync_portfolio,
+            ctx=ctx,
             account_id=[account.id],
             restore=True,
         )

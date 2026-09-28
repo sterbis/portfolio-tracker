@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from typing import Any
 
 from portfolio_tracker.application.encryption import Encryptor
@@ -40,23 +41,43 @@ class SqliteCredentialsRepository(CredentialsRepository):
     def get(self, institution_connection_id: str) -> Credentials | None:
         cursor = self._executor.execute(
             sql="""
-                SELECT institution_id, encrypted_parameters FROM credentials
+                SELECT institution_id, institution_connection_id, encrypted_parameters
+                FROM credentials
                 WHERE institution_connection_id = :institution_connection_id;
             """,
             parameters={"institution_connection_id": institution_connection_id},
         )
 
         row = cursor.fetchone()
-
         if row is None:
             return None
 
+        return self._row_to_credentials(row)
+
+    def get_by_ids(self, institution_connection_ids: set[str]) -> list[Credentials]:
+        parameters = {
+            f"institution_connection_id_{index}": institution_connection_id
+            for index, institution_connection_id in enumerate(
+                institution_connection_ids, start=1
+            )
+        }
+        cursor = self._executor.execute(
+            sql=f"""
+                SELECT institution_id, institution_connection_id, encrypted_parameters
+                FROM credentials
+                WHERE institution_connection_id IN ({", ".join(f":{parameter}" for parameter in parameters)});
+            """,
+            parameters=parameters,
+        )
+        return [self._row_to_credentials(row) for row in cursor.fetchall()]
+
+    def _row_to_credentials(self, row: sqlite3.Row) -> Credentials:
         institution_id = self._institution_registry.get_institution_id(row[0])
-        encrypted_parameters = row[1]
+        institution_connection_id = row[1]
+        encrypted_parameters = row[2]
 
         json_string = self._encryptor.decrypt(encrypted_parameters)
         parameters: dict[str, Any] = json.loads(json_string)
-
         return self._institution_registry.create_credentials(
             institution_id, institution_connection_id, parameters
         )

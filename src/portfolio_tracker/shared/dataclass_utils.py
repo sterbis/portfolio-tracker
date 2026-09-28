@@ -115,9 +115,6 @@ def structure(value: Any, cls: type[T]) -> T:
     if isinstance(value, cls):
         return value
 
-    if issubclass(cls, Enum):
-        return cast(T, cls(value.upper() if isinstance(value, str) else value))
-
     if is_dataclass(cls):
         return cast(T, structure_dataclass(value, cls))
 
@@ -128,49 +125,105 @@ def structure(value: Any, cls: type[T]) -> T:
         return cls(value)  # type: ignore[call-arg]
     except TypeError as error:
         raise TypeError(
-            f"No converter registered for type {cls.__name__}. Direct construction failed: {error}"
+            f"No converter registered for type {cls.__name__}. "
+            f"Direct construction failed: {error}."
         ) from error
 
 
 def structure_dataclass(values: dict[str, Any], cls: type[TDataclass]) -> TDataclass:
-    structured_values: dict[str, Any] = {}
     annotations = typing.get_type_hints(cls)
+    return cls(
+        **{
+            filed_name: structure_field(value, annotations[filed_name])
+            for filed_name, value in values.items()
+            if filed_name in annotations
+        }
+    )
 
-    for filed_name, value in values.items():
-        if filed_name not in annotations:
-            continue
 
-        annotation: type = annotations[filed_name]
-        if isinstance(annotation, types.GenericAlias):
-            field_type = typing.get_origin(annotation)
+def structure_values_from_dataclass(
+    values: dict[str, Any], cls: type[TDataclass]
+) -> dict[str, Any]:
+    annotations = typing.get_type_hints(cls)
+    return {
+        filed_name: structure_field(
+            value, annotations[filed_name], dataclass_as_dict=True
+        )
+        for filed_name, value in values.items()
+        if filed_name in annotations
+    }
 
-        else:
-            field_type = annotation
 
-        if is_dataclass(field_type) and isinstance(value, dict):
-            structured_values[filed_name] = structure_dataclass(value, field_type)
+def structure_field(
+    value: Any, field_type: Any, dataclass_as_dict: bool = False
+) -> Any:
+    if field_type is typing.Any:
+        return value
 
-        elif field_type is dict and isinstance(value, dict):
-            item_type: type = typing.get_args(annotation)[1]
-            structured_values[filed_name] = {
-                item_name: (
-                    structure_dataclass(item, item_type)
-                    if is_dataclass(item_type)
-                    else structure(item, item_type)
-                )
-                for item_name, item in value.items()
-            }
+    origin_type = typing.get_origin(field_type)
 
-        elif field_type is list and isinstance(value, list):
-            item_type = typing.get_args(annotation)[0]
-            structured_values[filed_name] = [
-                structure(item, item_type) for item in value
-            ]
+    if _is_dataclass_cls(field_type) and isinstance(value, dict):
+        if dataclass_as_dict:
+            return structure_values_from_dataclass(value, field_type)
 
-        else:
-            structured_values[filed_name] = structure(value, field_type)
+        return structure_dataclass(value, field_type)
 
-    return cls(**structured_values)
+    if origin_type is dict and isinstance(value, dict):
+        args = typing.get_args(field_type)
+        key_type = args[0] if args else typing.Any
+        item_type = args[1] if args else typing.Any
+        return {
+            structure_field(key, key_type, dataclass_as_dict): structure_field(
+                item, item_type, dataclass_as_dict
+            )
+            for key, item in value.items()
+        }
+
+    if origin_type in (list, set) and isinstance(value, list):
+        args = typing.get_args(field_type)
+        item_type = args[0] if args else typing.Any
+        return origin_type(
+            structure_field(item, item_type, dataclass_as_dict) for item in value
+        )
+
+    if origin_type is tuple and isinstance(value, list):
+        args = typing.get_args(field_type)
+        if not args:
+            return tuple(value)
+
+        if len(args) == 2 and args[1] is Ellipsis:
+            item_type = args[0]
+            return tuple(
+                structure_field(item, item_type, dataclass_as_dict) for item in value
+            )
+
+        if len(args) != len(value):
+            raise ValueError(f"Expected tuple of length {len(args)}, got {len(value)}")
+
+        return tuple(
+            structure_field(item, item_type, dataclass_as_dict)
+            for item, item_type in zip(value, args)
+        )
+
+    if origin_type in (typing.Union, types.UnionType):
+        union_types = typing.get_args(field_type)
+
+        for union_type in union_types:
+            if isinstance(union_type, type) and isinstance(value, union_type):
+                return value
+
+        for union_type in union_types:
+            try:
+                return structure_field(value, union_type, dataclass_as_dict)
+            except TypeError, ValueError:
+                continue
+
+        raise ValueError(
+            f"Cannot convert value {value} to any of: "
+            f"{', '.join(getattr(union_type, '__name__', str(union_type)) for union_type in union_types)}."
+        )
+
+    return structure(value, field_type)
 
 
 def replace_dataclass_values(
@@ -184,48 +237,59 @@ def replace_dataclass_values(
 
     replacements: dict[str, Any] = {}
 
-    for field in fields(instance):
-        if field.name not in replacement_values:
-            continue
+    for field_name, replacement_value in replacement_values.items():
+        if not hasattr(instance, field_name):
+            raise ValueError(f"Unknown replacement value field name: '{field_name}'.")
 
-        original_value = getattr(instance, field.name)
-        replacement_value = replacement_values[field.name]
+        original_value = getattr(instance, field_name)
 
         if _is_dataclass_instance(original_value):
-            replacements[field.name] = replace_dataclass_values(
+            replacements[field_name] = replace_dataclass_values(
                 original_value, replacement_value, allow_unknown_keys=allow_unknown_keys
             )
 
         elif isinstance(original_value, dict) and isinstance(replacement_value, dict):
-            merged_value = dict(original_value)
-
-            for key, replacement_item in replacement_value.items():
-                if key not in original_value:
-                    if not allow_unknown_keys:
-                        raise ValueError(
-                            f"Unknown key '{key}' in replacement value for field '{field.name}'."
-                        )
-
-                    merged_value[key] = replacement_item
-                    continue
-
-                original_item = original_value[key]
-                merged_value[key] = (
-                    replace_dataclass_values(
-                        original_item,
-                        replacement_item,
-                        allow_unknown_keys=allow_unknown_keys,
-                    )
-                    if _is_dataclass_instance(original_item)
-                    else replacement_item
-                )
-
-            replacements[field.name] = merged_value
+            replacements[field_name] = replace_dict_values(
+                original_value, replacement_value, allow_unknown_keys=allow_unknown_keys
+            )
 
         else:
-            replacements[field.name] = replacement_value
+            replacements[field_name] = replacement_value
 
     return replace(instance, **replacements)
+
+
+def replace_dict_values(
+    original: dict[str, Any],
+    replacement: dict[str, Any],
+    allow_unknown_keys: bool = False,
+) -> dict[str, Any]:
+    replaced = dict(original)
+
+    for key, replacement_item in replacement.items():
+        if key not in original:
+            if not allow_unknown_keys:
+                raise ValueError(f"Unknown key '{key}' in replacement dictionary.")
+
+            replaced[key] = replacement_item
+            continue
+
+        original_item = original[key]
+
+        if _is_dataclass_instance(original_item):
+            replaced[key] = replace_dataclass_values(
+                original_item, replacement_item, allow_unknown_keys=allow_unknown_keys
+            )
+
+        elif isinstance(original_item, dict) and isinstance(replacement_item, dict):
+            replaced[key] = replace_dict_values(
+                original_item, replacement_item, allow_unknown_keys=allow_unknown_keys
+            )
+
+        else:
+            replaced[key] = replacement_item
+
+    return replaced
 
 
 def prune_replacement_values(
@@ -240,7 +304,7 @@ def prune_replacement_values(
 
             original_value = original_values[key]
 
-        elif _is_dataclass_instance(original_value):
+        elif _is_dataclass_instance(original_values):
             if not hasattr(original_values, key):
                 continue
 
@@ -297,3 +361,7 @@ def _diff(value: Any, default_value: Any) -> Any:
 
 def _is_dataclass_instance(value: Any) -> bool:
     return is_dataclass(value) and not isinstance(value, type)
+
+
+def _is_dataclass_cls(value: Any) -> bool:
+    return is_dataclass(value) and isinstance(value, type)

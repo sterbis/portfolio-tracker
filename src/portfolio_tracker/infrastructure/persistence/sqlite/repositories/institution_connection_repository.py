@@ -74,15 +74,15 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
         )
 
     def _institution_connection_to_values(
-        self, account: InstitutionConnection
+        self, connection: InstitutionConnection
     ) -> dict[str, Any]:
         return {
-            "id": account.id,
-            "institution_id": account.institution_id,
-            "user_id": account.user_id,
-            "name": account.name,
-            "account_opened_on": account.account_opened_on,
-            "last_synced_at": account.last_synced_at,
+            "id": connection.id,
+            "institution_id": connection.institution_id,
+            "user_id": connection.user_id,
+            "name": connection.name,
+            "sync_from": connection.sync_from,
+            "last_synced_at": connection.last_synced_at,
         }
 
     def _row_to_institution_connection(
@@ -98,6 +98,6 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
                 row[field("institution_id")]
             ),
             name=row[field("name")],
-            account_opened_on=row[field("account_opened_on")],
+            sync_from=row[field("sync_from")],
             last_synced_at=row[field("last_synced_at")],
         )

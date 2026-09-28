@@ -28,13 +28,18 @@ from portfolio_tracker.presentation.cli.input import (
     resolve_input,
     resolve_inputs,
 )
+from portfolio_tracker.presentation.cli.parameters import multi_value_option
 from portfolio_tracker.presentation.cli.ui.tables import get_view_table
 
-institution_app = GuardedTyper()
+connection_app = GuardedTyper()
 
 
-@institution_app.command(name="list")
-def list_institution_connections(ctx: typer.Context) -> None:
+@connection_app.command(name="list")
+def list_institution_connections(
+    ctx: typer.Context,
+    active_columns: Annotated[list[str] | None, multi_value_option("--column")] = None,
+    sort_columns: Annotated[list[str] | None, multi_value_option("--sort")] = None,
+) -> None:
     container = get_container(ctx)
     user_id = get_logged_in_user_id(ctx)
     settings = get_settings(ctx)
@@ -47,16 +52,24 @@ def list_institution_connections(ctx: typer.Context) -> None:
         return
 
     table = get_view_table(InstitutionConnectionView)
-    rendered_table = table.render(institution_connections, settings.display.cli)
+    display_settings = settings.display.cli
+
+    rendered_table = table.render(
+        institution_connections,
+        display_settings,
+        active_columns=active_columns
+        or display_settings.tables[table.name].active_columns,
+        sort_columns=sort_columns or display_settings.tables[table.name].sort_columns,
+    )
     console.print(rendered_table)
 
 
-@institution_app.command(name="add")
+@connection_app.command(name="add")
 def add_institution_connection(
     ctx: typer.Context,
-    institution: Annotated[str | None, typer.Option()] = None,
+    institution_code: Annotated[str | None, typer.Option()] = None,
     name: Annotated[str | None, typer.Option()] = None,
-    account_opened_on: Annotated[str | None, typer.Option()] = None,
+    sync_from: Annotated[str | None, typer.Option()] = None,
     credential_list: Annotated[list[str] | None, typer.Option("--credential")] = None,
 ) -> None:
     environment = get_environment(ctx)
@@ -64,15 +77,16 @@ def add_institution_connection(
     user_id = get_logged_in_user_id(ctx)
 
     inputs: list[Input[Any, Any]] = [
-        required_enum_input("--institution", institution, InstitutionCode),
+        required_enum_input("--institution-code", institution_code, InstitutionCode),
         required_str_input("--name", name),
-        required_date_input("--account-opened-on", account_opened_on),
+        required_date_input("--sync-from", sync_from),
     ]
     values = resolve_inputs(environment, inputs)
-    institution_id = values["--institution"]
+    resolved_institution_code = values["--institution-code"]
+    resolved_name = values["--name"]
 
     credential_parameters = resolve_credential_parameters(
-        institution_id,
+        resolved_institution_code,
         credential_list,
         container.institution_query_service,
         environment,
@@ -80,85 +94,85 @@ def add_institution_connection(
     connection_id = container.institution_command_service.connect_institution(
         user_id,
         ConnectInstitutionCommand(
-            institution_id=institution_id,
-            name=values["--name"],
-            account_opened_on=values["--account-opened-on"],
+            institution_id=resolved_institution_code,
+            name=resolved_name,
+            sync_from=values["--sync-from"],
             credential_parameters=credential_parameters,
         ),
     )
     console.print(
-        f"Institution account '{name}' ({connection_id})  successfully connected."
+        f"Institution connection '{resolved_name}' ({connection_id}) successfully added."
     )
 
 
-@institution_app.command(name="edit")
+@connection_app.command(name="edit")
 def edit_institution_connection(
     ctx: typer.Context,
     connection_id: Annotated[str | None, typer.Option()] = None,
-    institution: Annotated[str | None, typer.Option()] = None,
+    institution_code: Annotated[str | None, typer.Option()] = None,
     name: Annotated[str | None, typer.Option()] = None,
-    account_opened_on: Annotated[str | None, typer.Option()] = None,
+    sync_from: Annotated[str | None, typer.Option()] = None,
     credential_list: Annotated[list[str] | None, typer.Option("--credential")] = None,
 ) -> None:
     environment = get_environment(ctx)
     container = get_container(ctx)
     user_id = get_logged_in_user_id(ctx)
 
+    command_service = container.institution_command_service
+    query_service = container.institution_query_service
+
     connection_id = resolve_input("--connection-id", connection_id, environment)
-    institution_connection = (
-        container.institution_query_service.get_institution_connection(
-            user_id, connection_id
-        )
-    )
+    connection = query_service.get_institution_connection(user_id, connection_id)
 
     inputs: list[Input[Any, Any]] = [
         optional_prompt_enum_input(
-            "--institution",
-            institution,
+            "--institution-code",
+            institution_code,
             InstitutionCode,
-            default_value=institution_connection.institution.id,
+            default_value=connection.institution.id,
         ),
         optional_prompt_str_input(
-            "--name", name, default_value=institution_connection.name
+            "--name",
+            name,
+            default_value=connection.name,
         ),
         optional_prompt_date_input(
-            "--account-opened-on",
-            account_opened_on,
-            default_value=institution_connection.account_opened_on,
+            "--sync-from",
+            sync_from,
+            default_value=connection.sync_from,
         ),
     ]
     values = resolve_inputs(environment, inputs)
-    institution_id = values["--institution"]
+    resolved_institution_code = values["--institution-code"]
 
     current_credential_parameters = (
-        institution_connection.credentials.parameters
-        if institution_connection.credentials
-        else None
+        connection.credentials.parameters if connection.credentials else None
     )
     credential_parameters = resolve_credential_parameters(
-        institution_id,
+        resolved_institution_code,
         credential_list,
         container.institution_query_service,
         environment,
         current_credential_parameters,
     )
 
-    container.institution_command_service.update_institution_connection(
+    command_service.update_institution_connection(
         user_id,
         command=UpdateInstitutionConnectionCommand(
-            institution_connection_id=institution_connection.id,
+            connection_id=connection.id,
             name=values["--name"],
-            account_opened_on=values["--account-opened-on"],
+            sync_from=values["--sync-from"],
             credential_parameters=credential_parameters,
         ),
     )
+    connection = query_service.get_institution_connection(user_id, connection_id)
     console.print(
-        f"Institution account connection '{name}' "
-        f"({institution_connection.id}) successfully updated."
+        f"Institution connection '{connection.name}'"
+        f"({connection.id}) successfully updated."
     )
 
 
-@institution_app.command(name="remove")
+@connection_app.command(name="remove")
 def remove_institution_connection(
     ctx: typer.Context,
     connection_id: Annotated[str | None, typer.Option()] = None,
@@ -167,26 +181,25 @@ def remove_institution_connection(
     container = get_container(ctx)
     user_id = get_logged_in_user_id(ctx)
 
+    command_service = container.institution_command_service
+    query_service = container.institution_query_service
+
     connection_id = resolve_input("--connection-id", connection_id, environment)
-    institution_connection = (
-        container.institution_query_service.get_institution_connection(
-            user_id, connection_id
-        )
-    )
+    connection = query_service.get_institution_connection(user_id, connection_id)
 
     if environment.is_interactive:
         remove = typer.confirm(
-            "Are you sure you want to disconnect instititution account "
-            f"'{institution_connection.name}' ({institution_connection.id})?",
+            "Are you sure you want to remove instititution connection "
+            f"'{connection.name}' ({connection.id})?",
             default=False,
         )
         if not remove:
             console.print("Operation cancelled.")
             return
 
-    container.institution_command_service.disconnect_institution(user_id, connection_id)
+    command_service.disconnect_institution(user_id, connection_id)
 
     console.print(
-        f"Institution account '{institution_connection.name}' "
-        f"({institution_connection.id}) successfully disconnected."
+        f"Institution connection '{connection.name}' "
+        f"({connection.id}) successfully removed."
     )

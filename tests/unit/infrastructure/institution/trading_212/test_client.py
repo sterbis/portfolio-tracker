@@ -22,6 +22,7 @@ def trading_212_client() -> Trading212Client:
         credentials=Trading212Credentials(
             institution_id=InstitutionCode.TRADING_212,
             institution_connection_id="inst_acc_001",
+            account_id="0123456",
             api_key="api_key",
             api_secret="api_secret",
         )
@@ -104,6 +105,6 @@ async def test_request_raises_institution_client_error_on_non_429_error(
 
     with pytest.raises(
         InstitutionClientError,
-        match="Request to .+ failed after 3 attempts. Status: 500, reason: Internal Server Error",
+        match=r"GET request to .+ failed after 3 attempts\. Status code: 500, reason: Internal Server Error",
     ):
         await trading_212_client._request(Trading212ApiEndpoints.ACCOUNT_SUMMARY)

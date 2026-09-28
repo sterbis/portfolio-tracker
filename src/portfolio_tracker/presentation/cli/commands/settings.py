@@ -17,10 +17,10 @@ from portfolio_tracker.presentation.cli.ui.fromatters import format_settings_val
 from portfolio_tracker.presentation.cli.ui.tables import get_view_table_by_name
 from portfolio_tracker.settings import Settings
 from portfolio_tracker.shared.dataclass_utils import (
+    replace_dict_values,
     resolve_field_value,
     unstructure,
 )
-from portfolio_tracker.shared.settings_utils import merge_dicts
 
 settings_app = GuardedTyper()
 
@@ -44,9 +44,11 @@ def list_settings(
         default_settings = cache.default_settings
 
     if as_json:
-        default_values = unstructure(default_settings)
-        values = merge_dicts(default_values, overrides)
-        console.print_json(data=values)
+        console.print_json(
+            data=replace_dict_values(
+                unstructure(default_settings), unstructure(overrides)
+            )
+        )
         return
 
     if isinstance(default_settings, TableDisplaySettings):
@@ -72,8 +74,9 @@ def list_settings(
         )
 
     else:
-        default_values = unstructure(default_settings)
-        lines = format_settings_values(default_values, overrides, key)
+        lines = format_settings_values(
+            unstructure(default_settings), unstructure(overrides), key
+        )
         console.print("\n".join(lines))
 
 
@@ -138,7 +141,7 @@ def reset_settings(
 
     assert key is not None
     _resolve_settings_section(cache.default_settings, key)
-    _, was_reset = cache.reset_value(user_id, key)
+    was_reset = cache.reset_value(user_id, key)
     if was_reset:
         console.print(f"Settings '{key}' value sucessfully reset to default.")
 
@@ -157,6 +160,8 @@ def _resolve_settings_value(settings: Settings, key: str) -> Any:
     value = _resolve_settings_section(settings, key)
 
     if is_dataclass(value) or isinstance(value, dict):
-        raise KeyError(f"Invalid settings key: '{key}'. Key points to a section.")
+        raise typer.BadParameter(
+            f"Invalid settings key: '{key}'. Key points to a section."
+        )
 
     return value

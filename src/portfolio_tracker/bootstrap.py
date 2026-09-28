@@ -28,8 +28,12 @@ from portfolio_tracker.application.views import VIEW_REGISTRY, ViewBuilder
 from portfolio_tracker.domain.portfolio import PortfolioBuilder, PortfolioEvaluator
 from portfolio_tracker.domain.portfolio.cash_balance import CashBalanceEvaluator
 from portfolio_tracker.domain.portfolio.position import PositionEvaluator
+from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import TransactionAdjuster
-from portfolio_tracker.infrastructure.configuration import load_desktop_configuration
+from portfolio_tracker.infrastructure.configuration import (
+    APP_BASE_CURRENCY,
+    DesktopConfiguration,
+)
 from portfolio_tracker.infrastructure.encryption import FernetEncryptor
 from portfolio_tracker.infrastructure.fx import FrankfurterClient
 from portfolio_tracker.infrastructure.institution import create_institution_registry
@@ -45,9 +49,9 @@ from portfolio_tracker.shared.settings_utils import JsonSettingsStore, SettingsC
 from .settings import Settings
 
 
-def desktop_bootstrap() -> tuple[Container, SettingsCache[Settings]]:
-    configuration = load_desktop_configuration()
-
+def bootstrap_desktop(
+    configuration: DesktopConfiguration,
+) -> tuple[Container, SettingsCache[Settings]]:
     encryptor = FernetEncryptor(configuration.encryption_key)
     institution_registry = create_institution_registry()
 
@@ -74,7 +78,13 @@ def bootstrap(
     user_settings_dir: Path,
 ) -> tuple[Container, SettingsCache[Settings]]:
     fx_client = FrankfurterClient()
-    fx_service = FxService(fx_client)
+    fx_service = FxService(
+        base_currency=APP_BASE_CURRENCY,
+        quote_currencies={
+            currency for currency in Currency if currency != APP_BASE_CURRENCY
+        },
+        fx_client=fx_client,
+    )
 
     market_data_client = YahooFinanceClient()
     market_data_service = MarketDataService(market_data_client)

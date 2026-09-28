@@ -28,7 +28,7 @@ class InstitutionCommandService(Service):
             user_id=user_id,
             institution_id=command.institution_id,
             name=command.name,
-            account_opened_on=command.account_opened_on,
+            sync_from=command.sync_from,
         )
         credentials = self._institution_registry.create_credentials(
             connection.institution_id,
@@ -48,9 +48,7 @@ class InstitutionCommandService(Service):
         self, user_id: str, command: UpdateInstitutionConnectionCommand
     ) -> None:
         with self._user_scoped_unit_of_work(user_id) as uow:
-            connection = uow.institution_connections.get_by_id(
-                command.institution_connection_id
-            )
+            connection = uow.institution_connections.get_by_id(command.connection_id)
             if command.credential_parameters:
                 credentials = self._institution_registry.create_credentials(
                     connection.institution_id,
@@ -63,7 +61,7 @@ class InstitutionCommandService(Service):
             connection = replace(
                 connection,
                 name=command.name,
-                account_opened_on=command.account_opened_on,
+                sync_from=command.sync_from,
             )
             uow.institution_connections.update(connection)
             uow.commit()

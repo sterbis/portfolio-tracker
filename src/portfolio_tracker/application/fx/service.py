@@ -16,19 +16,26 @@ if TYPE_CHECKING:
 
 
 class FxService:
-    _BASE_CURRENCY = Currency.USD
-
     def __init__(
         self,
+        base_currency: Currency,
+        quote_currencies: set[Currency],
         fx_client: FxClient,
     ):
+        self._base_currency = base_currency
+        self._quote_currencies = quote_currencies
         self._fx_client = fx_client
-        self._quote_currencies = {
-            currency for currency in Currency if currency != self._BASE_CURRENCY
-        }
         self._cached_spot_rates: FxRates | None = None
         self._cached_spot_rates_ttl: int = 300
         self._last_spot_rates_fetch_at: datetime | None = None
+
+    @property
+    def base_currency(self) -> Currency:
+        return self._base_currency
+
+    @property
+    def quote_currencies(self) -> set[Currency]:
+        return self._quote_currencies
 
     def get_spot_rates(self, uow: UnitOfWork | None = None) -> FxRates:
         now = datetime.now(timezone.utc)
@@ -40,7 +47,7 @@ class FxService:
 
         try:
             rates = self._fx_client.fetch_spot_rates(
-                self._BASE_CURRENCY, self._quote_currencies
+                self._base_currency, self._quote_currencies
             )
 
         except FxClientError:
@@ -57,7 +64,7 @@ class FxService:
         self, from_date: date, to_date: date, only_dates: set[date] | None = None
     ) -> Iterator[FxRates]:
         return self._fx_client.fetch_rates_series(
-            self._BASE_CURRENCY,
+            self._base_currency,
             self._quote_currencies,
             from_date=from_date,
             to_date=to_date,

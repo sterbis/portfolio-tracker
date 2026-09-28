@@ -1,8 +1,9 @@
 import asyncio
+import logging
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
 import requests
@@ -17,15 +18,18 @@ from portfolio_tracker.application.institution import (
 from portfolio_tracker.application.shared.errors import InstitutionClientError
 from portfolio_tracker.domain.institution import Credentials
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class Trading212Credentials(Credentials):
+    account_id: str
     api_key: str
     api_secret: str
 
     @classmethod
     def parameter_names(cls) -> tuple[str, ...]:
-        return ("api_key", "api_secret")
+        return ("account_id", "api_key", "api_secret")
 
     @classmethod
     def secret_parameter_names(cls) -> tuple[str, ...]:
@@ -62,20 +66,17 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
     async def fetch_report(
         self, start: datetime, end: datetime
     ) -> AsyncIterator[ReportChunk]:
+        intervals = self._get_report_chunk_intervals(start, end, self._MAX_REPORT_DAYS)
         report_ids: set[str] = set()
-        current_start = start
 
-        while current_start < end:
-            current_end = min(
-                current_start + timedelta(days=self._MAX_REPORT_DAYS), end
-            )
+        for index, (chunk_start, chunk_end) in enumerate(intervals):
             report_ids.add(
-                await self._request_report_generation(current_start, current_end)
+                await self._request_report_generation(chunk_start, chunk_end)
             )
-            await asyncio.sleep(
-                Trading212ApiEndpoints.REQUEST_REPORT.rate_limit.retry_after_interval
-            )
-            current_start = current_end
+            if index < len(intervals) - 1:
+                await asyncio.sleep(
+                    Trading212ApiEndpoints.REQUEST_REPORT.rate_limit.retry_after_interval
+                )
 
         reports_metadata = await self._wait_for_reports_generation(report_ids)
 
@@ -83,21 +84,43 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
             yield self._download_report(report_metadata["downloadLink"])
 
     def verify_connection(self) -> None:
-        url = Trading212ApiEndpoints.ACCOUNT_SUMMARY.build_url(self._BASE_URL)
+        endpoint = Trading212ApiEndpoints.ACCOUNT_SUMMARY
+        method = endpoint.method
+        url = endpoint.build_url(self._BASE_URL)
         try:
+            logger.debug("Sending request:\nMethod: %s\nURL: %s\n", method, url)
             requests.get(url, auth=self._auth, timeout=5).raise_for_status()
 
         except requests.RequestException as error:
+            logger.debug(
+                "%s request to '%s' failed. Status code: %s. Reason: %s",
+                method,
+                url,
+                error.response.status_code if error.response else "Unknown",
+                error.response.reason if error.response else "Unknown",
+            )
             raise InstitutionClientError(f"Request to '{url}' failed.") from error
 
     def _download_report(self, url: str) -> Iterator[str]:
+        method = "GET"
         try:
-            response = requests.request("GET", url, timeout=10.0, stream=True)
+            logger.debug("Sending request:\nMethod: %s\nURL: %s\n", method, url)
+            response = requests.request(method, url, timeout=10.0, stream=True)
             response.raise_for_status()
         except requests.RequestException as error:
+            logger.debug(
+                "%s request to '%s' failed. Status code: %s. Reason: %s",
+                method,
+                url,
+                error.response.status_code if error.response else "Unknown",
+                error.response.reason if error.response else "Unknown",
+            )
             raise InstitutionClientError(
                 f"Failed to download report from '{url}'."
             ) from error
+
+        if response.encoding is None:
+            response.encoding = "utf-8"
 
         try:
             for line in response.iter_lines(decode_unicode=True):

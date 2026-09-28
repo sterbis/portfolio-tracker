@@ -19,12 +19,13 @@ class MockInstitutionCode(InstitutionId):
 
 @dataclass(frozen=True)
 class Trading321Credentials(Credentials):
+    account_id: str
     api_key: str
     api_secret: str
 
     @classmethod
     def parameter_names(cls) -> tuple[str, ...]:
-        return ("api_key", "api_secret")
+        return ("account_id", "api_key", "api_secret")
 
     @classmethod
     def secret_parameter_names(cls) -> tuple[str, ...]:

@@ -35,25 +35,27 @@ class PortfolioEvaluator:
         native_market_prices: dict[str, Money | None],
         rates: FxRates,
     ) -> PortfolioValuation:
+        reporting_currency = portfolio.reporting_currency
+
         instrument_metadata_by_id = {
             instrument_metadata.id: instrument_metadata
             for instrument_metadata in instruments_metadata
         }
 
         cash_balance_valuation = self._cash_balance_evaluator.get_valuation(
-            portfolio.cash_balance, portfolio.reporting_currency, rates
+            portfolio.cash_balance, reporting_currency, rates
         )
 
         position_valuations: dict[str, PositionValuation] = {}
         is_partially_valued = False
 
-        positions_market_value = Money.zero(portfolio.reporting_currency)
-        portfolio_unrealized_pnl = Money.zero(portfolio.reporting_currency)
+        positions_market_value = Money.zero(reporting_currency)
+        portfolio_unrealized_pnl = Money.zero(reporting_currency)
         market_value_by_asset_class: dict[AssetClass, Money] = defaultdict(
-            lambda: Money.zero(portfolio.reporting_currency)
+            lambda: Money.zero(reporting_currency)
         )
         market_value_by_instrument_type: dict[InstrumentType, Money] = defaultdict(
-            lambda: Money.zero(portfolio.reporting_currency)
+            lambda: Money.zero(reporting_currency)
         )
 
         for position in portfolio.positions:
@@ -65,11 +67,10 @@ class PortfolioEvaluator:
                 is_partially_valued = True
                 continue
 
-            rate = rates.get_rate(
-                position.native_currency,
-                portfolio.reporting_currency,
+            market_price = DualMoney(
+                native=native_market_price,
+                reporting=native_market_price.convert(reporting_currency, rates),
             )
-            market_price = DualMoney(native_market_price, native_market_price * rate)
 
             position_valuation = self._position_evaluator.get_valuation(
                 position, market_price

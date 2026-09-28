@@ -6,21 +6,21 @@ class SyncEvent: ...
 
 
 @dataclass(frozen=True)
-class AccountsSyncStarted(SyncEvent):
-    institution_connection_id: str
-    institution_connection_name: str
+class InstitutionSyncStarted(SyncEvent):
+    connection_id: str
+    connection_name: str
 
 
 @dataclass(frozen=True)
-class AccountsSyncCompleted(SyncEvent):
-    institution_connection_id: str
-    institution_connection_name: str
+class InstitutionSyncCompleted(SyncEvent):
+    connection_id: str
+    connection_name: str
 
 
 @dataclass(frozen=True)
-class AccountsSyncFailed(SyncEvent):
-    institution_connection_id: str
-    institution_connection_name: str
+class InstitutionSyncFailed(SyncEvent):
+    connection_id: str
+    connection_name: str
     error: Exception
 
 
@@ -45,20 +45,20 @@ class FxSyncFailed(SyncEvent):
 
 
 @dataclass(frozen=True)
-class InstrumentsSyncStarted(SyncEvent):
+class InstrumentSyncStarted(SyncEvent):
     total: int
 
 
 @dataclass(frozen=True)
-class InstrumentsSyncProgress(SyncEvent):
+class InstrumentSyncProgress(SyncEvent):
     completed: int
     total: int
 
 
 @dataclass(frozen=True)
-class InstrumentsSyncCompleted(SyncEvent): ...
+class InstrumentSyncCompleted(SyncEvent): ...
 
 
 @dataclass(frozen=True)
-class InstrumentsSyncFailed(SyncEvent):
+class InstrumentSyncFailed(SyncEvent):
     error: Exception

@@ -83,7 +83,7 @@ class SqliteMarketDataRepository(MarketDataRepository):
                 current_instrument_id is not None
                 and instrument_id != current_instrument_id
             ):
-                yield StockSplits(instrument_id, accumulated_splits)
+                yield StockSplits(current_instrument_id, accumulated_splits)
 
                 accumulated_splits = {}
 

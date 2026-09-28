@@ -51,7 +51,7 @@ class TransactionQueryService(QueryService):
 
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             transactions = uow.transactions.get(
-                institution_connection_ids=query.institution_connection_ids,
+                institution_connection_ids=query.connection_ids,
                 account_ids=query.account_ids,
                 filter_=repository_filter,
             )
@@ -74,11 +74,14 @@ class TransactionQueryService(QueryService):
                 transaction_dates
             )
             converter = TransactionConverter(rates_by_date)
-            converted_transactions = converter.convert_many(
-                adjusted_transactions, query.reporting_currency
+            converted_transactions = list(
+                converter.convert_many(adjusted_transactions, query.reporting_currency)
             )
+
             if memory_filter:
-                converted_transactions = memory_filter.apply(converted_transactions)
+                converted_transactions = list(
+                    memory_filter.apply(converted_transactions)
+                )
 
             instruments = uow.instruments.get_by_ids(
                 {
@@ -89,7 +92,7 @@ class TransactionQueryService(QueryService):
             )
 
             account_ids = uow.account_map.resolve_account_ids(
-                query.institution_connection_ids, query.account_ids
+                query.connection_ids, query.account_ids
             )
             accounts = uow.accounts.get_by_ids(account_ids)
             institution_connections = uow.institution_connections.get_by_ids(
@@ -109,7 +112,6 @@ class TransactionQueryService(QueryService):
                 instruments,
                 converted_transactions,
             )
-
             return self._apply_view_options(
                 views, sorts=query.sorts, offset=query.offset, limit=query.limit
             )

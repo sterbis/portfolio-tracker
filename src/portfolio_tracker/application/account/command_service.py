@@ -49,5 +49,5 @@ class AccountCommandService(Service):
 
             account = replace(account, is_active=False)
             uow.accounts.update(account)
-            uow.transactions.remove_by_asset_account_id(account.id)
+            uow.transactions.remove_by_account_id(account.id)
             uow.commit()

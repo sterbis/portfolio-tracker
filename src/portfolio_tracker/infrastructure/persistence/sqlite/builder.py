@@ -17,11 +17,11 @@ class SqliteStatementBuilder:
     ) -> tuple[str, dict[str, Any]]:
         table = self._resolver.get_table_name(model)
         parameters = self._values_to_parameters(model, values)
-        columns = parameters.keys()
+        column_names = parameters.keys()
 
         sql = f"""
-            INSERT INTO {table} ({", ".join(columns)})
-            VALUES ({", ".join(f":{column}" for column in columns)});
+            INSERT INTO {table} ({", ".join(column_names)})
+            VALUES ({", ".join(f":{column_name}" for column_name in column_names)});
         """
 
         return sql, parameters
@@ -115,7 +115,7 @@ class SqliteStatementBuilder:
         sql += ", ".join(select_expressions) + " "
 
         if require_join:
-            sql += f"FROM {root_table.name} AS {root_table.alias} "
+            sql += f"FROM {root_table.name} "
 
             for left_table, right_table in self._resolver.resolve_relations(
                 root_table, joined_tables
@@ -124,7 +124,7 @@ class SqliteStatementBuilder:
                     left_table, right_table
                 )
                 sql += (
-                    f"JOIN {right_table.name} AS {right_table.alias} "
+                    f"JOIN {right_table.name} "
                     f"ON {left_column.qualified_name} = {right_column.qualified_name} "
                 )
 
@@ -173,7 +173,7 @@ class SqliteStatementBuilder:
 
         filter_sql, filter_parameters = filter_.to_sql(
             column_map=self._get_filter_column_map(filter_),
-            name_generator=UniqueNameGenerator(prefix="filter"),
+            name_generator=UniqueNameGenerator(prefix="filter_parameter"),
         )
 
         sql = f"""

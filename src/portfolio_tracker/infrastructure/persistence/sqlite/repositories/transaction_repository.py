@@ -27,7 +27,7 @@ class SqliteTransactionRepository(TransactionRepository):
         self._executor.insert_on_conflict_do_nothing(
             model=Transaction,
             values=self._transaction_to_values(transaction),
-            conflict_field_names=["checksum"],
+            conflict_field_names=["id"],
         )
 
     def get(
@@ -72,7 +72,11 @@ class SqliteTransactionRepository(TransactionRepository):
             distinct=True,
             filter_=filter_,
         )
-        return {row[instrument_id_field] for row in rows}
+        return {
+            row[instrument_id_field]
+            for row in rows
+            if row[instrument_id_field] is not None
+        }
 
     def update(self, transaction: Transaction) -> None:
         self._executor.update(
@@ -90,29 +94,23 @@ class SqliteTransactionRepository(TransactionRepository):
     def remove_by_id(self, transaction_id: str) -> None:
         self.remove(filter_=FilterNode("id", Operator.EQ, transaction_id, Transaction))
 
-    def remove_by_asset_account_id(self, account_id: str) -> None:
+    def remove_by_account_id(self, account_id: str) -> None:
         self.remove(
-            filter_=FilterNode("asset_account_id", Operator.EQ, account_id, Transaction)
+            filter_=FilterNode("account_id", Operator.EQ, account_id, Transaction)
         )
 
-    def exists(self, filter_: Filter) -> bool:
+    def exists(self, transaction_id: str) -> bool:
         row = self._executor.select_one(
             model=Transaction,
             fields=[FieldReference(Transaction, "id")],
-            filter_=filter_,
+            filter_=FilterNode("id", Operator.EQ, transaction_id, Transaction),
         )
         return row is not None
-
-    def exists_by_checksum(self, checksum: str) -> bool:
-        return self.exists(
-            filter_=FilterNode("checksum", Operator.EQ, checksum, Transaction)
-        )
 
     def _transaction_to_values(self, transaction: Transaction) -> dict[str, Any]:
         return {
             "id": transaction.id,
             "correlation_id": transaction.correlation_id,
-            "checksum": transaction.checksum,
             "executed_at": transaction.executed_at,
             "account_id": transaction.account_id,
             "type": transaction.type,
@@ -129,9 +127,8 @@ class SqliteTransactionRepository(TransactionRepository):
             return FieldReference(Transaction, name)
 
         return Transaction(
-            id=row[field("id")],
+            provided_id=row[field("id")],
             correlation_id=row[field("correlation_id")],
-            provided_checksum=row[field("checksum")],
             executed_at=row[field("executed_at")],
             account_id=row[field("account_id")],
             type=TransactionType(row[field("type")]),

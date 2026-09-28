@@ -43,22 +43,22 @@ from portfolio_tracker.shared.async_utils import as_async_generator
 
 from .commands import (
     ImportReportCommand,
-    SyncAccountsCommand,
+    SyncCommand,
     SyncFxRatesCommand,
     SyncInstrumentsCommand,
 )
 from .events import (
-    AccountsSyncCompleted,
-    AccountsSyncFailed,
-    AccountsSyncStarted,
     FxSyncCompleted,
     FxSyncFailed,
     FxSyncProgress,
     FxSyncStarted,
-    InstrumentsSyncCompleted,
-    InstrumentsSyncFailed,
-    InstrumentsSyncProgress,
-    InstrumentsSyncStarted,
+    InstitutionSyncCompleted,
+    InstitutionSyncFailed,
+    InstitutionSyncStarted,
+    InstrumentSyncCompleted,
+    InstrumentSyncFailed,
+    InstrumentSyncProgress,
+    InstrumentSyncStarted,
     SyncEvent,
 )
 
@@ -97,10 +97,10 @@ class SyncService(Service):
 
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             institution_connection = uow.institution_connections.get_by_id(
-                command.institution_connection_id
+                command.connection_id
             )
 
-        yield AccountsSyncStarted(
+        yield InstitutionSyncStarted(
             institution_connection.id, institution_connection.name
         )
 
@@ -120,14 +120,14 @@ class SyncService(Service):
                     )
                     uow.commit()
 
-            yield AccountsSyncCompleted(
+            yield InstitutionSyncCompleted(
                 institution_connection.id,
                 institution_connection.name,
             )
 
         except PortfolioTrackerError as error:
             logger.error("Report import failed: %s", error.message, exc_info=error)
-            yield AccountsSyncFailed(
+            yield InstitutionSyncFailed(
                 institution_connection.id,
                 institution_connection.name,
                 error,
@@ -139,14 +139,19 @@ class SyncService(Service):
 
         yield from self.sync_instruments(SyncInstrumentsCommand(new_only=True))
 
-    async def sync_accounts(
-        self, user_id: str, command: SyncAccountsCommand
+    async def sync(
+        self, user_id: str, command: SyncCommand
     ) -> AsyncGenerator[SyncEvent, None]:
         institution_connections = self._resolve_institution_connections(
             user_id, command
         )
         for institution_connection in institution_connections:
-            yield AccountsSyncStarted(
+            logger.info(
+                "Syncing institution account '%s' (%s)",
+                institution_connection.name,
+                institution_connection.id,
+            )
+            yield InstitutionSyncStarted(
                 institution_connection.id, institution_connection.name
             )
 
@@ -163,19 +168,27 @@ class SyncService(Service):
             result = await future
             if result.is_success:
                 transaction_dates.update(result.transaction_dates)
-                yield AccountsSyncCompleted(
+
+                logger.info(
+                    "Institution account '%s' (%s) sync completed.",
+                    result.institution_connection.name,
+                    result.institution_connection.id,
+                )
+                yield InstitutionSyncCompleted(
                     result.institution_connection.id,
                     result.institution_connection.name,
                 )
+
             else:
                 assert result.error is not None
                 logger.error(
-                    "'%s' accounts sync failed: %s",
+                    "Institution account '%s' (%s) sync failed: %s",
                     result.institution_connection.name,
+                    result.institution_connection.id,
                     result.error,
                     exc_info=result.error,
                 )
-                yield AccountsSyncFailed(
+                yield InstitutionSyncFailed(
                     result.institution_connection.id,
                     result.institution_connection.name,
                     result.error,
@@ -187,15 +200,15 @@ class SyncService(Service):
             ):
                 yield event
 
-        async for event in as_async_generator(
-            self.sync_instruments(SyncInstrumentsCommand(new_only=True))
-        ):
-            yield event
+            async for event in as_async_generator(
+                self.sync_instruments(SyncInstrumentsCommand(new_only=True))
+            ):
+                yield event
 
     async def _sync_institution_accounts_task(
         self,
         institution_connection: InstitutionConnection,
-        command: SyncAccountsCommand,
+        command: SyncCommand,
     ) -> AccountsSyncResult:
         try:
             return await self._sync_institution_accounts(
@@ -210,7 +223,7 @@ class SyncService(Service):
     async def _sync_institution_accounts(
         self,
         institution_connection: InstitutionConnection,
-        command: SyncAccountsCommand,
+        command: SyncCommand,
     ) -> AccountsSyncResult:
         credentials = self._get_credentials(institution_connection.id)
         client = self._institution_registry.create_client(credentials)
@@ -312,11 +325,13 @@ class SyncService(Service):
             else:
                 transaction_dates = command.dates
 
-            rate_dates = uow.fx_rates.get_distinct_dates()
+            missing_dates = uow.fx_rates.get_missing_dates(
+                transaction_dates,
+                self._fx_service.base_currency,
+                self._fx_service.quote_currencies,
+            )
 
-        missing_dates = transaction_dates - rate_dates
         if not missing_dates:
-            yield FxSyncCompleted()
             return
 
         total = len(missing_dates)
@@ -387,10 +402,9 @@ class SyncService(Service):
 
         total = len(metadata_list)
         if total == 0:
-            yield InstrumentsSyncCompleted()
             return
 
-        yield InstrumentsSyncStarted(total)
+        yield InstrumentSyncStarted(total)
 
         completed = 0
         failed_metadata_list: list[InstrumentMetadata] = []
@@ -419,17 +433,17 @@ class SyncService(Service):
                         uow.commit()
 
                 completed += 1
-                yield InstrumentsSyncProgress(completed, total)
+                yield InstrumentSyncProgress(completed, total)
 
         if failed_metadata_list:
             symbols = ", ".join(metadata.symbol for metadata in failed_metadata_list)
-            yield InstrumentsSyncFailed(
+            yield InstrumentSyncFailed(
                 error=MarketDataIntegrityError(
                     f"Failed to fetch stock splits for following instruments: {symbols}."
                 )
             )
         else:
-            yield InstrumentsSyncCompleted()
+            yield InstrumentSyncCompleted()
 
     def _get_credentials(self, institution_connection_id: str) -> Credentials:
         with self._unit_of_work(read_only=True) as uow:
@@ -440,12 +454,12 @@ class SyncService(Service):
             return credentials
 
     def _resolve_institution_connections(
-        self, user_id: str, command: SyncAccountsCommand
+        self, user_id: str, command: SyncCommand
     ) -> list[InstitutionConnection]:
         with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
             institution_connection_ids = (
                 uow.account_map.resolve_institution_connection_ids(
-                    command.institution_connection_ids,
+                    command.connection_ids,
                     command.account_ids,
                 )
             )
@@ -454,11 +468,11 @@ class SyncService(Service):
     def _resolve_sync_interval(
         self,
         institution_connection: InstitutionConnection,
-        command: SyncAccountsCommand,
+        command: SyncCommand,
     ) -> tuple[datetime, datetime]:
         now = datetime.now(tz=timezone.utc)
         account_opened_at = datetime.combine(
-            institution_connection.account_opened_on,
+            institution_connection.sync_from,
             time.min,
             tzinfo=timezone.utc,
         )

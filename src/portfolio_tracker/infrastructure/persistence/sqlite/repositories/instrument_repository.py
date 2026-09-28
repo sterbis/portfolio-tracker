@@ -51,7 +51,6 @@ class SqliteInstrumentRepository(InstrumentRepository):
             model=Instrument,
             values={
                 "id": instrument.id,
-                "checksum": instrument.checksum,
                 "type": instrument.type,
                 "asset_class": instrument.asset_class,
                 "name": instrument.name,
@@ -60,7 +59,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
                 "currency": instrument.currency,
                 "last_synced_at": instrument.last_synced_at,
             },
-            conflict_field_names=["checksum"],
+            conflict_field_names=["id"],
         )
 
         if not inserted:
@@ -226,7 +225,6 @@ class SqliteInstrumentRepository(InstrumentRepository):
 
         return InstrumentMetadata(
             id=row[field("id")],
-            checksum=row[field("checksum")],
             type=InstrumentType(row[field("type")]),
             asset_class=AssetClass(row[field("asset_class")]),
             name=row[field("name")],
@@ -242,9 +240,10 @@ class SqliteInstrumentRepository(InstrumentRepository):
         def field(name: str) -> FieldReference:
             return FieldReference(model, name)
 
+        instrument_type = metadata.type
+
         base_data: InstrumentBaseData = {
-            "id": metadata.id,
-            "provided_checksum": metadata.checksum,
+            "provided_id": metadata.id,
             "name": metadata.name,
             "symbol": metadata.symbol,
             "exchange": metadata.exchange,
@@ -253,13 +252,13 @@ class SqliteInstrumentRepository(InstrumentRepository):
         }
 
         derivative_base_data: DerivativeInstrumentBaseData | None = None
-        if metadata.type.is_derivative:
+        if instrument_type.is_derivative:
             derivative_base_data = {
                 "underlying_instrument_id": row[field("underlying_instrument_id")],
                 "asset_class": AssetClass(row[field("asset_class")]),
             }
 
-        match metadata.type:
+        match instrument_type:
             case InstrumentType.BOND:
                 details = {
                     "isin": row[field("isin")],
@@ -310,10 +309,10 @@ class SqliteInstrumentRepository(InstrumentRepository):
                 }
 
             case _:
-                raise ValueError(f"Unsupported instrument type: {metadata.type}.")
+                raise ValueError(f"Unsupported instrument type: {instrument_type}.")
 
         return create_instrument(
-            metadata.type,
+            instrument_type,
             base_data,
             details,
             derivative_base_data,

@@ -44,7 +44,7 @@ class UserScopedRepository(ABC):
         ):
             raise InstitutionConnectionNotFoundError(not_owned_connection_ids)
 
-    def _verify_asset_account_ownership(self, account_id: str | set[str]) -> None:
+    def _verify_account_ownership(self, account_id: str | set[str]) -> None:
         if (
             isinstance(account_id, str)
             and account_id not in self._account_map.account_ids
@@ -60,10 +60,10 @@ class UserScopedRepository(ABC):
 class UserScopedInstitutionConnectionRepository(UserScopedRepository):
     def __init__(
         self,
-        accounts_map: AccountMap,
+        account_map: AccountMap,
         connection_repository: InstitutionConnectionRepository,
     ) -> None:
-        super().__init__(accounts_map)
+        super().__init__(account_map)
         self._connection_repository = connection_repository
 
     def add(self, account: InstitutionConnection) -> None:
@@ -108,7 +108,7 @@ class UserScopedAccountRepository(UserScopedRepository):
         return self._account_repository.ensure(account)
 
     def get_by_id(self, account_id: str) -> AssetAccount:
-        self._verify_asset_account_ownership(account_id)
+        self._verify_account_ownership(account_id)
         account = self._account_repository.get_by_id(account_id)
 
         if not account:
@@ -127,7 +127,7 @@ class UserScopedAccountRepository(UserScopedRepository):
         )
 
     def get_by_ids(self, account_ids: set[str]) -> list[AssetAccount]:
-        self._verify_asset_account_ownership(account_ids)
+        self._verify_account_ownership(account_ids)
         return self._account_repository.get_by_ids(account_ids)
 
     def get_by_institution_connection_id(
@@ -152,11 +152,11 @@ class UserScopedTransactionRepository(UserScopedRepository):
         self._transaction_repository = transaction_repository
 
     def add(self, transaction: Transaction) -> None:
-        self._verify_asset_account_ownership(transaction.account_id)
+        self._verify_account_ownership(transaction.account_id)
         return self._transaction_repository.add(transaction)
 
     def ensure(self, transaction: Transaction) -> None:
-        self._verify_asset_account_ownership(transaction.account_id)
+        self._verify_account_ownership(transaction.account_id)
         return self._transaction_repository.ensure(transaction)
 
     def get(
@@ -171,7 +171,7 @@ class UserScopedTransactionRepository(UserScopedRepository):
     ) -> list[Transaction]:
         filter_ = self._get_user_scoped_filter(
             institution_connection_ids=institution_connection_ids,
-            asset_account_ids=account_ids,
+            account_ids=account_ids,
             filter_=filter_,
         )
 
@@ -200,7 +200,7 @@ class UserScopedTransactionRepository(UserScopedRepository):
         return self._transaction_repository.get_distinct_dates(
             filter_=self._get_user_scoped_filter(
                 institution_connection_ids=institution_connection_ids,
-                asset_account_ids=account_ids,
+                account_ids=account_ids,
                 filter_=filter_,
             ),
         )
@@ -214,17 +214,17 @@ class UserScopedTransactionRepository(UserScopedRepository):
         return self._transaction_repository.get_distinct_instrument_ids(
             filter_=self._get_user_scoped_filter(
                 institution_connection_ids=institution_connection_ids,
-                asset_account_ids=account_ids,
+                account_ids=account_ids,
                 filter_=filter_,
             )
         )
 
     def update(self, transaction: Transaction) -> None:
-        self._verify_asset_account_ownership(transaction.account_id)
+        self._verify_account_ownership(transaction.account_id)
         return self._transaction_repository.update(transaction)
 
     def remove(self, transaction: Transaction) -> None:
-        self._verify_asset_account_ownership(transaction.account_id)
+        self._verify_account_ownership(transaction.account_id)
         return self._transaction_repository.remove_by_id(transaction.id)
 
     def remove_by_id(self, transaction_id: str) -> None:
@@ -232,46 +232,43 @@ class UserScopedTransactionRepository(UserScopedRepository):
             filter_=self._get_user_scoped_filter(transaction_id=transaction_id)
         )
 
-    def remove_by_asset_account_id(self, account_id: str) -> None:
-        self._verify_asset_account_ownership(account_id)
-        return self._transaction_repository.remove_by_asset_account_id(account_id)
+    def remove_by_account_id(self, account_id: str) -> None:
+        self._verify_account_ownership(account_id)
+        return self._transaction_repository.remove_by_account_id(account_id)
 
     def exists(self, transaction: Transaction) -> bool:
-        self._verify_asset_account_ownership(transaction.account_id)
-        return self._transaction_repository.exists_by_checksum(transaction.checksum)
+        self._verify_account_ownership(transaction.account_id)
+        return self._transaction_repository.exists(transaction.id)
 
     def _get_user_scoped_filter(
         self,
         *,
         institution_connection_ids: set[str] | None = None,
-        asset_account_ids: set[str] | None = None,
+        account_ids: set[str] | None = None,
         transaction_id: str | None = None,
-        checksum: str | None = None,
         filter_: Filter | None = None,
     ) -> FilterTree:
         if institution_connection_ids:
             self._verify_institution_connection_ownership(institution_connection_ids)
 
-        if asset_account_ids:
-            self._verify_asset_account_ownership(asset_account_ids)
+        if account_ids:
+            self._verify_account_ownership(account_ids)
 
-        asset_account_ids = self._account_map.resolve_account_ids(
-            institution_connection_ids, asset_account_ids
+        account_ids = self._account_map.resolve_account_ids(
+            institution_connection_ids, account_ids
         )
 
         scoped_filter = FilterTree()
 
         scoped_filter.add_child(
-            FilterNode("asset_account_id", Operator.IN, asset_account_ids, Transaction)
+            FilterNode("account_id", Operator.IN, account_ids, Transaction)
         )
+
         if transaction_id:
             scoped_filter.add_child(
                 FilterNode("id", Operator.EQ, transaction_id, Transaction)
             )
-        if checksum:
-            scoped_filter.add_child(
-                FilterNode("checksum", Operator.EQ, checksum, Transaction)
-            )
+
         if filter_:
             scoped_filter.add_child(filter_)
 
