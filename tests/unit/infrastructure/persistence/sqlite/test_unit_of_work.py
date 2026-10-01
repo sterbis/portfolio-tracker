@@ -8,7 +8,10 @@ import pytest
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.domain.user import User
-from portfolio_tracker.infrastructure.persistence.sqlite import SqliteUnitOfWork
+from portfolio_tracker.infrastructure.persistence.sqlite import (
+    SqliteStorageConnection,
+    SqliteUnitOfWork,
+)
 from portfolio_tracker.infrastructure.persistence.sqlite.builder import (
     SqliteStatementBuilder,
 )
@@ -105,6 +108,51 @@ def test_explicit_commit_needed_to_write_database_changes(
 
     with in_memory_uow:
         assert in_memory_uow.users.get_by_username(sample_user.username) is None
+
+
+def test_read_only_unit_of_work_rejects_writes(
+    create_unit_of_work: UnitOfWorkFactory,
+    initialized_in_memory_db_connection: sqlite3.Connection,
+    sample_user: User,
+) -> None:
+    read_only_uow = create_unit_of_work(
+        initialized_in_memory_db_connection, read_only=True
+    )
+
+    with read_only_uow:
+        with pytest.raises(
+            sqlite3.OperationalError, match="readonly database|read-only"
+        ):
+            read_only_uow.users.add(sample_user)
+
+        assert read_only_uow.users.get_by_username(sample_user.username) is None
+
+
+def test_storage_connection_rejects_mismatched_uow_access_mode(
+    mock_encryptor: MockEncryptor,
+    sample_institution_registry: InstitutionRegistry,
+    statement_builder: SqliteStatementBuilder,
+) -> None:
+    writable_connection = SqliteStorageConnection(
+        database=":memory:",
+        encryptor=mock_encryptor,
+        builder=statement_builder,
+        institution_registry=sample_institution_registry,
+    )
+    with writable_connection:
+        with pytest.raises(RuntimeError, match="access mode must match"):
+            writable_connection.unit_of_work(read_only=True)
+
+    read_only_connection = SqliteStorageConnection(
+        database=":memory:",
+        encryptor=mock_encryptor,
+        builder=statement_builder,
+        institution_registry=sample_institution_registry,
+        read_only=True,
+    )
+    with read_only_connection:
+        with pytest.raises(RuntimeError, match="access mode must match"):
+            read_only_connection.unit_of_work()
 
 
 def test_write_connection_does_not_block_read_connection(

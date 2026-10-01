@@ -2,7 +2,7 @@ import json
 import sqlite3
 from typing import Any
 
-from portfolio_tracker.application.encryption import Encryptor
+from portfolio_tracker.application.security import Encryptor
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import CredentialsRepository
 from portfolio_tracker.domain.institution import Credentials

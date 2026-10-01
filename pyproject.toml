@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "portfolio_tracker"
 version = "0.1.0"
-description = "A clean-architecture multi-currency investment ledger."
+description = "Simple portfolio tracking app."
 readme = "README.md"
 requires-python = ">=3.14"
 authors = [
@@ -15,7 +15,24 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Operating System :: Microsoft :: Windows :: Windows 11",
 ]
-dependencies = []
+dependencies = [
+    "bcrypt>=0.3.0",
+    "cryptography>=50.0.0",
+    "keyring>=25.0.0",
+    "pandas>=3.0.0",
+    "platformdirs>=4.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.34.0",
+    "rich>=15.0.0",
+    "sqlparse>=0.6.0",
+    "typer>=0.27.0",
+    "yfinance>=1.5.0",
+    
+    "filterutils @ file:///${PROJECT_ROOT}/../python/utils/filterutils",
+]
+
+[dependency-groups]
+dev = []
 
 [project.scripts]
 portfolio = "portfolio_tracker.presentation.cli.main:app"

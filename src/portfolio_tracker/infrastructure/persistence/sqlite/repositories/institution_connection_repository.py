@@ -1,6 +1,6 @@
 from typing import Any
 
-from filterutils import Filter, FilterNode, Operator
+from filterutils import Filter, FilterNode, FilterTree, Operator
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import InstitutionConnectionRepository
@@ -12,10 +12,15 @@ from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldRe
 
 class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
     def __init__(
-        self, institution_registry: InstitutionRegistry, executor: SqliteExecutor
+        self,
+        user_id: str,
+        executor: SqliteExecutor,
+        institution_registry: InstitutionRegistry,
     ) -> None:
-        self._institution_registry = institution_registry
+        super().__init__(user_id)
         self._executor = executor
+        self._institution_registry = institution_registry
+        self._scope_filter = FilterNode("user_id", Operator.EQ, self._user_id, InstitutionConnection)
 
     def add(self, connection: InstitutionConnection) -> None:
         self._executor.insert(
@@ -31,6 +36,7 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[InstitutionConnection]:
+        filter_ = self._scope_filter if filter_ is None else FilterTree(filter_, self._scope_filter)
         rows = self._executor.select(
             model=InstitutionConnection,
             filter_=filter_,
@@ -41,11 +47,10 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
         return [self._row_to_institution_connection(row) for row in rows]
 
     def get_by_id(self, connection_id: str) -> InstitutionConnection | None:
-        row = self._executor.select_one(
-            model=InstitutionConnection,
+        connections = self.get(
             filter_=FilterNode("id", Operator.EQ, connection_id, InstitutionConnection),
         )
-        return self._row_to_institution_connection(row) if row else None
+        return connections[0] if connections else None
 
     def get_by_ids(self, connection_ids: set[str]) -> list[InstitutionConnection]:
         if not connection_ids:
@@ -56,21 +61,25 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
         )
 
     def get_by_user_id(self, user_id: str) -> list[InstitutionConnection]:
-        return self.get(
-            filter_=FilterNode("user_id", Operator.EQ, user_id, InstitutionConnection)
-        )
+        return self.get()
 
     def update(self, connection: InstitutionConnection) -> None:
         self._executor.update(
             model=InstitutionConnection,
             values=self._institution_connection_to_values(connection),
-            filter_=FilterNode("id", Operator.EQ, connection.id, InstitutionConnection),
+            filter_=FilterTree(
+                self._scope_filter,
+                FilterNode("id", Operator.EQ, connection.id, InstitutionConnection),
+            ),
         )
 
     def remove_by_id(self, connection_id: str) -> None:
         self._executor.delete(
             model=InstitutionConnection,
-            filter_=FilterNode("id", Operator.EQ, connection_id, InstitutionConnection),
+            filter_=FilterTree(
+                self._scope_filter,
+                FilterNode("id", Operator.EQ, connection_id, InstitutionConnection),
+            ),
         )
 
     def _institution_connection_to_values(

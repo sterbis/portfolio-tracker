@@ -14,7 +14,8 @@ from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldRe
 
 
 class SqliteTransactionRepository(TransactionRepository):
-    def __init__(self, executor: SqliteExecutor) -> None:
+    def __init__(self, user_id: str, executor: SqliteExecutor) -> None:
+        super().__init__(user_id)
         self._executor = executor
 
     def add(self, transaction: Transaction) -> None:

@@ -2,10 +2,14 @@
 
 import sqlite3
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 
-from portfolio_tracker.infrastructure.persistence.sqlite.database import open_connection
+from portfolio_tracker.infrastructure.persistence.sqlite.database import (
+    initialize_database,
+    open_connection,
+)
 
 
 @pytest.fixture(scope="module")
@@ -36,6 +40,18 @@ def test_journal_mode_is_wal_mode(db_connection: sqlite3.Connection) -> None:
 
 def test_row_factory_is_none(db_connection: sqlite3.Connection) -> None:
     assert db_connection.row_factory is None
+
+
+def test_read_only_connection_rejects_database_writes(tmp_path: Path) -> None:
+    database = tmp_path / "read-only.db"
+    initialize_database(database)
+
+    with open_connection(database, read_only=True) as connection:
+        assert connection.execute("PRAGMA query_only;").fetchone()[0] == 1
+        with pytest.raises(
+            sqlite3.OperationalError, match="readonly database|read-only"
+        ):
+            connection.execute("CREATE TABLE blocked (id INTEGER);")
 
 
 def test_database_initialization(

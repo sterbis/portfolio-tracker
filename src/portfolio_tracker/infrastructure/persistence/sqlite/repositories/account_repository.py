@@ -14,8 +14,10 @@ from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldRe
 
 
 class SqliteAccountRepository(AccountRepository):
-    def __init__(self, executor: SqliteExecutor) -> None:
+    def __init__(self, user_id: str, executor: SqliteExecutor) -> None:
+        super().__init__(user_id)
         self._executor = executor
+        self._scope_filter = FilterNode("user_id", Operator.EQ, self._user_id, InstitutionConnection)
 
     def ensure(self, account: AssetAccount) -> None:
         self._executor.insert_on_conflict_do_nothing(
@@ -32,6 +34,7 @@ class SqliteAccountRepository(AccountRepository):
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[AssetAccount]:
+        filter_ = self._scope_filter if filter_ is None else FilterTree(filter_, self._scope_filter)
         rows = self._executor.select(
             model=AssetAccount,
             filter_=filter_,
@@ -42,32 +45,24 @@ class SqliteAccountRepository(AccountRepository):
         return [self._row_to_account(row) for row in rows]
 
     def get_by_id(self, account_id: str) -> AssetAccount | None:
-        row = self._executor.select_one(
-            model=AssetAccount,
-            filter_=FilterNode("id", Operator.EQ, account_id, AssetAccount),
-        )
-        return self._row_to_account(row) if row else None
+        accounts = self.get(filter_=FilterNode("id", Operator.EQ, account_id, AssetAccount))
+        return accounts[0] if accounts else None
 
     def get_by_external_id(
         self, institution_connection_id: str, external_id: str
     ) -> AssetAccount | None:
-        filter_ = FilterTree()
-        filter_.add_child(
-            FilterNode(
-                "institution_connection_id",
-                Operator.EQ,
-                institution_connection_id,
-                AssetAccount,
+        accounts = self.get(
+            filter_=FilterTree(
+                FilterNode(
+                    "institution_connection_id",
+                    Operator.EQ,
+                    institution_connection_id,
+                    AssetAccount,
+                ),
+                FilterNode("external_id", Operator.EQ, external_id, AssetAccount),
             )
         )
-        filter_.add_child(
-            FilterNode("external_id", Operator.EQ, external_id, AssetAccount)
-        )
-        row = self._executor.select_one(
-            model=AssetAccount,
-            filter_=filter_,
-        )
-        return self._row_to_account(row) if row else None
+        return accounts[0] if accounts else None
 
     def get_by_ids(self, account_ids: set[str]) -> list[AssetAccount]:
         if not account_ids:

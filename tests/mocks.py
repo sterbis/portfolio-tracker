@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from portfolio_tracker.application.encryption import Encryptor
+from portfolio_tracker.application.security import Encryptor
 from portfolio_tracker.domain.institution import Credentials, InstitutionId
 
 

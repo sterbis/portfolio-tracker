@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from filterutils import Filter
 
-from portfolio_tracker.application.institution.registry import InstitutionRegistry
+from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.shared.errors import FxDataIntegrityError
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.account import (
@@ -18,6 +18,7 @@ from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
 
+
 PERSISTED_MODEL_TYPES = (
     User,
     InstitutionConnection,
@@ -28,19 +29,22 @@ PERSISTED_MODEL_TYPES = (
     StockSplits,
 )
 
+class UserScopedRepository(ABC):
+    def __init__(self, user_id: str) -> None:
+        self._user_id = user_id
 
-class UserRepository(ABC):
-    @abstractmethod
-    def add(self, user: User) -> None: ...
 
+class UserReadRepository(ABC):
     @abstractmethod
     def get_by_username(self, username: str) -> User | None: ...
 
 
-class InstitutionConnectionRepository(ABC):
+class UserRepository(UserReadRepository):
     @abstractmethod
-    def add(self, connection: InstitutionConnection) -> None: ...
+    def add(self, user: User) -> None: ...
 
+
+class InstitutionConnectionReadRepository(UserScopedRepository):
     @abstractmethod
     def get_by_id(self, connection_id: str) -> InstitutionConnection | None: ...
 
@@ -50,6 +54,11 @@ class InstitutionConnectionRepository(ABC):
     @abstractmethod
     def get_by_user_id(self, user_id: str) -> list[InstitutionConnection]: ...
 
+
+class InstitutionConnectionRepository(InstitutionConnectionReadRepository):
+    @abstractmethod
+    def add(self, connection: InstitutionConnection) -> None: ...
+
     @abstractmethod
     def update(self, connection: InstitutionConnection) -> None: ...
 
@@ -57,12 +66,10 @@ class InstitutionConnectionRepository(ABC):
     def remove_by_id(self, connection_id: str) -> None: ...
 
 
-class CredentialsRepository(ABC):
-    def __init__(self, institution_registry: InstitutionRegistry) -> None:
+class CredentialsReadRepository(UserScopedRepository):
+    def __init__(self, user_id: str, institution_registry: InstitutionRegistry) -> None:
+        super().__init__(user_id)
         self._institution_registry = institution_registry
-
-    @abstractmethod
-    def upsert(self, credentials: Credentials) -> None: ...
 
     @abstractmethod
     def get(self, institution_connection_id: str) -> Credentials | None: ...
@@ -70,14 +77,16 @@ class CredentialsRepository(ABC):
     @abstractmethod
     def get_by_ids(self, institution_connection_ids: set[str]) -> list[Credentials]: ...
 
+
+class CredentialsRepository(CredentialsReadRepository):
+    @abstractmethod
+    def upsert(self, credentials: Credentials) -> None: ...
+
     @abstractmethod
     def remove(self, institution_connection_id: str) -> None: ...
 
 
-class AccountRepository(ABC):
-    @abstractmethod
-    def ensure(self, account: AssetAccount) -> None: ...
-
+class AccountReadRepository(UserScopedRepository):
     @abstractmethod
     def get_by_id(self, account_id: str) -> AssetAccount | None: ...
 
@@ -95,16 +104,18 @@ class AccountRepository(ABC):
     ) -> list[AssetAccount]: ...
 
     @abstractmethod
-    def update(self, account: AssetAccount) -> None: ...
-
-    @abstractmethod
     def get_account_map(self, user_id: str) -> AccountMap: ...
 
 
-class InstrumentRepository(ABC):
+class AccountRepository(AccountReadRepository):
     @abstractmethod
-    def ensure(self, instrument: Instrument) -> None: ...
+    def ensure(self, account: AssetAccount) -> None: ...
 
+    @abstractmethod
+    def update(self, account: AssetAccount) -> None: ...
+
+
+class InstrumentReadRepository(ABC):
     @abstractmethod
     def get(
         self,
@@ -131,19 +142,18 @@ class InstrumentRepository(ABC):
     @abstractmethod
     def get_ids_by_symbols(self, symbols: set[str]) -> set[str]: ...
 
+
+class InstrumentRepository(InstrumentReadRepository):
+    @abstractmethod
+    def ensure(self, instrument: Instrument) -> None: ...
+
     @abstractmethod
     def update_last_synced_at(
         self, instrument_id: str, last_synced_at: datetime
     ) -> None: ...
 
 
-class TransactionRepository(ABC):
-    @abstractmethod
-    def add(self, transaction: Transaction) -> None: ...
-
-    @abstractmethod
-    def ensure(self, transaction: Transaction) -> None: ...
-
+class TransactionReadRepository(UserScopedRepository):
     @abstractmethod
     def get(
         self,
@@ -166,6 +176,17 @@ class TransactionRepository(ABC):
     ) -> set[str]: ...
 
     @abstractmethod
+    def exists(self, transaction_id: str) -> bool: ...
+
+
+class TransactionRepository(TransactionReadRepository):
+    @abstractmethod
+    def add(self, transaction: Transaction) -> None: ...
+
+    @abstractmethod
+    def ensure(self, transaction: Transaction) -> None: ...
+
+    @abstractmethod
     def update(self, transaction: Transaction) -> None: ...
 
     @abstractmethod
@@ -177,14 +198,8 @@ class TransactionRepository(ABC):
     @abstractmethod
     def remove_by_account_id(self, account_id: str) -> None: ...
 
-    @abstractmethod
-    def exists(self, transaction_id: str) -> bool: ...
 
-
-class FxRatesRepository(ABC):
-    @abstractmethod
-    def ensure(self, rates: FxRates) -> None: ...
-
+class FxRatesReadRepository(ABC):
     @abstractmethod
     def get_by_date(self, effective_on: date) -> FxRates | None: ...
 
@@ -217,18 +232,24 @@ class FxRatesRepository(ABC):
             raise FxDataIntegrityError(
                 detail=(
                     f"Missing historical FX rates for following dates {formatted_dates}."
-                    "Please execute a FX rates data sync first."
                 ),
             )
 
         return rates_by_date
 
 
-class MarketDataRepository(ABC):
+class FxRatesRepository(FxRatesReadRepository):
     @abstractmethod
-    def ensure_stock_splits(self, splits: StockSplits) -> None: ...
+    def ensure(self, rates: FxRates) -> None: ...
 
+
+class MarketDataReadRepository(ABC):
     @abstractmethod
     def get_stock_splits_by_instrument_ids(
         self, instrument_ids: set[str]
     ) -> list[StockSplits]: ...
+
+
+class MarketDataRepository(MarketDataReadRepository):
+    @abstractmethod
+    def ensure_stock_splits(self, splits: StockSplits) -> None: ...

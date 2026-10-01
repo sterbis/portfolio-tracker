@@ -1,5 +1,5 @@
-import bcrypt
-
+from portfolio_tracker.application.persistence import StorageConnectionFactory
+from portfolio_tracker.application.security import PasswordHasher
 from portfolio_tracker.application.shared.errors import (
     InvalidUsernameOrPasswordError,
     UsernameAlreadyExistsError,
@@ -14,6 +14,14 @@ from .commands import (
 
 
 class UserService(Service):
+    def __init__(
+        self,
+        storage_connection_factory: StorageConnectionFactory,
+        password_hasher: PasswordHasher,
+    ) -> None:
+        super().__init__(storage_connection_factory)
+        self._password_hasher = password_hasher
+
     def register(self, command: RegisterUserCommand) -> str:
         with self._unit_of_work() as uow:
             if uow.users.get_by_username(command.username):
@@ -21,7 +29,7 @@ class UserService(Service):
 
             user = User(
                 username=command.username,
-                password_hash=self._hash_password(command.password),
+                password_hash=self._password_hasher.hash(command.password),
             )
 
             uow.users.add(user)
@@ -30,22 +38,12 @@ class UserService(Service):
             return user.id
 
     def authenticate(self, command: AuthenticateUserCommand) -> str:
-        with self._unit_of_work() as uow:
+        with self._read_only_unit_of_work() as uow:
             user = uow.users.get_by_username(command.username)
             if not user:
                 raise InvalidUsernameOrPasswordError()
 
-            self._check_password(command.password, user.password_hash)
+            if not self._password_hasher.verify(command.password, user.password_hash):
+                raise InvalidUsernameOrPasswordError()
+
             return user.id
-
-    @staticmethod
-    def _hash_password(password: str) -> str:
-        salt = bcrypt.gensalt(rounds=12)
-        return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
-
-    @staticmethod
-    def _check_password(password: str, expected_password_hash: str) -> None:
-        if not bcrypt.checkpw(
-            password.encode("utf-8"), expected_password_hash.encode("utf-8")
-        ):
-            raise InvalidUsernameOrPasswordError()

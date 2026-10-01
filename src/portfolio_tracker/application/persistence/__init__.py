@@ -1,39 +1,52 @@
 from .repositories import (
     PERSISTED_MODEL_TYPES,
     AccountRepository,
+    AccountReadRepository,
     CredentialsRepository,
+    CredentialsReadRepository,
     FxRatesRepository,
+    FxRatesReadRepository,
     InstitutionConnectionRepository,
+    InstitutionConnectionReadRepository,
     InstrumentRepository,
+    InstrumentReadRepository,
     MarketDataRepository,
+    MarketDataReadRepository,
     TransactionRepository,
+    TransactionReadRepository,
     UserRepository,
+    UserReadRepository,
 )
 from .unit_of_work import (
     StorageConnection,
+    StorageReadConnection,
     StorageConnectionFactory,
     UnitOfWork,
+    ReadUnitOfWork,
 )
-from .user_scoped_repositories import (
-    UserScopedAccountRepository,
-    UserScopedTransactionRepository,
-)
-from .user_scoped_unit_of_work import UserScopedUnitOfWork
+
 
 __all__ = [
     "PERSISTED_MODEL_TYPES",
     "AccountRepository",
+    "AccountReadRepository",
     "CredentialsRepository",
+    "CredentialsReadRepository",
     "FxRatesRepository",
+    "FxRatesReadRepository",
     "InstitutionConnectionRepository",
+    "InstitutionConnectionReadRepository",
     "InstrumentRepository",
+    "InstrumentReadRepository",
     "MarketDataRepository",
-    "StorageConnection",
-    "StorageConnectionFactory",
+    "MarketDataReadRepository",
     "TransactionRepository",
-    "UnitOfWork",
+    "TransactionReadRepository",
     "UserRepository",
-    "UserScopedAccountRepository",
-    "UserScopedTransactionRepository",
-    "UserScopedUnitOfWork",
+    "UserReadRepository",
+    "StorageConnection",
+    "StorageReadConnection",
+    "StorageConnectionFactory",
+    "UnitOfWork",
+    "ReadUnitOfWork",
 ]

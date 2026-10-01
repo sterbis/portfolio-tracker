@@ -4,19 +4,20 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 
 import requests
 
-from portfolio_tracker.application.institution import (
-    ApiEndpoint,
-    HttpMethod,
-    InstitutionClient,
-    RateLimit,
-    ReportChunk,
-)
+from portfolio_tracker.application.institution import InstitutionClient, ReportChunk
 from portfolio_tracker.application.shared.errors import InstitutionClientError
 from portfolio_tracker.domain.institution import Credentials
+from portfolio_tracker.shared.requests_utils import (
+    ApiEndpoint,
+    HttpMethod,
+    RateLimit,
+    async_request,
+    sync_request,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,10 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
 
     def __init__(self, credentials: Trading212Credentials) -> None:
         super().__init__(credentials)
-        self._auth = (self._credentials.api_key, self._credentials.api_secret)
+
+    @property
+    def _auth(self) -> tuple[str, str]:
+        return (self._credentials.api_key, self._credentials.api_secret)
 
     async def fetch_report(
         self, start: datetime, end: datetime
@@ -78,57 +82,21 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
                     Trading212ApiEndpoints.REQUEST_REPORT.rate_limit.retry_after_interval
                 )
 
-        reports_metadata = await self._wait_for_reports_generation(report_ids)
-
-        for report_metadata in reports_metadata:
-            yield self._download_report(report_metadata["downloadLink"])
+        async for download_url in self._wait_for_reports_generation(report_ids):
+            yield self._download_report(download_url)
 
     def verify_connection(self) -> None:
-        endpoint = Trading212ApiEndpoints.ACCOUNT_SUMMARY
-        method = endpoint.method
-        url = endpoint.build_url(self._BASE_URL)
         try:
-            logger.debug("Sending request:\nMethod: %s\nURL: %s\n", method, url)
-            requests.get(url, auth=self._auth, timeout=5).raise_for_status()
+            sync_request(
+                Trading212ApiEndpoints.ACCOUNT_SUMMARY,
+                base_url=self._BASE_URL,
+                auth=self._auth,
+            )
 
         except requests.RequestException as error:
-            logger.debug(
-                "%s request to '%s' failed. Status code: %s. Reason: %s",
-                method,
-                url,
-                error.response.status_code if error.response else "Unknown",
-                error.response.reason if error.response else "Unknown",
-            )
-            raise InstitutionClientError(f"Request to '{url}' failed.") from error
-
-    def _download_report(self, url: str) -> Iterator[str]:
-        method = "GET"
-        try:
-            logger.debug("Sending request:\nMethod: %s\nURL: %s\n", method, url)
-            response = requests.request(method, url, timeout=10.0, stream=True)
-            response.raise_for_status()
-        except requests.RequestException as error:
-            logger.debug(
-                "%s request to '%s' failed. Status code: %s. Reason: %s",
-                method,
-                url,
-                error.response.status_code if error.response else "Unknown",
-                error.response.reason if error.response else "Unknown",
-            )
             raise InstitutionClientError(
-                f"Failed to download report from '{url}'."
+                f"Institution connection failed: {str(error)}."
             ) from error
-
-        if response.encoding is None:
-            response.encoding = "utf-8"
-
-        try:
-            for line in response.iter_lines(decode_unicode=True):
-                assert isinstance(line, str)
-                yield line
-
-        finally:
-            response.close()
 
     async def _request_report_generation(
         self,
@@ -139,8 +107,9 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
         orders: bool = True,
         transactions: bool = True,
     ) -> str:
-        response = await self._request(
-            endpoint=Trading212ApiEndpoints.REQUEST_REPORT,
+        response = await async_request(
+            Trading212ApiEndpoints.REQUEST_REPORT,
+            base_url=self._BASE_URL,
             auth=self._auth,
             json={
                 "timeFrom": start.astimezone(self._TIMEZONE).isoformat(),
@@ -160,47 +129,58 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
         report_ids: set[str],
         first_try_after_interval: float = 30,
         timeout: float = 300,
-    ) -> list[dict[str, Any]]:
+    ) -> AsyncIterator[str]:
+        deadline = time.time() + timeout
         await asyncio.sleep(first_try_after_interval)
 
         retry_after_interval = (
             Trading212ApiEndpoints.LIST_REPORTS.rate_limit.retry_after_interval
         )
-        deadline = time.time() + timeout
+        pending_report_ids = report_ids.copy()
 
-        while True:
-            try:
-                metadata_list = await self._fetch_reports_metadata(report_ids)
-            except InstitutionClientError:
-                metadata_list = []
-
-            if all(metadata.get("status") == "Finished" for metadata in metadata_list):
-                return metadata_list
-
-            if time.time() + retry_after_interval > deadline:
-                raise InstitutionClientError(
-                    f"Report generation not finished within timeout: {timeout} seconds."
-                )
-
-            await asyncio.sleep(retry_after_interval)
-
-    async def _fetch_reports_metadata(
-        self, report_ids: set[str]
-    ) -> list[dict[str, Any]]:
-        response = await self._request(
-            endpoint=Trading212ApiEndpoints.LIST_REPORTS,
-            auth=self._auth,
-        )
-        metadata_list: list[dict[str, Any]] = [
-            metadata
-            for metadata in response.json()
-            if str(metadata["reportId"]) in report_ids
-        ]
-        if missing_ids := report_ids - {
-            str(metadata["reportId"]) for metadata in metadata_list
-        }:
-            raise InstitutionClientError(
-                f"Following report ids not found: {', '.join(missing_ids)}."
+        while pending_report_ids:
+            response = await async_request(
+                Trading212ApiEndpoints.LIST_REPORTS,
+                base_url=self._BASE_URL,
+                auth=self._auth,
             )
+            for report_metadata in response.json():
+                report_id = str(report_metadata["reportId"])
+                if report_id not in pending_report_ids:
+                    continue
 
-        return metadata_list
+                status = report_metadata["status"]
+                if status == "Finished":
+                    pending_report_ids.remove(report_id)
+                    yield report_metadata["downloadLink"]
+
+                if status in ("Canceled", "Failed"):
+                    raise InstitutionClientError("Failed to generate report.")
+
+            if pending_report_ids:
+                if time.time() + retry_after_interval > deadline:
+                    raise InstitutionClientError(
+                        f"Report generation not finished within timeout: {timeout} seconds."
+                    )
+
+                await asyncio.sleep(retry_after_interval)
+
+    def _download_report(self, url: str) -> Iterator[str]:
+        try:
+            response = sync_request(url, timeout=10.0, stream=True)
+
+        except requests.RequestException as error:
+            raise InstitutionClientError(
+                f"Failed to download report from: {str(error)}."
+            ) from error
+
+        if response.encoding is None:
+            response.encoding = "utf-8"
+
+        try:
+            for line in response.iter_lines(decode_unicode=True):
+                assert isinstance(line, str)
+                yield line
+
+        finally:
+            response.close()

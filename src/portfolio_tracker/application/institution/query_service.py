@@ -30,7 +30,7 @@ class InstitutionQueryService(QueryService):
     def get_institution_connection(
         self, user_id: str, connection_id: str
     ) -> InstitutionConnectionView:
-        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
+        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
             institution_connection = uow.institution_connections.get_by_id(
                 connection_id
             )
@@ -49,7 +49,7 @@ class InstitutionQueryService(QueryService):
         self,
         user_id: str,
     ) -> list[InstitutionConnectionView]:
-        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
+        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
             institution_connections = uow.institution_connections.get_by_user_id(
                 user_id
             )

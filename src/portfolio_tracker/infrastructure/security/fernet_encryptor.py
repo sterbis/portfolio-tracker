@@ -1,6 +1,6 @@
 from cryptography.fernet import Fernet
 
-from portfolio_tracker.application.encryption import Encryptor
+from portfolio_tracker.application.security import Encryptor
 
 
 class FernetEncryptor(Encryptor):

@@ -1,7 +1,7 @@
 from datetime import date
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import StorageConnectionFactory
+from portfolio_tracker.application.persistence import StorageReadConnection
 from portfolio_tracker.application.shared.errors import TransactionNotFoundError
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.shared.service import QueryService
@@ -21,7 +21,7 @@ from .queries import GetTransactionsQuery
 class TransactionQueryService(QueryService):
     def __init__(
         self,
-        storage_connection_factory: StorageConnectionFactory,
+        storage_connection: StorageReadConnection,
         filter_mapper: FilterMapper,
         filter_splitter: FilterSplitter,
         view_builder: ViewBuilder,
@@ -29,7 +29,7 @@ class TransactionQueryService(QueryService):
         transaction_adjuster: TransactionAdjuster,
     ) -> None:
         super().__init__(
-            storage_connection_factory, filter_mapper, filter_splitter, view_builder
+            storage_connection, filter_mapper, filter_splitter, view_builder
         )
         self._institution_registry = institution_registry
         self._transaction_adjuster = transaction_adjuster
@@ -37,7 +37,7 @@ class TransactionQueryService(QueryService):
     def get_transaction(
         self, user_id: str, transaction_id: str
     ) -> TransactionPlainView:
-        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
+        with self._unit_of_work() as uow:
             transaction = uow.transactions.get_by_id(transaction_id)
             if transaction is None:
                 raise TransactionNotFoundError(transaction_id)
@@ -49,7 +49,7 @@ class TransactionQueryService(QueryService):
     ) -> list[TransactionView]:
         repository_filter, memory_filter = self._resolve_filters(query.filter)
 
-        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
+        with self._unit_of_work() as uow:
             transactions = uow.transactions.get(
                 institution_connection_ids=query.connection_ids,
                 account_ids=query.account_ids,

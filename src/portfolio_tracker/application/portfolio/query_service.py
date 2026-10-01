@@ -7,7 +7,7 @@ from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.persistence import (
     StorageConnectionFactory,
-    UserScopedUnitOfWork,
+    UserScopedReadOnlyUnitOfWork,
 )
 from portfolio_tracker.application.shared.errors import (
     FxClientError,
@@ -129,7 +129,7 @@ class PortfolioQueryService(QueryService):
         list[Instrument],
         list[Portfolio],
     ]:
-        with self._user_scoped_unit_of_work(user_id, read_only=True) as uow:
+        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
             transactions: Iterable[Transaction] = uow.transactions.get(
                 institution_connection_ids=query.connection_ids,
                 account_ids=query.account_ids,
@@ -187,7 +187,7 @@ class PortfolioQueryService(QueryService):
 
     def _get_portfolio_accounts(
         self,
-        uow: UserScopedUnitOfWork,
+        uow: UserScopedReadOnlyUnitOfWork,
         portfolios: list[Portfolio],
     ) -> tuple[list[Institution], list[InstitutionConnection], list[AssetAccount]]:
         institution_connection_ids: set[str] = set()

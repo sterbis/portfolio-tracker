@@ -1,8 +1,7 @@
+from portfolio_tracker.shared.requests_utils import ApiEndpoint, HttpMethod, RateLimit
+
 from .client import (
-    ApiEndpoint,
-    HttpMethod,
     InstitutionClient,
-    RateLimit,
     ReportChunk,
 )
 from .command_service import InstitutionCommandService
