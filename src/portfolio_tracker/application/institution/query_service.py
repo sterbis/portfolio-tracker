@@ -1,6 +1,6 @@
 from typing import Any
 
-from portfolio_tracker.application.persistence import StorageConnectionFactory
+from portfolio_tracker.application.persistence import StorageReadConnection
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.shared.service import QueryService
 from portfolio_tracker.application.views import (
@@ -16,31 +16,28 @@ from .registry import InstitutionRegistry
 class InstitutionQueryService(QueryService):
     def __init__(
         self,
-        storage_connection_factory: StorageConnectionFactory,
+        storage_connection: StorageReadConnection,
         filter_mapper: FilterMapper,
         filter_splitter: FilterSplitter,
         view_builder: ViewBuilder,
         institution_registry: InstitutionRegistry,
     ) -> None:
         super().__init__(
-            storage_connection_factory, filter_mapper, filter_splitter, view_builder
+            storage_connection, filter_mapper, filter_splitter, view_builder
         )
         self._institution_registry = institution_registry
 
     def get_institution_connection(
         self, user_id: str, connection_id: str
     ) -> InstitutionConnectionView:
-        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
-            institution_connection = uow.institution_connections.get_by_id(
-                connection_id
-            )
+        with self._unit_of_work(user_id) as uow:
+            connection = uow.institution_connections.get_by_id_required(connection_id)
             institution = self._institution_registry.get_institution(
-                institution_connection.institution_id
+                connection.institution_id
             )
-            credentials = uow.credentials.get(institution_connection.id)
-
+            credentials = uow.credentials.get(connection.id)
             return InstitutionConnectionView.from_domain(
-                institution_connection=institution_connection,
+                connection=connection,
                 institution_view=InstitutionView.from_domain(institution),
                 credentials=credentials,
             )
@@ -49,26 +46,19 @@ class InstitutionQueryService(QueryService):
         self,
         user_id: str,
     ) -> list[InstitutionConnectionView]:
-        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
-            institution_connections = uow.institution_connections.get_by_user_id(
-                user_id
-            )
+        with self._unit_of_work(user_id) as uow:
+            connections = uow.institution_connections.get_by_user_id(user_id)
             credentials_list = uow.credentials.get_by_ids(
-                {
-                    institution_connection.id
-                    for institution_connection in institution_connections
-                }
+                {connection.id for connection in connections}
             )
             institutions = [
-                self._institution_registry.get_institution(
-                    institution_connection.institution_id
-                )
-                for institution_connection in institution_connections
+                self._institution_registry.get_institution(connection.institution_id)
+                for connection in connections
             ]
             return list(
                 self._view_builder.build_institution_connection_views(
                     institutions,
-                    institution_connections,
+                    connections,
                     credentials_list,
                 ).values()
             )

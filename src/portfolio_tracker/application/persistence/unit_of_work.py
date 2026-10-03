@@ -2,37 +2,30 @@ from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import Self
 
+from portfolio_tracker.application.shared.errors import UserNotLoggedInError
+
 from .repositories import (
-    AccountRepository,
     AccountReadRepository,
-    CredentialsRepository,
+    AccountRepository,
     CredentialsReadRepository,
-    FxRatesRepository,
+    CredentialsRepository,
     FxRatesReadRepository,
-    InstitutionConnectionRepository,
+    FxRatesRepository,
     InstitutionConnectionReadRepository,
-    InstrumentRepository,
+    InstitutionConnectionRepository,
     InstrumentReadRepository,
-    MarketDataRepository,
+    InstrumentRepository,
     MarketDataReadRepository,
-    TransactionRepository,
+    MarketDataRepository,
     TransactionReadRepository,
-    UserRepository,
+    TransactionRepository,
     UserReadRepository,
+    UserRepository,
 )
 
 
 class ReadUnitOfWork(ABC):
-    accounts: AccountReadRepository
-    credentials: CredentialsReadRepository
-    fx_rates: FxRatesReadRepository
-    institution_connections: InstitutionConnectionReadRepository
-    instruments: InstrumentReadRepository
-    market_data: MarketDataReadRepository
-    transactions: TransactionReadRepository
-    users: UserReadRepository
-
-    def __init__(self, user_id: str) -> None:
+    def __init__(self, user_id: str | None = None) -> None:
         self._user_id = user_id
 
     def __enter__(self) -> Self:
@@ -46,19 +39,80 @@ class ReadUnitOfWork(ABC):
     ) -> None:
         self.rollback()
 
+    @property
+    @abstractmethod
+    def accounts(self) -> AccountReadRepository: ...
+
+    @property
+    @abstractmethod
+    def credentials(self) -> CredentialsReadRepository: ...
+
+    @property
+    @abstractmethod
+    def fx_rates(self) -> FxRatesReadRepository: ...
+
+    @property
+    @abstractmethod
+    def institution_connections(self) -> InstitutionConnectionReadRepository: ...
+
+    @property
+    @abstractmethod
+    def instruments(self) -> InstrumentReadRepository: ...
+
+    @property
+    @abstractmethod
+    def market_data(self) -> MarketDataReadRepository: ...
+
+    @property
+    @abstractmethod
+    def transactions(self) -> TransactionReadRepository: ...
+
+    @property
+    @abstractmethod
+    def users(self) -> UserReadRepository: ...
+
     @abstractmethod
     def rollback(self) -> None: ...
 
+    def _get_user_id(self) -> str:
+        if self._user_id is None:
+            raise UserNotLoggedInError()
+
+        return self._user_id
+
 
 class UnitOfWork(ReadUnitOfWork):
-    accounts: AccountRepository
-    fx_rates: FxRatesRepository
-    institution_connections: InstitutionConnectionRepository
-    instruments: InstrumentRepository
-    market_data: MarketDataRepository
-    transactions: TransactionRepository
-    users: UserRepository
-    credentials: CredentialsRepository
+    @property
+    @abstractmethod
+    def accounts(self) -> AccountRepository: ...
+
+    @property
+    @abstractmethod
+    def credentials(self) -> CredentialsRepository: ...
+
+    @property
+    @abstractmethod
+    def fx_rates(self) -> FxRatesRepository: ...
+
+    @property
+    @abstractmethod
+    def institution_connections(self) -> InstitutionConnectionRepository: ...
+
+    @property
+    @abstractmethod
+    def instruments(self) -> InstrumentRepository: ...
+
+    @property
+    @abstractmethod
+    def market_data(self) -> MarketDataRepository: ...
+
+    @property
+    @abstractmethod
+    def transactions(self) -> TransactionRepository: ...
+
+    @property
+    @abstractmethod
+    def users(self) -> UserRepository: ...
 
     @abstractmethod
     def commit(self) -> None: ...
@@ -77,14 +131,9 @@ class StorageReadConnection(ABC):
     ) -> None: ...
 
     @abstractmethod
-    def unit_of_work(self, user_id: str) -> ReadUnitOfWork: ...
+    def unit_of_work(self, user_id: str | None = None) -> ReadUnitOfWork: ...
 
 
 class StorageConnection(StorageReadConnection):
     @abstractmethod
-    def unit_of_work(self, user_id: str) -> UnitOfWork: ...
-
-
-class StorageConnectionFactory(ABC):
-    @abstractmethod
-    def create(self, *, read_only: bool = False) -> StorageReadConnection | StorageConnection: ...
+    def unit_of_work(self, user_id: str | None = None) -> UnitOfWork: ...

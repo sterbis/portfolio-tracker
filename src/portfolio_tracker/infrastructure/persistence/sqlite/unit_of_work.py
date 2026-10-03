@@ -1,15 +1,11 @@
 import logging
 import sqlite3
-from pathlib import Path
+from functools import cached_property
 from types import TracebackType
 from typing import Self
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import (
-    StorageConnection,
-    StorageConnectionFactory,
-    UnitOfWork,
-)
+from portfolio_tracker.application.persistence import StorageConnection, UnitOfWork
 from portfolio_tracker.application.security import Encryptor
 
 from .builder import SqliteStatementBuilder
@@ -33,7 +29,7 @@ logger = logging.getLogger(__name__)
 class SqliteUnitOfWork(UnitOfWork):
     def __init__(
         self,
-        user_id: str,
+        user_id: str | None,
         institution_registry: InstitutionRegistry,
         encryptor: Encryptor,
         executor: SqliteExecutor,
@@ -41,22 +37,50 @@ class SqliteUnitOfWork(UnitOfWork):
         read_only: bool = False,
     ) -> None:
         super().__init__(user_id)
+        self._institution_registry = institution_registry
+        self._encryptor = encryptor
         self._executor = executor
         self._read_only = read_only
         self._is_active = False
 
-        self.accounts = SqliteAccountRepository(self._user_id, self._executor)
-        self.fx_rates = SqliteFxRatesRepository(self._executor)
-        self.institution_connections = SqliteInstitutionConnectionRepository(
-            self._user_id, self._executor, institution_registry
+    @cached_property
+    def accounts(self) -> SqliteAccountRepository:
+        return SqliteAccountRepository(self._get_user_id(), self._executor)
+
+    @cached_property
+    def credentials(self) -> SqliteCredentialsRepository:
+        return SqliteCredentialsRepository(
+            self._get_user_id(),
+            self._executor,
+            self._institution_registry,
+            self._encryptor,
         )
-        self.instruments = SqliteInstrumentRepository(self._executor)
-        self.market_data = SqliteMarketDataRepository(self._executor)
-        self.transactions = SqliteTransactionRepository(self._user_id, self._executor)
-        self.users = SqliteUserRepository(self._executor)
-        self.credentials = SqliteCredentialsRepository(
-            institution_registry, encryptor, self._executor
+
+    @cached_property
+    def fx_rates(self) -> SqliteFxRatesRepository:
+        return SqliteFxRatesRepository(self._executor)
+
+    @cached_property
+    def institution_connections(self) -> SqliteInstitutionConnectionRepository:
+        return SqliteInstitutionConnectionRepository(
+            self._get_user_id(), self._executor, self._institution_registry
         )
+
+    @cached_property
+    def instruments(self) -> SqliteInstrumentRepository:
+        return SqliteInstrumentRepository(self._executor)
+
+    @cached_property
+    def market_data(self) -> SqliteMarketDataRepository:
+        return SqliteMarketDataRepository(self._executor)
+
+    @cached_property
+    def transactions(self) -> SqliteTransactionRepository:
+        return SqliteTransactionRepository(self._get_user_id(), self._executor)
+
+    @cached_property
+    def users(self) -> SqliteUserRepository:
+        return SqliteUserRepository(self._executor)
 
     def __enter__(self) -> Self:
         mode = "DEFERRED" if self._read_only else "IMMEDIATE"
@@ -85,30 +109,29 @@ class SqliteUnitOfWork(UnitOfWork):
 class SqliteStorageConnection(StorageConnection):
     def __init__(
         self,
-        database: str | Path,
+        uri: str,
+        schema_registry: SchemaRegistry,
         institution_registry: InstitutionRegistry,
         encryptor: Encryptor,
-        builder: SqliteStatementBuilder,
         *,
         read_only: bool = False,
         timeout: float = 5,
-        uri: bool = False,
     ) -> None:
-        self._database = database
-        self._encryptor = encryptor
-        self._builder = builder
+        self._uri = uri
         self._institution_registry = institution_registry
+        self._encryptor = encryptor
         self._read_only = read_only
         self._timeout = timeout
-        self._uri = uri
+        self._builder = SqliteStatementBuilder(
+            resolver=SchemaResolver(registry=schema_registry)
+        )
         self._connection: sqlite3.Connection | None = None
 
     def __enter__(self) -> Self:
-        logger.debug("Open '%s' database connection.", self._database)
+        logger.debug("Open '%s' database connection.", self._uri)
         self._connection = open_connection(
-            self._database,
+            self._uri,
             timeout=self._timeout,
-            uri=self._uri,
             read_only=self._read_only,
         )
         return self
@@ -120,11 +143,11 @@ class SqliteStorageConnection(StorageConnection):
         traceback: TracebackType | None,
     ) -> None:
         assert self._connection is not None
-        logger.debug("Close '%s' database connection.", self._database)
+        logger.debug("Close '%s' database connection.", self._uri)
         self._connection.close()
         self._connection = None
 
-    def unit_of_work(self, user_id: str) -> SqliteUnitOfWork:
+    def unit_of_work(self, user_id: str | None = None) -> SqliteUnitOfWork:
         if not self._connection:
             raise RuntimeError("Database connection not opened.")
 
@@ -134,37 +157,4 @@ class SqliteStorageConnection(StorageConnection):
             encryptor=self._encryptor,
             executor=SqliteExecutor(self._connection, self._builder),
             read_only=self._read_only,
-        )
-
-
-class SqliteStorageConnectionFactory(StorageConnectionFactory):
-    def __init__(
-        self,
-        database: str | Path,
-        encryptor: Encryptor,
-        institution_registry: InstitutionRegistry,
-        schema_registry: SchemaRegistry,
-        *,
-        timeout: float = 5,
-        uri: bool = False,
-    ) -> None:
-        self._database = database
-        self._encryptor = encryptor
-        self._institution_registry = institution_registry
-        self._timeout = timeout
-        self._uri = uri
-
-        self._builder = SqliteStatementBuilder(
-            resolver=SchemaResolver(registry=schema_registry)
-        )
-
-    def create(self, *, read_only: bool = False) -> SqliteStorageConnection:
-        return SqliteStorageConnection(
-            database=self._database,
-            encryptor=self._encryptor,
-            builder=self._builder,
-            institution_registry=self._institution_registry,
-            timeout=self._timeout,
-            uri=self._uri,
-            read_only=read_only,
         )

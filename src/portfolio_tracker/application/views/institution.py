@@ -36,15 +36,15 @@ class InstitutionConnectionView:
     @classmethod
     def from_domain(
         cls,
-        institution_connection: InstitutionConnection,
+        connection: InstitutionConnection,
         institution_view: InstitutionView,
         credentials: Credentials | None = None,
     ) -> InstitutionConnectionView:
         return cls(
-            id=institution_connection.id,
+            id=connection.id,
             institution=institution_view,
-            name=institution_connection.name,
-            sync_from=institution_connection.sync_from,
-            last_synced_at=institution_connection.last_synced_at,
+            name=connection.name,
+            sync_from=connection.sync_from,
+            last_synced_at=connection.last_synced_at,
             credentials=credentials,
         )

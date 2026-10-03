@@ -4,6 +4,7 @@ import sqlite3
 from collections.abc import Generator
 from pathlib import Path
 from typing import Callable
+from uuid import uuid4
 
 import pytest
 
@@ -21,53 +22,61 @@ from portfolio_tracker.infrastructure.persistence.sqlite.registry import (
 )
 
 
+@pytest.fixture(scope="session")
+def statement_builder() -> SqliteStatementBuilder:
+    return SqliteStatementBuilder(resolver=SchemaResolver(registry=SCHEMA_REGISTRY))
+
+
 @pytest.fixture(scope="session", autouse=True)
 def register_sqlite_mappers() -> None:
     register_mappers()
 
 
 @pytest.fixture
-def in_memory_db_uri() -> str:
-    return "file:test_db?mode=memory&cache=shared"
+def memory_db_uri() -> str:
+    return f"file:{uuid4().hex}.db?mode=memory&cache=shared"
 
 
 @pytest.fixture
-def in_memory_db_connection(
-    in_memory_db_uri: str,
+def memory_db_connection(
+    memory_db_uri: str,
 ) -> Generator[sqlite3.Connection, None, None]:
-    connection = open_connection(in_memory_db_uri, uri=True)
+    connection = open_connection(memory_db_uri)
     yield connection
     connection.close()
 
 
 @pytest.fixture
-def initialized_in_memory_db_connection(
-    in_memory_db_uri: str,
-    in_memory_db_connection: sqlite3.Connection,
+def initialized_memory_db_connection(
+    memory_db_uri: str,
+    memory_db_connection: sqlite3.Connection,
 ) -> sqlite3.Connection:
-    initialize_database(in_memory_db_uri, uri=True)
-    return in_memory_db_connection
+    initialize_database(memory_db_uri)
+    return memory_db_connection
 
 
 @pytest.fixture
-def initialized_in_memory_db_connection_foreign_keys_off(
-    initialized_in_memory_db_connection: sqlite3.Connection,
+def initialized_memory_db_connection_foreign_keys_off(
+    initialized_memory_db_connection: sqlite3.Connection,
 ) -> sqlite3.Connection:
-    initialized_in_memory_db_connection.execute("PRAGMA foreign_keys = OFF;")
-    return initialized_in_memory_db_connection
+    initialized_memory_db_connection.execute("PRAGMA foreign_keys = OFF;")
+    return initialized_memory_db_connection
 
 
 @pytest.fixture
-def open_initialized_db_connection(
-    tmp_path: Path,
+def temp_db_uri(tmp_path: Path) -> str:
+    return (tmp_path / "portfolio.db").as_uri()
+
+
+@pytest.fixture
+def open_initialized_temp_db_connection(
+    temp_db_uri: str,
 ) -> Generator[Callable[..., sqlite3.Connection], None, None]:
-    db_path = tmp_path / "portfolio.db"
-    initialize_database(db_path)
-
+    initialize_database(temp_db_uri)
     connections: list[sqlite3.Connection] = []
 
-    def open_(timeout: float = 5.0) -> sqlite3.Connection:
-        connection = open_connection(db_path, timeout=timeout)
+    def open_(*, timeout: float = 5.0, read_only: bool = False) -> sqlite3.Connection:
+        connection = open_connection(temp_db_uri, timeout=timeout, read_only=read_only)
         connections.append(connection)
         return connection
 
@@ -79,12 +88,3 @@ def open_initialized_db_connection(
 
         except sqlite3.Error:
             pass
-
-
-@pytest.fixture(scope="session")
-def statement_builder() -> SqliteStatementBuilder:
-    return SqliteStatementBuilder(
-        resolver=SchemaResolver(
-            registry=SCHEMA_REGISTRY,
-        )
-    )

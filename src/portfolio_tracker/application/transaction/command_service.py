@@ -1,8 +1,5 @@
-from portfolio_tracker.application.shared.errors import (
-    TransactionAlreadyExistsError,
-    TransactionNotFoundError,
-)
-from portfolio_tracker.application.shared.service import Service
+from portfolio_tracker.application.shared.errors import TransactionAlreadyExistsError
+from portfolio_tracker.application.shared.service import CommandService
 from portfolio_tracker.domain.shared import Money
 from portfolio_tracker.domain.transaction import Transaction
 
@@ -12,7 +9,7 @@ from .commands import (
 )
 
 
-class TransactionCommandService(Service):
+class TransactionCommandService(CommandService):
     def create_transaction(
         self, user_id: str, command: CreateTransactionCommand
     ) -> str:
@@ -31,8 +28,8 @@ class TransactionCommandService(Service):
             cash_impact=Money(payload.cash_impact.amount, payload.cash_impact.currency),
         )
 
-        with self._user_scoped_unit_of_work(user_id) as uow:
-            if uow.transactions.exists(transaction):
+        with self._unit_of_work(user_id) as uow:
+            if uow.transactions.exists(transaction.id):
                 raise TransactionAlreadyExistsError(transaction_id=transaction.id)
 
             uow.transactions.add(transaction)
@@ -43,10 +40,8 @@ class TransactionCommandService(Service):
     def update_transaction(
         self, user_id: str, command: UpdateTransactionCommand
     ) -> None:
-        with self._user_scoped_unit_of_work(user_id) as uow:
-            transaction = uow.transactions.get_by_id(command.transaction_id)
-            if not transaction:
-                raise TransactionNotFoundError(command.transaction_id)
+        with self._unit_of_work(user_id) as uow:
+            transaction = uow.transactions.get_by_id_required(command.transaction_id)
 
             payload = command.payload
             updated_transaction = Transaction(
@@ -65,24 +60,20 @@ class TransactionCommandService(Service):
             )
 
             if updated_transaction.id == transaction.id:
-                uow.transactions.update(updated_transaction)
+                uow.transactions.update_required(updated_transaction)
                 uow.commit()
                 return
 
-            if uow.transactions.exists(updated_transaction):
+            if uow.transactions.exists(updated_transaction.id):
                 raise TransactionAlreadyExistsError(
                     transaction_id=updated_transaction.id
                 )
 
-            uow.transactions.remove_by_id(transaction.id)
+            uow.transactions.remove_by_id_required(transaction.id)
             uow.transactions.add(updated_transaction)
             uow.commit()
 
     def delete_transaction(self, user_id: str, transaction_id: str) -> None:
-        with self._user_scoped_unit_of_work(user_id) as uow:
-            transaction = uow.transactions.get_by_id(transaction_id)
-            if not transaction:
-                raise TransactionNotFoundError(transaction_id)
-
-            uow.transactions.remove_by_id(transaction_id)
+        with self._unit_of_work(user_id) as uow:
+            uow.transactions.remove_by_id_required(transaction_id)
             uow.commit()

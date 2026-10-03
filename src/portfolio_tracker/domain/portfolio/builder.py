@@ -102,11 +102,9 @@ class PortfolioBuilder:
             consolidated_portfolios: dict[str, Portfolio] = {}
             for portfolio in portfolios:
                 assert portfolio.scope.id is not None
-                institution_connection_id = (
-                    account_map.account_id_to_institution_connection_id[
-                        portfolio.scope.id
-                    ]
-                )
+                institution_connection_id = account_map.account_id_to_connection_id[
+                    portfolio.scope.id
+                ]
 
                 if institution_connection_id not in consolidated_portfolios:
                     consolidated_portfolios[institution_connection_id] = Portfolio(

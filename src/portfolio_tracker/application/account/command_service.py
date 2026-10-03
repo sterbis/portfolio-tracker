@@ -1,14 +1,12 @@
 from dataclasses import replace
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import StorageConnection, UnitOfWork
+from portfolio_tracker.application.persistence import StorageConnection
 from portfolio_tracker.application.shared.errors import (
     AssetAccountAlreadyActivatedError,
     AssetAccountAlreadyDeactivatedError,
-    AssetAccountNotFoundError,
 )
 from portfolio_tracker.application.shared.service import CommandService
-from portfolio_tracker.domain.account import AssetAccount
 
 from .commands import UpdateAssetAccountCommand
 
@@ -24,7 +22,7 @@ class AccountCommandService(CommandService):
 
     def update_account(self, user_id: str, command: UpdateAssetAccountCommand) -> None:
         with self._unit_of_work(user_id) as uow:
-            account = self._get_account(uow, command.account_id)
+            account = uow.accounts.get_by_id_required(command.account_id)
             account = replace(
                 account,
                 external_id=command.external_id,
@@ -35,7 +33,7 @@ class AccountCommandService(CommandService):
 
     def activate_account(self, user_id: str, account_id: str) -> None:
         with self._unit_of_work(user_id) as uow:
-            account = self._get_account(uow, account_id)
+            account = uow.accounts.get_by_id_required(account_id)
             if account.is_active:
                 raise AssetAccountAlreadyActivatedError(account_id)
 
@@ -45,7 +43,7 @@ class AccountCommandService(CommandService):
 
     def deactivate_account(self, user_id: str, account_id: str) -> None:
         with self._unit_of_work(user_id) as uow:
-            account = self._get_account(uow, account_id)
+            account = uow.accounts.get_by_id_required(account_id)
             if not account.is_active:
                 raise AssetAccountAlreadyDeactivatedError(account_id)
 
@@ -53,10 +51,3 @@ class AccountCommandService(CommandService):
             uow.accounts.update(account)
             uow.transactions.remove_by_account_id(account.id)
             uow.commit()
-
-    def _get_account(self, uow: UnitOfWork, account_id: str) -> AssetAccount:
-        account = uow.accounts.get_by_id(account_id)
-        if account is None:
-            raise AssetAccountNotFoundError(account_id)
-
-        return account

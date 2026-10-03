@@ -42,7 +42,7 @@ class FilterMapper:
 
     def _map_filter_tree(self, view_filter: FilterTree) -> FilterTree:
         operator = view_filter.logical_operator
-        mapped_filter = FilterTree(operator)
+        mapped_filter = FilterTree(logical_operator=operator)
         mapped_child_filters = [
             self.map(view_child_filter) for view_child_filter in view_filter.children
         ]
@@ -140,7 +140,9 @@ class FilterSplitter:
             final_repository_filter = repository_filters[0]
 
         elif repository_filters:
-            final_repository_filter = FilterTree(filter_.logical_operator)
+            final_repository_filter = FilterTree(
+                logical_operator=filter_.logical_operator
+            )
             for repository_filter in repository_filters:
                 final_repository_filter.add_child(repository_filter)
 
@@ -149,7 +151,7 @@ class FilterSplitter:
             final_memory_filter = memory_filters[0]
 
         elif memory_filters:
-            final_memory_filter = FilterTree(filter_.logical_operator)
+            final_memory_filter = FilterTree(logical_operator=filter_.logical_operator)
             for memory_filter in memory_filters:
                 final_memory_filter.add_child(memory_filter)
 

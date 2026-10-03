@@ -1,10 +1,18 @@
 from abc import ABC, abstractmethod
 from datetime import date, datetime
+from typing import Callable, TypeVar
 
 from filterutils import Filter
 
-from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.shared.errors import FxDataIntegrityError
+from portfolio_tracker.application.institution.registry import InstitutionRegistry
+from portfolio_tracker.application.shared.errors import (
+    AssetAccountNotFoundError,
+    CredentialsNotFoundError,
+    EntityNotFoundError,
+    FxDataIntegrityError,
+    InstitutionConnectionNotFoundError,
+    TransactionNotFoundError,
+)
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.account import (
     AccountMap,
@@ -18,6 +26,8 @@ from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
 
+TEntity = TypeVar("TEntity")
+
 
 PERSISTED_MODEL_TYPES = (
     User,
@@ -28,6 +38,26 @@ PERSISTED_MODEL_TYPES = (
     FxRates,
     StockSplits,
 )
+
+
+def get_by_id_required(
+    get_by_id: Callable[[str], TEntity | None],
+    entity_id: str,
+    error_cls: type[EntityNotFoundError],
+) -> TEntity:
+    entity = get_by_id(entity_id)
+    if entity is None:
+        raise error_cls(entity_id)
+
+    return entity
+
+
+def ensure_record_affected(
+    affected_record_count: int, entity_id: str, error_cls: type[EntityNotFoundError]
+) -> None:
+    if affected_record_count == 0:
+        raise error_cls(entity_id)
+
 
 class UserScopedRepository(ABC):
     def __init__(self, user_id: str) -> None:
@@ -48,6 +78,11 @@ class InstitutionConnectionReadRepository(UserScopedRepository):
     @abstractmethod
     def get_by_id(self, connection_id: str) -> InstitutionConnection | None: ...
 
+    def get_by_id_required(self, connection_id: str) -> InstitutionConnection:
+        return get_by_id_required(
+            self.get_by_id, connection_id, InstitutionConnectionNotFoundError
+        )
+
     @abstractmethod
     def get_by_ids(self, connection_ids: set[str]) -> list[InstitutionConnection]: ...
 
@@ -60,10 +95,22 @@ class InstitutionConnectionRepository(InstitutionConnectionReadRepository):
     def add(self, connection: InstitutionConnection) -> None: ...
 
     @abstractmethod
-    def update(self, connection: InstitutionConnection) -> None: ...
+    def update(self, connection: InstitutionConnection) -> int: ...
+
+    def update_required(self, connection: InstitutionConnection) -> None:
+        ensure_record_affected(
+            self.update(connection), connection.id, InstitutionConnectionNotFoundError
+        )
 
     @abstractmethod
-    def remove_by_id(self, connection_id: str) -> None: ...
+    def remove_by_id(self, connection_id: str) -> int: ...
+
+    def remove_by_id_required(self, connection_id: str) -> None:
+        ensure_record_affected(
+            self.remove_by_id(connection_id),
+            connection_id,
+            InstitutionConnectionNotFoundError,
+        )
 
 
 class CredentialsReadRepository(UserScopedRepository):
@@ -74,6 +121,11 @@ class CredentialsReadRepository(UserScopedRepository):
     @abstractmethod
     def get(self, institution_connection_id: str) -> Credentials | None: ...
 
+    def get_required(self, institution_connection_id: str) -> Credentials:
+        return get_by_id_required(
+            self.get, institution_connection_id, CredentialsNotFoundError
+        )
+
     @abstractmethod
     def get_by_ids(self, institution_connection_ids: set[str]) -> list[Credentials]: ...
 
@@ -83,12 +135,22 @@ class CredentialsRepository(CredentialsReadRepository):
     def upsert(self, credentials: Credentials) -> None: ...
 
     @abstractmethod
-    def remove(self, institution_connection_id: str) -> None: ...
+    def remove(self, institution_connection_id: str) -> int: ...
+
+    def remove_required(self, connection_id: str) -> None:
+        ensure_record_affected(
+            self.remove(connection_id),
+            connection_id,
+            CredentialsNotFoundError,
+        )
 
 
 class AccountReadRepository(UserScopedRepository):
     @abstractmethod
     def get_by_id(self, account_id: str) -> AssetAccount | None: ...
+
+    def get_by_id_required(self, account_id: str) -> AssetAccount:
+        return get_by_id_required(self.get_by_id, account_id, AssetAccountNotFoundError)
 
     @abstractmethod
     def get_by_external_id(
@@ -104,6 +166,9 @@ class AccountReadRepository(UserScopedRepository):
     ) -> list[AssetAccount]: ...
 
     @abstractmethod
+    def get_by_user_id(self, user_id: str) -> list[AssetAccount]: ...
+
+    @abstractmethod
     def get_account_map(self, user_id: str) -> AccountMap: ...
 
 
@@ -112,7 +177,12 @@ class AccountRepository(AccountReadRepository):
     def ensure(self, account: AssetAccount) -> None: ...
 
     @abstractmethod
-    def update(self, account: AssetAccount) -> None: ...
+    def update(self, account: AssetAccount) -> int: ...
+
+    def update_required(self, account: AssetAccount) -> None:
+        ensure_record_affected(
+            self.update(account), account.id, AssetAccountNotFoundError
+        )
 
 
 class InstrumentReadRepository(ABC):
@@ -167,6 +237,11 @@ class TransactionReadRepository(UserScopedRepository):
     @abstractmethod
     def get_by_id(self, transaction_id: str) -> Transaction | None: ...
 
+    def get_by_id_required(self, transaction_id: str) -> Transaction:
+        return get_by_id_required(
+            self.get_by_id, transaction_id, TransactionNotFoundError
+        )
+
     @abstractmethod
     def get_distinct_dates(self, filter_: Filter | None = None) -> set[date]: ...
 
@@ -187,16 +262,31 @@ class TransactionRepository(TransactionReadRepository):
     def ensure(self, transaction: Transaction) -> None: ...
 
     @abstractmethod
-    def update(self, transaction: Transaction) -> None: ...
+    def update(self, transaction: Transaction) -> int: ...
+
+    def update_required(self, transaction: Transaction) -> None:
+        ensure_record_affected(
+            self.update(transaction), transaction.id, TransactionNotFoundError
+        )
 
     @abstractmethod
-    def remove(self, filter_: Filter) -> None: ...
+    def remove(self, filter_: Filter) -> int: ...
 
     @abstractmethod
-    def remove_by_id(self, transaction_id: str) -> None: ...
+    def remove_by_id(self, transaction_id: str) -> int: ...
+
+    def remove_by_id_required(self, transaction_id: str) -> None:
+        ensure_record_affected(
+            self.remove_by_id(transaction_id), transaction_id, TransactionNotFoundError
+        )
 
     @abstractmethod
-    def remove_by_account_id(self, account_id: str) -> None: ...
+    def remove_by_account_id(self, account_id: str) -> int: ...
+
+    def remove_by_account_id_required(self, account_id: str) -> None:
+        ensure_record_affected(
+            self.remove_by_account_id(account_id), account_id, AssetAccountNotFoundError
+        )
 
 
 class FxRatesReadRepository(ABC):
@@ -220,12 +310,10 @@ class FxRatesReadRepository(ABC):
         quote_currencies: set[Currency],
     ) -> set[date]: ...
 
-    def get_required_rates_by_date_map(self, dates: set[date]) -> dict[date, FxRates]:
+    def get_by_dates_required(self, dates: set[date]) -> dict[date, FxRates]:
         rates_list = self.get_by_dates(dates)
         rates_by_date = {rates.effective_on: rates for rates in rates_list}
-        missing_dates = dates - rates_by_date.keys()
-
-        if missing_dates:
+        if missing_dates := dates - rates_by_date.keys():
             formatted_dates = ", ".join(
                 missing_date.isoformat() for missing_date in sorted(missing_dates)
             )

@@ -6,10 +6,10 @@ from portfolio_tracker.domain.institution import Credentials, InstitutionId
 
 
 class PortfolioTrackerError(Exception):
-    _message_template = "{message}"
+    _message_template = "An undefined error occurred."
 
     def __init__(self, **kwargs: Any) -> None:
-        self.context = kwargs or {"message": "An undefined error occurred."}
+        self.context = kwargs
         super().__init__(self.message)
 
     @property
@@ -44,16 +44,19 @@ class InvalidFilterError(PortfolioTrackerError):
     _message_template = "Cannot split OR filter tree combining persisted fields and in-memory computed fields."
 
 
-class ModelNotFoundError(PortfolioTrackerError):
-    _message_template = "{model_name} with ID '{model_id}' not found."
+class EntityNotFoundError(PortfolioTrackerError):
+    _message_template = "{entity_name} with ID '{entity_id}' not found."
+    _entity_name = "Unknow entity"
 
-    def __init__(self, model_name: str, model_id: str | set[str]) -> None:
-        super().__init__(model_name=model_name, model_id=model_id)
+    def __init__(self, entity_id: str | set[str]) -> None:
+        super().__init__(entity_name=self._entity_name, entity_id=entity_id)
 
 
-class AssetAccountNotFoundError(ModelNotFoundError):
+class AssetAccountNotFoundError(EntityNotFoundError):
+    _entity_name = "Asset account"
+
     def __init__(self, account_id: str | set[str]) -> None:
-        super().__init__(model_name="Asset account", model_id=account_id)
+        super().__init__(entity_id=account_id)
 
 
 class AssetAccountAlreadyHasStatusError(PortfolioTrackerError):
@@ -72,16 +75,20 @@ class AssetAccountAlreadyDeactivatedError(AssetAccountAlreadyHasStatusError):
     _status = "deactivated"
 
 
-class InstitutionConnectionNotFoundError(ModelNotFoundError):
+class InstitutionConnectionNotFoundError(EntityNotFoundError):
+    _entity_name = "Institution connection"
+
     def __init__(self, connection_id: str | set[str]) -> None:
-        super().__init__(model_name="Institution connection", model_id=connection_id)
+        super().__init__(entity_id=connection_id)
 
 
-class CredentialsNotFoundError(PortfolioTrackerError):
-    _message_template = "Credentials for institution connection with ID {institution_connection_id} not found."
+class CredentialsNotFoundError(EntityNotFoundError):
+    _message_template = (
+        "Credentials for institution connection with ID {entity_id} not found."
+    )
 
     def __init__(self, institution_connection_id: str) -> None:
-        super().__init__(institution_connection_id=institution_connection_id)
+        super().__init__(entity_id=institution_connection_id)
 
 
 class InvalidCredentialsError(PortfolioTrackerError):
@@ -148,9 +155,11 @@ class InstitutionReportNotFoundError(PortfolioTrackerError): ...
 class InstitutionReportParserError(PortfolioTrackerError): ...
 
 
-class InstitutionNotFoundError(ModelNotFoundError):
+class InstitutionNotFoundError(EntityNotFoundError):
+    _entity_name = "Institution"
+
     def __init__(self, institution_id: InstitutionId | set[str]) -> None:
-        super().__init__(model_name="Institution", model_id=institution_id)
+        super().__init__(entity_id=institution_id)
 
 
 class MarketDataClientError(ClientError): ...
@@ -167,9 +176,11 @@ class TransactionAlreadyExistsError(PortfolioTrackerError):
     _message_template = "Transaction with ID {transaction_id} already exists."
 
 
-class TransactionNotFoundError(ModelNotFoundError):
+class TransactionNotFoundError(EntityNotFoundError):
+    _entity_name = "Transaction"
+
     def __init__(self, transaction_id: str | set[str]) -> None:
-        super().__init__(model_name="Transaction", model_id=transaction_id)
+        super().__init__(entity_id=transaction_id)
 
 
 class UsernameAlreadyExistsError(PortfolioTrackerError):

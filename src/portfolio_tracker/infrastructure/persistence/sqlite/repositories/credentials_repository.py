@@ -2,9 +2,9 @@ import json
 import sqlite3
 from typing import Any
 
-from portfolio_tracker.application.security import Encryptor
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import CredentialsRepository
+from portfolio_tracker.application.security import Encryptor
 from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
 
@@ -12,13 +12,14 @@ from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteE
 class SqliteCredentialsRepository(CredentialsRepository):
     def __init__(
         self,
+        user_id: str,
+        executor: SqliteExecutor,
         institution_registry: InstitutionRegistry,
         encryptor: Encryptor,
-        executor: SqliteExecutor,
     ) -> None:
-        super().__init__(institution_registry)
-        self._encryptor = encryptor
+        super().__init__(user_id, institution_registry)
         self._executor = executor
+        self._encryptor = encryptor
 
     def upsert(self, credentials: Credentials) -> None:
         json_string = json.dumps(credentials.parameters)
@@ -41,11 +42,21 @@ class SqliteCredentialsRepository(CredentialsRepository):
     def get(self, institution_connection_id: str) -> Credentials | None:
         cursor = self._executor.execute(
             sql="""
-                SELECT institution_id, institution_connection_id, encrypted_parameters
+                SELECT
+                    institution_connection.institution_id,
+                    institution_connection.id,
+                    credentials.encrypted_parameters
                 FROM credentials
-                WHERE institution_connection_id = :institution_connection_id;
+                JOIN institution_connection
+                ON institution_connection.id == credentials.institution_connection_id
+                WHERE 
+                    institution_connection.id = :institution_connection_id
+                    AND institution_connection.user_id = :user_id;
             """,
-            parameters={"institution_connection_id": institution_connection_id},
+            parameters={
+                "institution_connection_id": institution_connection_id,
+                "user_id": self._user_id,
+            },
         )
 
         row = cursor.fetchone()
@@ -55,7 +66,7 @@ class SqliteCredentialsRepository(CredentialsRepository):
         return self._row_to_credentials(row)
 
     def get_by_ids(self, institution_connection_ids: set[str]) -> list[Credentials]:
-        parameters = {
+        institution_connection_parameters = {
             f"institution_connection_id_{index}": institution_connection_id
             for index, institution_connection_id in enumerate(
                 institution_connection_ids, start=1
@@ -63,13 +74,40 @@ class SqliteCredentialsRepository(CredentialsRepository):
         }
         cursor = self._executor.execute(
             sql=f"""
-                SELECT institution_id, institution_connection_id, encrypted_parameters
+                SELECT
+                    institution_connection.institution_id,
+                    institution_connection.id,
+                    credentials.encrypted_parameters
                 FROM credentials
-                WHERE institution_connection_id IN ({", ".join(f":{parameter}" for parameter in parameters)});
+                JOIN institution_connection
+                ON institution_connection.id == credentials.institution_connection_id
+                WHERE 
+                    institution_connection.id IN ({", ".join(f":{parameter}" for parameter in institution_connection_parameters)})
+                    AND institution_connection.user_id = :user_id;
             """,
-            parameters=parameters,
+            parameters={
+                **institution_connection_parameters,
+                "user_id": self._user_id,
+            },
         )
         return [self._row_to_credentials(row) for row in cursor.fetchall()]
+
+    def remove(self, institution_connection_id: str) -> int:
+        cursor = self._executor.execute(
+            sql="""
+                DELETE FROM credentials
+                JOIN institution_connection
+                ON institution_connection.id == credentials.institution_connection_id
+                WHERE
+                    institution_connection.id = :institution_connection_id
+                    AND institution_connection.user_id = :user_id;
+            """,
+            parameters={
+                "institution_connection_id": institution_connection_id,
+                "user_id": self._user_id,
+            },
+        )
+        return cursor.rowcount
 
     def _row_to_credentials(self, row: sqlite3.Row) -> Credentials:
         institution_id = self._institution_registry.get_institution_id(row[0])
@@ -80,13 +118,4 @@ class SqliteCredentialsRepository(CredentialsRepository):
         parameters: dict[str, Any] = json.loads(json_string)
         return self._institution_registry.create_credentials(
             institution_id, institution_connection_id, parameters
-        )
-
-    def remove(self, institution_connection_id: str) -> None:
-        self._executor.execute(
-            sql="""
-                DELETE FROM credentials
-                WHERE institution_connection_id = :institution_connection_id;
-            """,
-            parameters={"institution_connection_id": institution_connection_id},
         )

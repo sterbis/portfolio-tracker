@@ -7,7 +7,10 @@ from portfolio_tracker.application.sync import (
     SyncFxRatesCommand,
     SyncInstrumentsCommand,
 )
-from portfolio_tracker.presentation.cli.context import get_container
+from portfolio_tracker.presentation.cli.context import (
+    get_container,
+    get_logged_in_user_id,
+)
 from portfolio_tracker.presentation.cli.guarded_typer import GuardedTyper
 from portfolio_tracker.presentation.cli.input import resolve_optional_multi_value_input
 from portfolio_tracker.presentation.cli.parameters import multi_value_option
@@ -24,6 +27,7 @@ def repair_fx_rates(
     dates: Annotated[list[str] | None, multi_value_option("--date")] = None,
     all_: Annotated[bool, typer.Option()] = False,
 ) -> None:
+    user_id = get_logged_in_user_id(ctx)
     container = get_container(ctx)
     resolved_dates = resolve_optional_multi_value_input(
         "--date", dates, value_parser=date_parser
@@ -34,7 +38,7 @@ def repair_fx_rates(
     )
     asyncio.run(
         render_sync_progress(
-            as_async_generator, container.sync_service.sync_fx_rates(command)
+            as_async_generator, container.sync_service.sync_fx_rates(user_id, command)
         )
     )
 
@@ -46,6 +50,7 @@ def repair_instruments(
     new_only: Annotated[bool, typer.Option()] = False,
     all_: Annotated[bool, typer.Option()] = False,
 ) -> None:
+    user_id = get_logged_in_user_id(ctx)
     container = get_container(ctx)
     resolved_symbols = resolve_optional_multi_value_input(
         "--symbol", symbols, value_parser=lambda value: value.upper()
@@ -57,6 +62,7 @@ def repair_instruments(
     )
     asyncio.run(
         render_sync_progress(
-            as_async_generator, container.sync_service.sync_instruments(command)
+            as_async_generator,
+            container.sync_service.sync_instruments(user_id, command),
         )
     )

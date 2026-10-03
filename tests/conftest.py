@@ -8,10 +8,15 @@ import pytest
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.domain.account import AssetAccount
 from portfolio_tracker.domain.fx import FxRates
-from portfolio_tracker.domain.institution import Institution, InstitutionConnection
+from portfolio_tracker.domain.institution import (
+    Credentials,
+    Institution,
+    InstitutionConnection,
+)
 from portfolio_tracker.domain.instrument import Stock
 from portfolio_tracker.domain.market_data import StockSplits
-from portfolio_tracker.domain.shared import Currency
+from portfolio_tracker.domain.shared import Currency, Money
+from portfolio_tracker.domain.transaction import Transaction, TransactionType
 from portfolio_tracker.domain.user import User
 
 from .mocks import (
@@ -67,7 +72,7 @@ def sample_user_2() -> User:
 @pytest.fixture(scope="session")
 def sample_institution_connection() -> InstitutionConnection:
     return InstitutionConnection(
-        id="inst_acc_001",
+        id="conn_001",
         user_id="usr_001",
         institution_id=MockInstitutionCode.TRADING_321,
         name="Trading 321 Account",
@@ -77,13 +82,49 @@ def sample_institution_connection() -> InstitutionConnection:
 
 
 @pytest.fixture(scope="session")
+def sample_credentials(
+    sample_institution_registry: InstitutionRegistry,
+    sample_institution_connection: InstitutionConnection,
+) -> Credentials:
+    return sample_institution_registry.create_credentials(
+        institution_id=sample_institution_connection.institution_id,
+        institution_connection_id=sample_institution_connection.id,
+        parameters={
+            "account_id": "0123456",
+            "api_key": "key_123",
+            "api_secret": "secret_abc",
+        },
+    )
+
+
+@pytest.fixture(scope="session")
 def sample_account() -> AssetAccount:
     return AssetAccount(
-        id="ast_acc_001",
-        institution_connection_id="inst_acc_001",
+        id="acc_001",
+        institution_connection_id="conn_001",
         external_id="3210123",
         name="Invest",
     )
+
+
+@pytest.fixture(scope="session")
+def sample_transaction(googl_stock: Stock) -> Transaction:
+    return Transaction(
+        executed_at=datetime(2026, 6, 1, 16, 15, 0, tzinfo=timezone.utc),
+        account_id="acc_001",
+        type=TransactionType.BUY,
+        instrument_id=googl_stock.id,
+        quantity=Decimal("10"),
+        price=Money(Decimal("100.50"), Currency.USD),
+        fee=Money.zero(Currency.USD),
+        tax=Money.zero(Currency.USD),
+        cash_impact=Money(Decimal("-1005.00"), Currency.USD),
+    )
+
+
+@pytest.fixture(scope="session")
+def sample_stock(googl_stock: Stock) -> Stock:
+    return googl_stock
 
 
 @pytest.fixture(scope="session")
@@ -143,11 +184,11 @@ def sample_rates() -> FxRates:
 
 
 @pytest.fixture(scope="session")
-def sample_stock_splits(aapl_stock: Stock) -> StockSplits:
+def sample_stock_splits(googl_stock: Stock) -> StockSplits:
     return StockSplits(
-        instrument_id=aapl_stock.id,
+        instrument_id=googl_stock.id,
         splits={
-            datetime(2026, 6, 15, 0, 0, 0, tzinfo=timezone.utc): Decimal("2.0"),
-            datetime(2026, 6, 18, 0, 0, 0, tzinfo=timezone.utc): Decimal("3.0"),
+            datetime(2014, 3, 27, 0, 0, 0, tzinfo=timezone.utc): Decimal("2.0"),
+            datetime(2022, 7, 18, 0, 0, 0, tzinfo=timezone.utc): Decimal("20.0"),
         },
     )

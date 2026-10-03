@@ -1,10 +1,13 @@
 from datetime import date
+from functools import cached_property
 from typing import Any
 
-from filterutils import Filter, FilterNode, Operator
+from filterutils import Filter, FilterNode, FilterTree, Operator
 
 from portfolio_tracker.application.persistence import TransactionRepository
 from portfolio_tracker.application.shared.sort import Sort
+from portfolio_tracker.domain.account import AssetAccount
+from portfolio_tracker.domain.institution import InstitutionConnection
 from portfolio_tracker.domain.transaction import Transaction, TransactionType
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import (
     Row,
@@ -17,6 +20,19 @@ class SqliteTransactionRepository(TransactionRepository):
     def __init__(self, user_id: str, executor: SqliteExecutor) -> None:
         super().__init__(user_id)
         self._executor = executor
+
+    @cached_property
+    def _scope_filter(self) -> Filter:
+        account_id_field = FieldReference(AssetAccount, "id")
+        rows = self._executor.select(
+            model=AssetAccount,
+            fields=[account_id_field],
+            filter_=FilterNode(
+                "user_id", Operator.EQ, self._user_id, InstitutionConnection
+            ),
+        )
+        user_account_ids = {row[account_id_field] for row in rows}
+        return FilterNode("account_id", Operator.IN, user_account_ids, Transaction)
 
     def add(self, transaction: Transaction) -> None:
         self._executor.insert(
@@ -41,7 +57,7 @@ class SqliteTransactionRepository(TransactionRepository):
     ) -> list[Transaction]:
         rows = self._executor.select(
             model=Transaction,
-            filter_=filter_,
+            filter_=FilterTree.and_combine(filter_, self._scope_filter),
             sorts=sorts,
             limit=limit,
             offset=offset,
@@ -49,11 +65,10 @@ class SqliteTransactionRepository(TransactionRepository):
         return [self._row_to_transaction(row) for row in rows]
 
     def get_by_id(self, transaction_id: str) -> Transaction | None:
-        row = self._executor.select_one(
-            model=Transaction,
+        transactions = self.get(
             filter_=FilterNode("id", Operator.EQ, transaction_id, Transaction),
         )
-        return self._row_to_transaction(row) if row else None
+        return transactions[0] if transactions else None
 
     def get_distinct_dates(self, filter_: Filter | None = None) -> set[date]:
         executed_at_field = FieldReference(Transaction, "executed_at")
@@ -79,34 +94,42 @@ class SqliteTransactionRepository(TransactionRepository):
             if row[instrument_id_field] is not None
         }
 
-    def update(self, transaction: Transaction) -> None:
-        self._executor.update(
+    def update(self, transaction: Transaction) -> int:
+        cursor = self._executor.update(
             model=Transaction,
             values=self._transaction_to_values(transaction),
-            filter_=FilterNode("id", Operator.EQ, transaction.id, Transaction),
+            filter_=FilterTree(
+                FilterNode("id", Operator.EQ, transaction.id, Transaction),
+                self._scope_filter,
+            ),
         )
+        return cursor.rowcount
 
-    def remove(self, filter_: Filter) -> None:
-        self._executor.delete(
+    def remove(self, filter_: Filter) -> int:
+        cursor = self._executor.delete(
             model=Transaction,
             filter_=filter_,
         )
+        return cursor.rowcount
 
-    def remove_by_id(self, transaction_id: str) -> None:
-        self.remove(filter_=FilterNode("id", Operator.EQ, transaction_id, Transaction))
+    def remove_by_id(self, transaction_id: str) -> int:
+        return self.remove(
+            filter_=FilterTree(
+                FilterNode("id", Operator.EQ, transaction_id, Transaction),
+                self._scope_filter,
+            ),
+        )
 
-    def remove_by_account_id(self, account_id: str) -> None:
-        self.remove(
-            filter_=FilterNode("account_id", Operator.EQ, account_id, Transaction)
+    def remove_by_account_id(self, account_id: str) -> int:
+        return self.remove(
+            filter_=FilterTree(
+                FilterNode("account_id", Operator.EQ, account_id, Transaction),
+                self._scope_filter,
+            ),
         )
 
     def exists(self, transaction_id: str) -> bool:
-        row = self._executor.select_one(
-            model=Transaction,
-            fields=[FieldReference(Transaction, "id")],
-            filter_=FilterNode("id", Operator.EQ, transaction_id, Transaction),
-        )
-        return row is not None
+        return self.get_by_id(transaction_id) is not None
 
     def _transaction_to_values(self, transaction: Transaction) -> dict[str, Any]:
         return {

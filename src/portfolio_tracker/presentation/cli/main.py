@@ -4,7 +4,7 @@ from typing import Annotated
 
 import typer
 
-from portfolio_tracker.infrastructure.configuration import load_desktop_configuration
+from portfolio_tracker.infrastructure.configuration import load_configuration
 from portfolio_tracker.infrastructure.logging import configure_desktop_cli_logging
 
 from .commands import (
@@ -42,7 +42,7 @@ app.add_typer(user_app)
 def app_callback(
     ctx: typer.Context, no_input: Annotated[bool, typer.Option()] = False
 ) -> None:
-    configuration = load_desktop_configuration()
+    configuration = load_configuration()
     configure_desktop_cli_logging(configuration)
 
     logger.info("Run command: '%s'", " ".join(sys.argv))

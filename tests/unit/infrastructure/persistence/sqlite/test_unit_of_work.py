@@ -8,12 +8,13 @@ import pytest
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.domain.user import User
-from portfolio_tracker.infrastructure.persistence.sqlite import (
-    SqliteStorageConnection,
-    SqliteUnitOfWork,
-)
 from portfolio_tracker.infrastructure.persistence.sqlite.builder import (
     SqliteStatementBuilder,
+)
+from portfolio_tracker.infrastructure.persistence.sqlite.database import open_connection
+from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
+from portfolio_tracker.infrastructure.persistence.sqlite.unit_of_work import (
+    SqliteUnitOfWork,
 )
 from tests.mocks import MockEncryptor
 
@@ -25,54 +26,63 @@ class UnitOfWorkFactory(Protocol):
 
 
 @pytest.fixture(scope="module")
-def create_unit_of_work(
-    mock_encryptor: MockEncryptor,
+def create_uow(
     sample_institution_registry: InstitutionRegistry,
+    mock_encryptor: MockEncryptor,
     statement_builder: SqliteStatementBuilder,
 ) -> UnitOfWorkFactory:
     def create(
         connection: sqlite3.Connection, *, read_only: bool = False
     ) -> SqliteUnitOfWork:
         return SqliteUnitOfWork(
-            encryptor=mock_encryptor,
+            user_id=None,
             institution_registry=sample_institution_registry,
-            builder=statement_builder,
-            connection=connection,
+            encryptor=mock_encryptor,
+            executor=SqliteExecutor(connection, statement_builder),
             read_only=read_only,
         )
 
     return create
 
 
+@pytest.fixture(scope="module")
+def create_test_table_sql() -> str:
+    return """
+        CREATE TABLE test (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            passed INTEGER,
+            failed INTEGER
+        );
+    """
+
+
 @pytest.fixture
-def in_memory_uow(
-    create_unit_of_work: UnitOfWorkFactory,
-    initialized_in_memory_db_connection: sqlite3.Connection,
+def initialized_in_memory_uow(
+    create_uow: UnitOfWorkFactory,
+    initialized_memory_db_connection: sqlite3.Connection,
 ) -> SqliteUnitOfWork:
-    return create_unit_of_work(initialized_in_memory_db_connection)
+    return create_uow(initialized_memory_db_connection)
 
 
 def test_unit_of_work_transaction_lifecycle(
-    in_memory_uow: SqliteUnitOfWork,
+    initialized_in_memory_uow: SqliteUnitOfWork,
+    create_test_table_sql: str,
 ) -> None:
     def test_if_transaction_is_active(expected_is_active: bool) -> None:
-        assert in_memory_uow._connection.in_transaction is expected_is_active
-        assert in_memory_uow._is_active is expected_is_active
+        assert (
+            initialized_in_memory_uow._executor._connection.in_transaction
+            is expected_is_active
+        )
+        assert initialized_in_memory_uow._is_active is expected_is_active
 
     test_if_transaction_is_active(expected_is_active=False)
 
-    with in_memory_uow:
+    with initialized_in_memory_uow:
         test_if_transaction_is_active(expected_is_active=True)
 
-        in_memory_uow._connection.execute("""
-            CREATE TABLE test (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL UNIQUE,
-                passed INTEGER,
-                failed INTEGER
-            );
-            """)
-        in_memory_uow.commit()
+        initialized_in_memory_uow._executor.execute(create_test_table_sql)
+        initialized_in_memory_uow.commit()
 
         test_if_transaction_is_active(expected_is_active=False)
 
@@ -80,91 +90,78 @@ def test_unit_of_work_transaction_lifecycle(
 
 
 def test_rollback_occurs_when_transaction_aborts(
-    in_memory_uow: SqliteUnitOfWork,
+    initialized_in_memory_uow: SqliteUnitOfWork,
     sample_user: User,
     sample_user_2: User,
 ) -> None:
-    with in_memory_uow:
-        in_memory_uow.users.add(sample_user)
-        in_memory_uow.commit()
+    with initialized_in_memory_uow:
+        initialized_in_memory_uow.users.add(sample_user)
+        initialized_in_memory_uow.commit()
 
-    with pytest.raises(RuntimeError, match="Mock database operation fail."):
-        with in_memory_uow:
-            in_memory_uow.users.add(sample_user_2)
-            raise RuntimeError("Mock database operation fail.")
+    with pytest.raises(RuntimeError, match="Mock error."):
+        with initialized_in_memory_uow:
+            initialized_in_memory_uow.users.add(sample_user_2)
+            raise RuntimeError("Mock error.")
 
-    with in_memory_uow:
-        assert in_memory_uow.users.get_by_username(sample_user.username) == sample_user
-        assert in_memory_uow.users.get_by_username(sample_user_2.username) is None
+    with initialized_in_memory_uow:
+        assert (
+            initialized_in_memory_uow.users.get_by_username(sample_user.username)
+            == sample_user
+        )
+        assert (
+            initialized_in_memory_uow.users.get_by_username(sample_user_2.username)
+            is None
+        )
 
 
 def test_explicit_commit_needed_to_write_database_changes(
-    in_memory_uow: SqliteUnitOfWork,
+    initialized_in_memory_uow: SqliteUnitOfWork,
     sample_user: User,
 ) -> None:
-    with in_memory_uow:
-        in_memory_uow.users.add(sample_user)
-        # uow.commit() omitted
+    with initialized_in_memory_uow:
+        initialized_in_memory_uow.users.add(sample_user)
+        # uow.commit() intentionally omitted
 
-    with in_memory_uow:
-        assert in_memory_uow.users.get_by_username(sample_user.username) is None
+    with initialized_in_memory_uow:
+        assert (
+            initialized_in_memory_uow.users.get_by_username(sample_user.username)
+            is None
+        )
 
 
 def test_read_only_unit_of_work_rejects_writes(
-    create_unit_of_work: UnitOfWorkFactory,
-    initialized_in_memory_db_connection: sqlite3.Connection,
-    sample_user: User,
+    memory_db_uri: str,
+    create_uow: UnitOfWorkFactory,
+    create_test_table_sql: str,
 ) -> None:
-    read_only_uow = create_unit_of_work(
-        initialized_in_memory_db_connection, read_only=True
-    )
+    connection = open_connection(memory_db_uri, read_only=True)
+    read_uow = create_uow(connection, read_only=True)
 
-    with read_only_uow:
+    with read_uow:
         with pytest.raises(
             sqlite3.OperationalError, match="readonly database|read-only"
         ):
-            read_only_uow.users.add(sample_user)
+            read_uow._executor.execute(create_test_table_sql)
 
-        assert read_only_uow.users.get_by_username(sample_user.username) is None
-
-
-def test_storage_connection_rejects_mismatched_uow_access_mode(
-    mock_encryptor: MockEncryptor,
-    sample_institution_registry: InstitutionRegistry,
-    statement_builder: SqliteStatementBuilder,
-) -> None:
-    writable_connection = SqliteStorageConnection(
-        database=":memory:",
-        encryptor=mock_encryptor,
-        builder=statement_builder,
-        institution_registry=sample_institution_registry,
-    )
-    with writable_connection:
-        with pytest.raises(RuntimeError, match="access mode must match"):
-            writable_connection.unit_of_work(read_only=True)
-
-    read_only_connection = SqliteStorageConnection(
-        database=":memory:",
-        encryptor=mock_encryptor,
-        builder=statement_builder,
-        institution_registry=sample_institution_registry,
-        read_only=True,
-    )
-    with read_only_connection:
-        with pytest.raises(RuntimeError, match="access mode must match"):
-            read_only_connection.unit_of_work()
+        cursor = read_uow._executor.execute("""
+            SELECT name 
+            FROM sqlite_schema 
+            WHERE type = 'table' AND name NOT LIKE 'sqlite_%';
+        """)
+        tables = [row[0] for row in cursor.fetchall()]
+        assert len(tables) == 0
 
 
 def test_write_connection_does_not_block_read_connection(
-    create_unit_of_work: UnitOfWorkFactory,
-    open_initialized_db_connection: Callable[..., sqlite3.Connection],
+    create_uow: UnitOfWorkFactory,
+    open_initialized_temp_db_connection: Callable[..., sqlite3.Connection],
     sample_user: User,
 ) -> None:
-    write_connection = open_initialized_db_connection()
-    write_uow = create_unit_of_work(write_connection)
+    write_connection = open_initialized_temp_db_connection()
+    write_uow = create_uow(write_connection)
 
-    read_connection = open_initialized_db_connection()
-    read_uow = create_unit_of_work(read_connection, read_only=True)
+    read_connection = open_initialized_temp_db_connection(read_only=True)
+    read_uow = create_uow(read_connection, read_only=True)
 
     with write_uow:
         write_uow.users.add(sample_user)
@@ -182,16 +179,16 @@ def test_write_connection_does_not_block_read_connection(
 
 
 def test_two_connections_cannot_write_at_the_same_time(
-    create_unit_of_work: UnitOfWorkFactory,
-    open_initialized_db_connection: Callable[..., sqlite3.Connection],
+    create_uow: UnitOfWorkFactory,
+    open_initialized_temp_db_connection: Callable[..., sqlite3.Connection],
     sample_user: User,
     sample_user_2: User,
 ) -> None:
-    write_connection_1 = open_initialized_db_connection()
-    write_uow_1 = create_unit_of_work(write_connection_1)
+    write_connection_1 = open_initialized_temp_db_connection()
+    write_uow_1 = create_uow(write_connection_1)
 
-    write_connection_2 = open_initialized_db_connection(timeout=0)
-    write_uow_2 = create_unit_of_work(write_connection_2)
+    write_connection_2 = open_initialized_temp_db_connection(timeout=0)
+    write_uow_2 = create_uow(write_connection_2)
 
     with write_uow_1:
         write_uow_1.users.add(sample_user)

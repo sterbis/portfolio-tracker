@@ -1,10 +1,10 @@
-from portfolio_tracker.application.persistence import StorageConnectionFactory
+from portfolio_tracker.application.persistence import StorageConnection
 from portfolio_tracker.application.security import PasswordHasher
 from portfolio_tracker.application.shared.errors import (
     InvalidUsernameOrPasswordError,
     UsernameAlreadyExistsError,
 )
-from portfolio_tracker.application.shared.service import Service
+from portfolio_tracker.application.shared.service import CommandService
 from portfolio_tracker.domain.user import User
 
 from .commands import (
@@ -13,13 +13,13 @@ from .commands import (
 )
 
 
-class UserService(Service):
+class UserService(CommandService):
     def __init__(
         self,
-        storage_connection_factory: StorageConnectionFactory,
+        storage_connection: StorageConnection,
         password_hasher: PasswordHasher,
     ) -> None:
-        super().__init__(storage_connection_factory)
+        super().__init__(storage_connection)
         self._password_hasher = password_hasher
 
     def register(self, command: RegisterUserCommand) -> str:
@@ -38,7 +38,7 @@ class UserService(Service):
             return user.id
 
     def authenticate(self, command: AuthenticateUserCommand) -> str:
-        with self._read_only_unit_of_work() as uow:
+        with self._unit_of_work() as uow:
             user = uow.users.get_by_username(command.username)
             if not user:
                 raise InvalidUsernameOrPasswordError()

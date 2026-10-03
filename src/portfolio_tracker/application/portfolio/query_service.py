@@ -1,13 +1,13 @@
 from collections.abc import Iterable
 
-from filterutils import Filter
+from filterutils import Filter, FilterNode, FilterTree, Operator
 
 from portfolio_tracker.application.fx import FxService
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.persistence import (
-    StorageConnectionFactory,
-    UserScopedReadOnlyUnitOfWork,
+    ReadUnitOfWork,
+    StorageReadConnection,
 )
 from portfolio_tracker.application.shared.errors import (
     FxClientError,
@@ -23,7 +23,7 @@ from portfolio_tracker.application.views import (
     ValuedPortfolioView,
     ViewBuilder,
 )
-from portfolio_tracker.domain.account import AssetAccount
+from portfolio_tracker.domain.account import AccountMap, AssetAccount
 from portfolio_tracker.domain.institution import Institution, InstitutionConnection
 from portfolio_tracker.domain.instrument import Instrument
 from portfolio_tracker.domain.portfolio import (
@@ -48,19 +48,19 @@ class PortfolioQueryService(QueryService):
 
     def __init__(
         self,
-        storage_connection_factory: StorageConnectionFactory,
+        storage_connection: StorageReadConnection,
         filter_mapper: FilterMapper,
         filter_splitter: FilterSplitter,
         view_builder: ViewBuilder,
         institution_registry: InstitutionRegistry,
+        fx_service: FxService,
+        market_data_service: MarketDataService,
         transaction_adjuster: TransactionAdjuster,
         portfolio_builder: PortfolioBuilder,
         portfolio_evaluator: PortfolioEvaluator,
-        fx_service: FxService,
-        market_data_service: MarketDataService,
     ) -> None:
         super().__init__(
-            storage_connection_factory, filter_mapper, filter_splitter, view_builder
+            storage_connection, filter_mapper, filter_splitter, view_builder
         )
         self._institution_registry = institution_registry
         self._market_data_service = market_data_service
@@ -93,14 +93,14 @@ class PortfolioQueryService(QueryService):
         self, user_id: str, query: GetPortfoliosQuery
     ) -> list[ValuedPortfolioView]:
         repository_filter, _ = self._resolve_filters(query.filter)
-        institutions, institution_connections, accounts, instruments, portfolios = (
+        institutions, connections, accounts, instruments, portfolios = (
             self._build_portfolios(user_id, query, repository_filter)
         )
         valued_portfolios = self._evaluate_portfolios(portfolios, instruments)
         return list(
             self._view_builder.build_valued_portfolio_views(
                 institutions,
-                institution_connections,
+                connections,
                 accounts,
                 instruments,
                 valued_portfolios,
@@ -129,17 +129,27 @@ class PortfolioQueryService(QueryService):
         list[Instrument],
         list[Portfolio],
     ]:
-        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
+        with self._unit_of_work(user_id) as uow:
+            account_map = uow.accounts.get_account_map(user_id)
+            required_account_ids = account_map.resolve_account_ids(
+                query.connection_ids, query.account_ids
+            )
+
             transactions: Iterable[Transaction] = uow.transactions.get(
-                institution_connection_ids=query.connection_ids,
-                account_ids=query.account_ids,
-                filter_=filter_,
+                filter_=FilterTree.and_combine(
+                    filter_,
+                    (
+                        FilterNode(
+                            "account_id", Operator.IN, required_account_ids, Transaction
+                        )
+                        if required_account_ids
+                        else None
+                    ),
+                ),
                 sorts=[self._REQUIRED_TRANSACTION_SORT],
             )
             instrument_ids = uow.transactions.get_distinct_instrument_ids(
-                institution_connection_ids=query.connection_ids,
-                account_ids=query.account_ids,
-                filter_=filter_,
+                filter_=filter_
             )
             splits_list = uow.market_data.get_stock_splits_by_instrument_ids(
                 instrument_ids
@@ -148,12 +158,8 @@ class PortfolioQueryService(QueryService):
                 transactions, splits_list
             )
 
-            transaction_dates = uow.transactions.get_distinct_dates(
-                institution_connection_ids=query.connection_ids,
-                account_ids=query.account_ids,
-                filter_=filter_,
-            )
-            rates_by_date = uow.fx_rates.get_required_rates_by_date_map(
+            transaction_dates = uow.transactions.get_distinct_dates(filter_=filter_)
+            rates_by_date = uow.fx_rates.get_by_dates_required(
                 transaction_dates,
             )
             converter = TransactionConverter(rates_by_date)
@@ -165,8 +171,9 @@ class PortfolioQueryService(QueryService):
                 converted_transactions, query.reporting_currency
             )
             portfolios = self._portfolio_builder.consolidate(
-                portfolios, query.scope, uow.account_map
+                portfolios, query.scope, account_map
             )
+
             instruments = uow.instruments.get_by_ids(
                 instrument_ids={
                     instrument_id
@@ -174,23 +181,24 @@ class PortfolioQueryService(QueryService):
                     for instrument_id in portfolio.instrument_ids
                 }
             )
-            institutions, institution_connections, accounts = (
-                self._get_portfolio_accounts(uow, portfolios)
+            institutions, connections, accounts = self._get_portfolio_scopes(
+                uow, portfolios, account_map
             )
             return (
                 institutions,
-                institution_connections,
+                connections,
                 accounts,
                 instruments,
                 portfolios,
             )
 
-    def _get_portfolio_accounts(
+    def _get_portfolio_scopes(
         self,
-        uow: UserScopedReadOnlyUnitOfWork,
+        uow: ReadUnitOfWork,
         portfolios: list[Portfolio],
+        account_map: AccountMap,
     ) -> tuple[list[Institution], list[InstitutionConnection], list[AssetAccount]]:
-        institution_connection_ids: set[str] = set()
+        connection_ids: set[str] = set()
         account_ids: set[str] = set()
 
         for portfolio in portfolios:
@@ -199,28 +207,22 @@ class PortfolioQueryService(QueryService):
 
             assert portfolio.scope.id is not None
             if portfolio.scope.type == ScopeType.INSTITUTION:
-                institution_connection_ids.add(portfolio.scope.id)
+                connection_ids.add(portfolio.scope.id)
 
             elif portfolio.scope.type == ScopeType.ACCOUNT:
                 account_ids.add(portfolio.scope.id)
-                institution_connection_ids.add(
-                    uow.account_map.account_id_to_institution_connection_id[
-                        portfolio.scope.id
-                    ]
+                connection_ids.add(
+                    account_map.account_id_to_connection_id[portfolio.scope.id]
                 )
 
         accounts = uow.accounts.get_by_ids(account_ids)
-        institution_connections = uow.institution_connections.get_by_ids(
-            institution_connection_ids
-        )
+        connections = uow.institution_connections.get_by_ids(connection_ids)
         institutions = [
-            self._institution_registry.get_institution(
-                institution_connection.institution_id
-            )
-            for institution_connection in institution_connections
+            self._institution_registry.get_institution(connection.institution_id)
+            for connection in connections
         ]
 
-        return institutions, institution_connections, accounts
+        return institutions, connections, accounts
 
     def _get_portfolio_valuations(
         self,

@@ -26,37 +26,33 @@ class AccountQueryService(QueryService):
 
     def get_account(self, user_id: str, account_id: str) -> AssetAccountView:
         with self._unit_of_work(user_id) as uow:
-            account = uow.accounts.get_by_id(account_id)
-            institution_connection = uow.institution_connections.get_by_id(
+            account = uow.accounts.get_by_id_required(account_id)
+            connection = uow.institution_connections.get_by_id_required(
                 account.institution_connection_id
             )
             institution = self._institution_registry.get_institution(
-                institution_connection.institution_id
+                connection.institution_id
             )
             return AssetAccountView.from_domain(
                 account,
-                institution_connection_view=InstitutionConnectionView.from_domain(
-                    institution_connection,
+                connection_view=InstitutionConnectionView.from_domain(
+                    connection,
                     institution_view=InstitutionView.from_domain(institution),
                 ),
             )
 
     def get_accounts(self, user_id: str) -> list[AssetAccountView]:
-        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
-            accounts = uow.accounts.get_by_ids(uow.account_map.account_ids)
-            institution_connections = uow.institution_connections.get_by_ids(
-                uow.account_map.institution_connection_ids
-            )
+        with self._unit_of_work(user_id) as uow:
+            accounts = uow.accounts.get_by_user_id(user_id)
+            connections = uow.institution_connections.get_by_user_id(user_id)
             institutions = [
-                self._institution_registry.get_institution(
-                    institution_connection.institution_id
-                )
-                for institution_connection in institution_connections
+                self._institution_registry.get_institution(connection.institution_id)
+                for connection in connections
             ]
             return list(
                 self._view_builder.build_account_views(
                     institutions,
-                    institution_connections,
+                    connections,
                     accounts,
                 ).values()
             )

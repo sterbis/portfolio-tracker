@@ -1,30 +1,28 @@
 from .repositories import (
     PERSISTED_MODEL_TYPES,
-    AccountRepository,
     AccountReadRepository,
-    CredentialsRepository,
+    AccountRepository,
     CredentialsReadRepository,
-    FxRatesRepository,
+    CredentialsRepository,
     FxRatesReadRepository,
-    InstitutionConnectionRepository,
+    FxRatesRepository,
     InstitutionConnectionReadRepository,
-    InstrumentRepository,
+    InstitutionConnectionRepository,
     InstrumentReadRepository,
-    MarketDataRepository,
+    InstrumentRepository,
     MarketDataReadRepository,
-    TransactionRepository,
+    MarketDataRepository,
     TransactionReadRepository,
-    UserRepository,
+    TransactionRepository,
     UserReadRepository,
+    UserRepository,
 )
 from .unit_of_work import (
+    ReadUnitOfWork,
     StorageConnection,
     StorageReadConnection,
-    StorageConnectionFactory,
     UnitOfWork,
-    ReadUnitOfWork,
 )
-
 
 __all__ = [
     "PERSISTED_MODEL_TYPES",
@@ -46,7 +44,6 @@ __all__ = [
     "UserReadRepository",
     "StorageConnection",
     "StorageReadConnection",
-    "StorageConnectionFactory",
     "UnitOfWork",
     "ReadUnitOfWork",
 ]

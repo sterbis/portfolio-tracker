@@ -2,7 +2,7 @@
 
 import pytest
 
-from portfolio_tracker.infrastructure.persistence.sqlite import (
+from portfolio_tracker.infrastructure.persistence.sqlite.mappers import (
     register_mappers,
 )
 

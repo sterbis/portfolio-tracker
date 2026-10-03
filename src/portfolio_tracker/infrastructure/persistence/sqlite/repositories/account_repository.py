@@ -17,7 +17,9 @@ class SqliteAccountRepository(AccountRepository):
     def __init__(self, user_id: str, executor: SqliteExecutor) -> None:
         super().__init__(user_id)
         self._executor = executor
-        self._scope_filter = FilterNode("user_id", Operator.EQ, self._user_id, InstitutionConnection)
+        self._scope_filter = FilterNode(
+            "user_id", Operator.EQ, self._user_id, InstitutionConnection
+        )
 
     def ensure(self, account: AssetAccount) -> None:
         self._executor.insert_on_conflict_do_nothing(
@@ -34,10 +36,9 @@ class SqliteAccountRepository(AccountRepository):
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[AssetAccount]:
-        filter_ = self._scope_filter if filter_ is None else FilterTree(filter_, self._scope_filter)
         rows = self._executor.select(
             model=AssetAccount,
-            filter_=filter_,
+            filter_=FilterTree.and_combine(filter_, self._scope_filter),
             sorts=sorts,
             limit=limit,
             offset=offset,
@@ -45,7 +46,9 @@ class SqliteAccountRepository(AccountRepository):
         return [self._row_to_account(row) for row in rows]
 
     def get_by_id(self, account_id: str) -> AssetAccount | None:
-        accounts = self.get(filter_=FilterNode("id", Operator.EQ, account_id, AssetAccount))
+        accounts = self.get(
+            filter_=FilterNode("id", Operator.EQ, account_id, AssetAccount)
+        )
         return accounts[0] if accounts else None
 
     def get_by_external_id(
@@ -84,12 +87,19 @@ class SqliteAccountRepository(AccountRepository):
             )
         )
 
-    def update(self, account: AssetAccount) -> None:
-        self._executor.update(
+    def get_by_user_id(self, user_id: str) -> list[AssetAccount]:
+        return self.get()
+
+    def update(self, account: AssetAccount) -> int:
+        cursor = self._executor.update(
             model=AssetAccount,
             values=self._account_to_values(account),
-            filter_=FilterNode("id", Operator.EQ, account.id, AssetAccount),
+            filter_=FilterTree(
+                FilterNode("id", Operator.EQ, account.id, AssetAccount),
+                self._scope_filter,
+            ),
         )
+        return cursor.rowcount
 
     def get_account_map(self, user_id: str) -> AccountMap:
         field = FieldReference(InstitutionConnection, "id")
@@ -98,8 +108,7 @@ class SqliteAccountRepository(AccountRepository):
             fields=[field],
             filter_=FilterNode("user_id", Operator.EQ, user_id, InstitutionConnection),
         )
-
-        institution_connection_ids: set[str] = set(row[field] for row in rows)
+        connection_ids: set[str] = set(row[field] for row in rows)
 
         fields = [
             FieldReference(AssetAccount, "institution_connection_id"),
@@ -113,35 +122,33 @@ class SqliteAccountRepository(AccountRepository):
             filter_=FilterNode(
                 "institution_connection_id",
                 Operator.IN,
-                institution_connection_ids,
+                connection_ids,
                 AssetAccount,
             ),
         )
 
-        account_id_to_institution_connection_id: dict[str, str] = {}
-        account_id_to_account_external_id: dict[str, str] = {}
+        account_id_to_connection_id: dict[str, str] = {}
+        account_id_to_external_id: dict[str, str] = {}
         deactivated_account_ids: set[str] = set()
 
         for row in rows:
             (
-                institution_connection_id,
+                connection_id,
                 account_id,
                 account_external_id,
                 is_active,
             ) = row.unpack(*fields)
 
-            account_id_to_institution_connection_id[account_id] = (
-                institution_connection_id
-            )
-            account_id_to_account_external_id[account_id] = account_external_id
+            account_id_to_connection_id[account_id] = connection_id
+            account_id_to_external_id[account_id] = account_external_id
             if not is_active:
                 deactivated_account_ids.add(account_id)
 
         return AccountMap(
             user_id=user_id,
-            institution_connection_ids=institution_connection_ids,
-            account_id_to_institution_connection_id=account_id_to_institution_connection_id,
-            account_id_to_account_external_id=account_id_to_account_external_id,
+            connection_ids=connection_ids,
+            account_id_to_connection_id=account_id_to_connection_id,
+            account_id_to_external_id=account_id_to_external_id,
             deactivated_account_ids=deactivated_account_ids,
         )
 

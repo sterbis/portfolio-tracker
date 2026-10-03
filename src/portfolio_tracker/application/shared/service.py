@@ -5,9 +5,9 @@ from filterutils import Filter
 
 from portfolio_tracker.application.persistence import (
     ReadUnitOfWork,
-    UnitOfWork,
-    StorageReadConnection,
     StorageConnection,
+    StorageReadConnection,
+    UnitOfWork,
 )
 from portfolio_tracker.application.views import ViewBuilder
 
@@ -22,8 +22,13 @@ class CommandService:
         self._storage_connection = storage_connection
 
     @contextmanager
-    def _unit_of_work(self, user_id: str) -> Generator[UnitOfWork, None, None]:
-        with self._storage_connection as connection, connection.unit_of_work(user_id) as uow:
+    def _unit_of_work(
+        self, user_id: str | None = None
+    ) -> Generator[UnitOfWork, None, None]:
+        with (
+            self._storage_connection as connection,
+            connection.unit_of_work(user_id) as uow,
+        ):
             yield uow
 
 
@@ -41,8 +46,13 @@ class QueryService:
         self._view_builder = view_builder
 
     @contextmanager
-    def _unit_of_work(self, user_id: str) -> Generator[ReadUnitOfWork, None, None]:
-        with self._storage_connection as connection, connection.unit_of_work(user_id) as uow:
+    def _unit_of_work(
+        self, user_id: str | None = None
+    ) -> Generator[ReadUnitOfWork, None, None]:
+        with (
+            self._storage_connection as connection,
+            connection.unit_of_work(user_id) as uow,
+        ):
             yield uow
 
     def _resolve_filters(

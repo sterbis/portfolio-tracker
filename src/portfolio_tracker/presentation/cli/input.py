@@ -34,7 +34,6 @@ from .parsers import (
 
 TInputValue = TypeVar("TInputValue")
 TParsedValue = TypeVar("TParsedValue")
-TModel = TypeVar("TModel", bound=type)
 
 
 def _mask_value(

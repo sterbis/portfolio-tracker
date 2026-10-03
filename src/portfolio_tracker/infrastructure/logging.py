@@ -1,10 +1,10 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
-from .configuration import DesktopConfiguration
+from .configuration import Configuration
 
 
-def configure_desktop_cli_logging(configuration: DesktopConfiguration) -> None:
+def configure_desktop_cli_logging(configuration: Configuration) -> None:
     handler = TimedRotatingFileHandler(
         configuration.log_dir / "portfolio_tracker.log",
         when="midnight",

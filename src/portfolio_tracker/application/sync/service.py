@@ -15,12 +15,8 @@ from portfolio_tracker.application.institution import (
 from portfolio_tracker.application.market_data import (
     MarketDataService,
 )
-from portfolio_tracker.application.persistence import (
-    StorageConnectionFactory,
-    UserScopedUnitOfWork,
-)
+from portfolio_tracker.application.persistence import StorageConnection, UnitOfWork
 from portfolio_tracker.application.shared.errors import (
-    CredentialsNotFoundError,
     FxClientError,
     FxDataIntegrityError,
     InstitutionReportNotFoundError,
@@ -28,9 +24,9 @@ from portfolio_tracker.application.shared.errors import (
     MarketDataIntegrityError,
     PortfolioTrackerError,
 )
-from portfolio_tracker.application.shared.service import Service
-from portfolio_tracker.domain.account import AssetAccount
-from portfolio_tracker.domain.institution import Credentials, InstitutionConnection
+from portfolio_tracker.application.shared.service import CommandService
+from portfolio_tracker.domain.account import AccountMap, AssetAccount
+from portfolio_tracker.domain.institution import InstitutionConnection
 from portfolio_tracker.domain.instrument import (
     DerivativeInstrumentBaseData,
     Instrument,
@@ -76,15 +72,15 @@ class InstitutionSyncResult:
         return self.error is None
 
 
-class SyncService(Service):
+class SyncService(CommandService):
     def __init__(
         self,
-        storage_connection_factory: StorageConnectionFactory,
+        storage_connection: StorageConnection,
         institution_registry: InstitutionRegistry,
         fx_service: FxService,
         market_data_service: MarketDataService,
     ) -> None:
-        super().__init__(storage_connection_factory)
+        super().__init__(storage_connection)
         self._institution_registry = institution_registry
         self._fx_service = fx_service
         self._market_data_service = market_data_service
@@ -95,8 +91,10 @@ class SyncService(Service):
         if not command.path.is_file():
             raise InstitutionReportNotFoundError()
 
-        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
-            connection = uow.institution_connections.get_by_id(command.connection_id)
+        with self._unit_of_work(user_id) as uow:
+            connection = uow.institution_connections.get_by_id_required(
+                command.connection_id
+            )
 
         yield InstitutionSyncStarted(connection.id, connection.name)
 
@@ -107,10 +105,12 @@ class SyncService(Service):
                 )
                 report_transactions = parser.parse(report)
 
-                with self._user_scoped_unit_of_work(user_id) as uow:
+                with self._unit_of_work(user_id) as uow:
+                    account_map = uow.accounts.get_account_map(user_id)
                     transaction_dates = self._process_transactions(
                         uow,
                         connection,
+                        account_map,
                         command.account_ids,
                         report_transactions,
                     )
@@ -131,13 +131,24 @@ class SyncService(Service):
             return
 
         if transaction_dates:
-            yield from self.sync_fx_rates(SyncFxRatesCommand(dates=transaction_dates))
-            yield from self.sync_instruments(SyncInstrumentsCommand(new_only=True))
+            yield from self.sync_fx_rates(
+                user_id, SyncFxRatesCommand(dates=transaction_dates)
+            )
+            yield from self.sync_instruments(
+                user_id, SyncInstrumentsCommand(new_only=True)
+            )
 
     async def sync(
         self, user_id: str, command: SyncCommand
     ) -> AsyncGenerator[SyncEvent, None]:
-        connections = self._resolve_institution_connections(user_id, command)
+        with self._unit_of_work(user_id) as uow:
+            account_map = uow.accounts.get_account_map(user_id)
+            connection_ids = account_map.resolve_institution_connection_ids(
+                command.connection_ids,
+                command.account_ids,
+            )
+            connections = uow.institution_connections.get_by_ids(connection_ids)
+
         for connection in connections:
             logger.info(
                 "Syncing institution account '%s' (%s)",
@@ -148,7 +159,7 @@ class SyncService(Service):
 
         tasks = [
             asyncio.create_task(
-                self._sync_institution_task(connection, command),
+                self._sync_institution_task(connection, command, account_map),
             )
             for connection in connections
         ]
@@ -187,12 +198,12 @@ class SyncService(Service):
 
         if transaction_dates:
             async for event in as_async_generator(
-                self.sync_fx_rates(SyncFxRatesCommand(dates=transaction_dates))
+                self.sync_fx_rates(user_id, SyncFxRatesCommand(dates=transaction_dates))
             ):
                 yield event
 
             async for event in as_async_generator(
-                self.sync_instruments(SyncInstrumentsCommand(new_only=True))
+                self.sync_instruments(user_id, SyncInstrumentsCommand(new_only=True))
             ):
                 yield event
 
@@ -200,9 +211,10 @@ class SyncService(Service):
         self,
         connection: InstitutionConnection,
         command: SyncCommand,
+        account_map: AccountMap,
     ) -> InstitutionSyncResult:
         try:
-            return await self._sync_institution(connection, command)
+            return await self._sync_institution(connection, command, account_map)
 
         except PortfolioTrackerError as error:
             return InstitutionSyncResult(connection, error=error)
@@ -211,10 +223,12 @@ class SyncService(Service):
         self,
         connection: InstitutionConnection,
         command: SyncCommand,
+        account_map: AccountMap,
     ) -> InstitutionSyncResult:
-        credentials = self._get_credentials(connection.id)
-        client = self._institution_registry.create_client(credentials)
+        with self._unit_of_work(connection.user_id) as uow:
+            credentials = uow.credentials.get_required(connection.id)
 
+        client = self._institution_registry.create_client(credentials)
         start, end = self._resolve_sync_interval(connection, command)
         report = client.fetch_report(start, end)
 
@@ -223,16 +237,15 @@ class SyncService(Service):
         )
         transaction_dates: set[date] = set()
 
-        with self._user_scoped_unit_of_work(connection.user_id) as uow:
+        with self._unit_of_work(connection.user_id) as uow:
             async for report_chunk in report:
-                account_ids = uow.account_map.institution_connection_id_to_account_ids[
-                    connection.id
-                ]
+                account_ids = account_map.connection_id_to_account_ids[connection.id]
                 required_account_ids = command.account_ids.intersection(account_ids)
                 report_transactions = parser.parse(report_chunk)
                 new_transaction_dates = self._process_transactions(
                     uow,
                     connection,
+                    account_map,
                     required_account_ids,
                     report_transactions,
                 )
@@ -248,22 +261,19 @@ class SyncService(Service):
 
     def _process_transactions(
         self,
-        uow: UserScopedUnitOfWork,
+        uow: UnitOfWork,
         connection: InstitutionConnection,
+        account_map: AccountMap,
         required_account_ids: set[str],
         report_transactions: Iterator[ReportTransaction],
     ) -> set[date]:
         transaction_dates: set[date] = set()
         instrument_ids: set[str] = set()
-        ignored_account_ids = (
-            uow.account_map.deactivated_account_ids - required_account_ids
-        )
+        ignored_account_ids = account_map.deactivated_account_ids - required_account_ids
 
         for report_transaction in report_transactions:
             account_external_id = report_transaction.account_external_id
-            account_id = uow.account_map.account_external_id_to_account_id.get(
-                account_external_id
-            )
+            account_id = account_map.account_external_id_to_id.get(account_external_id)
 
             if not account_id:
                 if required_account_ids:
@@ -276,8 +286,8 @@ class SyncService(Service):
                     is_active=True,
                 )
                 uow.accounts.ensure(account)
+                account_map.add_account(account)
                 account_id = account.id
-                uow.account_map.add_account(account)
 
             if required_account_ids and account_id not in required_account_ids:
                 continue
@@ -308,9 +318,9 @@ class SyncService(Service):
         return transaction_dates
 
     def sync_fx_rates(
-        self, command: SyncFxRatesCommand
+        self, user_id: str, command: SyncFxRatesCommand
     ) -> Generator[SyncEvent, None, None]:
-        with self._read_only_unit_of_work() as uow:
+        with self._unit_of_work(user_id) as uow:
             if command.all:
                 transaction_dates = uow.transactions.get_distinct_dates()
             else:
@@ -338,12 +348,12 @@ class SyncService(Service):
                 only_dates=missing_dates,
             )
 
-            with self._storage_connection_factory.create() as storage:
-                write_uow = storage.unit_of_work()
+            with self._storage_connection as storage:
+                uow = storage.unit_of_work(user_id)
                 for rates in rates_series:
-                    with write_uow:
-                        write_uow.fx_rates.ensure(rates)
-                        write_uow.commit()
+                    with uow:
+                        uow.fx_rates.ensure(rates)
+                        uow.commit()
 
                     completed += 1
                     fetched_dates.add(rates.effective_on)
@@ -369,7 +379,7 @@ class SyncService(Service):
         yield FxSyncCompleted()
 
     def sync_instruments(
-        self, command: SyncInstrumentsCommand
+        self, user_id: str, command: SyncInstrumentsCommand
     ) -> Generator[SyncEvent, None, None]:
         now = datetime.now(tz=timezone.utc)
         not_synced_filter = FilterNode("last_synced_at", Operator.EQ, None, Instrument)
@@ -381,15 +391,15 @@ class SyncService(Service):
         elif command.symbols:
             filter_ = FilterNode("symbol", Operator.IN, command.symbols, Instrument)
         else:
-            filter_ = FilterTree(LogicalOperator.OR)
-            filter_.add_child(not_synced_filter)
-            filter_.add_child(
+            filter_ = FilterTree(
+                not_synced_filter,
                 FilterNode(
                     "last_synced_at", Operator.LT, now - timedelta(days=1), Instrument
-                )
+                ),
+                logical_operator=LogicalOperator.OR,
             )
 
-        with self._read_only_unit_of_work() as uow:
+        with self._unit_of_work(user_id) as uow:
             metadata_list = uow.instruments.get_metadata(filter_=filter_)
 
         total = len(metadata_list)
@@ -401,8 +411,8 @@ class SyncService(Service):
         completed = 0
         failed_metadata_list: list[InstrumentMetadata] = []
 
-        with self._storage_connection_factory.create() as storage:
-            write_uow = storage.unit_of_work()
+        with self._storage_connection as storage:
+            uow = storage.unit_of_work(user_id)
             for metadata in metadata_list:
                 try:
                     splits = self._market_data_service.get_stock_splits(metadata)
@@ -417,13 +427,13 @@ class SyncService(Service):
                     continue
 
                 if splits:
-                    with write_uow:
-                        write_uow.market_data.ensure_stock_splits(splits)
-                        write_uow.instruments.update_last_synced_at(
+                    with uow:
+                        uow.market_data.ensure_stock_splits(splits)
+                        uow.instruments.update_last_synced_at(
                             instrument_id=splits.instrument_id,
                             last_synced_at=now,
                         )
-                        write_uow.commit()
+                        uow.commit()
 
                 completed += 1
                 yield InstrumentSyncProgress(completed, total)
@@ -437,24 +447,6 @@ class SyncService(Service):
             )
         else:
             yield InstrumentSyncCompleted()
-
-    def _get_credentials(self, connection_id: str) -> Credentials:
-        with self._read_only_unit_of_work() as uow:
-            credentials = uow.credentials.get(connection_id)
-            if not credentials:
-                raise CredentialsNotFoundError(connection_id)
-
-            return credentials
-
-    def _resolve_institution_connections(
-        self, user_id: str, command: SyncCommand
-    ) -> list[InstitutionConnection]:
-        with self._user_scoped_read_only_unit_of_work(user_id) as uow:
-            connection_ids = uow.account_map.resolve_institution_connection_ids(
-                command.connection_ids,
-                command.account_ids,
-            )
-            return uow.institution_connections.get_by_ids(connection_ids)
 
     def _resolve_sync_interval(
         self,

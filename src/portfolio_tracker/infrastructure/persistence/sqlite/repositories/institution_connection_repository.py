@@ -20,7 +20,9 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
         super().__init__(user_id)
         self._executor = executor
         self._institution_registry = institution_registry
-        self._scope_filter = FilterNode("user_id", Operator.EQ, self._user_id, InstitutionConnection)
+        self._scope_filter = FilterNode(
+            "user_id", Operator.EQ, self._user_id, InstitutionConnection
+        )
 
     def add(self, connection: InstitutionConnection) -> None:
         self._executor.insert(
@@ -36,10 +38,9 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[InstitutionConnection]:
-        filter_ = self._scope_filter if filter_ is None else FilterTree(filter_, self._scope_filter)
         rows = self._executor.select(
             model=InstitutionConnection,
-            filter_=filter_,
+            filter_=FilterTree.and_combine(filter_, self._scope_filter),
             sorts=sorts,
             limit=limit,
             offset=offset,
@@ -63,24 +64,26 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
     def get_by_user_id(self, user_id: str) -> list[InstitutionConnection]:
         return self.get()
 
-    def update(self, connection: InstitutionConnection) -> None:
-        self._executor.update(
+    def update(self, connection: InstitutionConnection) -> int:
+        cursor = self._executor.update(
             model=InstitutionConnection,
             values=self._institution_connection_to_values(connection),
             filter_=FilterTree(
-                self._scope_filter,
                 FilterNode("id", Operator.EQ, connection.id, InstitutionConnection),
+                self._scope_filter,
             ),
         )
+        return cursor.rowcount
 
-    def remove_by_id(self, connection_id: str) -> None:
-        self._executor.delete(
+    def remove_by_id(self, connection_id: str) -> int:
+        cursor = self._executor.delete(
             model=InstitutionConnection,
             filter_=FilterTree(
-                self._scope_filter,
                 FilterNode("id", Operator.EQ, connection_id, InstitutionConnection),
+                self._scope_filter,
             ),
         )
+        return cursor.rowcount
 
     def _institution_connection_to_values(
         self, connection: InstitutionConnection

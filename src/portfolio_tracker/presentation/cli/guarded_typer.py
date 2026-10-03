@@ -8,7 +8,7 @@ from typer._click.exceptions import ClickException
 from typer.core import TyperCommand
 
 from portfolio_tracker.application.shared.errors import PortfolioTrackerError
-from portfolio_tracker.bootstrap import bootstrap_desktop
+from portfolio_tracker.bootstrap import bootstrap
 
 from .console import error_console
 from .context import (
@@ -49,7 +49,7 @@ class GuardedCommand(TyperCommand):
                 raise typer.Exit(code=1)
 
         configuration = get_configuration(ctx)
-        container, settings_cache = bootstrap_desktop(configuration)
+        container, settings_cache = bootstrap(configuration)
         ctx.obj = container
         ctx.meta[SETTINGS_CACHE_KEY] = settings_cache
 

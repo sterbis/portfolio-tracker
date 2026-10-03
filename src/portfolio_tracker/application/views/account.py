@@ -17,11 +17,11 @@ class AssetAccountView:
     def from_domain(
         cls,
         account: AssetAccount,
-        institution_connection_view: InstitutionConnectionView,
+        connection_view: InstitutionConnectionView,
     ) -> AssetAccountView:
         return cls(
             id=account.id,
-            institution_connection=institution_connection_view,
+            institution_connection=connection_view,
             external_id=account.external_id,
             name=account.name,
             is_active=account.is_active,

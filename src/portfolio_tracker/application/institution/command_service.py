@@ -1,24 +1,24 @@
 from dataclasses import replace
 
-from portfolio_tracker.application.persistence import StorageConnectionFactory
+from portfolio_tracker.application.persistence import StorageConnection
 from portfolio_tracker.application.shared.errors import (
     InstitutionClientError,
     InvalidCredentialsError,
 )
-from portfolio_tracker.application.shared.service import Service
+from portfolio_tracker.application.shared.service import CommandService
 from portfolio_tracker.domain.institution import Credentials, InstitutionConnection
 
 from .commands import ConnectInstitutionCommand, UpdateInstitutionConnectionCommand
 from .registry import InstitutionRegistry
 
 
-class InstitutionCommandService(Service):
+class InstitutionCommandService(CommandService):
     def __init__(
         self,
-        storage_connection_factory: StorageConnectionFactory,
+        storage_connection: StorageConnection,
         institution_registry: InstitutionRegistry,
     ) -> None:
-        super().__init__(storage_connection_factory)
+        super().__init__(storage_connection)
         self._institution_registry = institution_registry
 
     def connect_institution(
@@ -37,7 +37,7 @@ class InstitutionCommandService(Service):
         )
         self._verify_credentials(credentials)
 
-        with self._user_scoped_unit_of_work(user_id) as uow:
+        with self._unit_of_work(user_id) as uow:
             uow.institution_connections.add(connection)
             uow.credentials.upsert(credentials)
             uow.commit()
@@ -47,8 +47,10 @@ class InstitutionCommandService(Service):
     def update_institution_connection(
         self, user_id: str, command: UpdateInstitutionConnectionCommand
     ) -> None:
-        with self._user_scoped_unit_of_work(user_id) as uow:
-            connection = uow.institution_connections.get_by_id(command.connection_id)
+        with self._unit_of_work(user_id) as uow:
+            connection = uow.institution_connections.get_by_id_required(
+                command.connection_id
+            )
             if command.credential_parameters:
                 credentials = self._institution_registry.create_credentials(
                     connection.institution_id,
@@ -63,13 +65,13 @@ class InstitutionCommandService(Service):
                 name=command.name,
                 sync_from=command.sync_from,
             )
-            uow.institution_connections.update(connection)
+            uow.institution_connections.update_required(connection)
             uow.commit()
 
     def disconnect_institution(self, user_id: str, connection_id: str) -> None:
-        with self._user_scoped_unit_of_work(user_id) as uow:
-            uow.institution_connections.remove_by_id(connection_id)
-            uow.credentials.remove(connection_id)
+        with self._unit_of_work(user_id) as uow:
+            uow.institution_connections.remove_by_id_required(connection_id)
+            uow.credentials.remove_required(connection_id)
             uow.commit()
 
     def _verify_credentials(self, credentials: Credentials) -> None:

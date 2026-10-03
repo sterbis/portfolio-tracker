@@ -14,7 +14,7 @@ from portfolio_tracker.infrastructure.institution.trading_212 import (
 
 @pytest.fixture(scope="module")
 def report_parser() -> Trading212ReportParser:
-    return Trading212ReportParser("acct_001")
+    return Trading212ReportParser("conn_001")
 
 
 @pytest.fixture(scope="module")
