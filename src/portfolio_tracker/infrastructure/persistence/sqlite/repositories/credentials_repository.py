@@ -5,6 +5,9 @@ from typing import Any
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import CredentialsRepository
 from portfolio_tracker.application.security import Encryptor
+from portfolio_tracker.application.shared.errors import (
+    InstitutionConnectionNotFoundError,
+)
 from portfolio_tracker.domain.institution import Credentials
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
 
@@ -25,10 +28,19 @@ class SqliteCredentialsRepository(CredentialsRepository):
         json_string = json.dumps(credentials.parameters)
         encrypted_parameters = self._encryptor.encrypt(json_string)
 
-        self._executor.execute(
+        cursor = self._executor.execute(
             sql="""
-                INSERT INTO credentials (institution_id, institution_connection_id, encrypted_parameters)
-                VALUES (:institution_id, :institution_connection_id, :encrypted_parameters)
+                INSERT INTO credentials (
+                    institution_id, institution_connection_id, encrypted_parameters
+                )
+                SELECT
+                    :institution_id, :institution_connection_id, :encrypted_parameters
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM institution_connection
+                    WHERE institution_connection.id = :institution_connection_id
+                        AND institution_connection.user_id = :user_id
+                )
                 ON CONFLICT(institution_connection_id) DO UPDATE SET
                 encrypted_parameters = EXCLUDED.encrypted_parameters;
             """,
@@ -36,8 +48,13 @@ class SqliteCredentialsRepository(CredentialsRepository):
                 "institution_id": credentials.institution_id,
                 "institution_connection_id": credentials.institution_connection_id,
                 "encrypted_parameters": encrypted_parameters,
+                "user_id": self._user_id,
             },
         )
+        if cursor.rowcount == 0:
+            raise InstitutionConnectionNotFoundError(
+                credentials.institution_connection_id
+            )
 
     def get(self, institution_connection_id: str) -> Credentials | None:
         cursor = self._executor.execute(
@@ -58,7 +75,6 @@ class SqliteCredentialsRepository(CredentialsRepository):
                 "user_id": self._user_id,
             },
         )
-
         row = cursor.fetchone()
         if row is None:
             return None
@@ -82,7 +98,7 @@ class SqliteCredentialsRepository(CredentialsRepository):
                 JOIN institution_connection
                 ON institution_connection.id == credentials.institution_connection_id
                 WHERE 
-                    institution_connection.id IN ({", ".join(f":{parameter}" for parameter in institution_connection_parameters)})
+                    institution_connection.id IN ({", ".join(f":{parameter_name}" for parameter_name in institution_connection_parameters)})
                     AND institution_connection.user_id = :user_id;
             """,
             parameters={
@@ -96,11 +112,13 @@ class SqliteCredentialsRepository(CredentialsRepository):
         cursor = self._executor.execute(
             sql="""
                 DELETE FROM credentials
-                JOIN institution_connection
-                ON institution_connection.id == credentials.institution_connection_id
-                WHERE
-                    institution_connection.id = :institution_connection_id
-                    AND institution_connection.user_id = :user_id;
+                WHERE institution_connection_id = :institution_connection_id
+                    AND EXISTS (
+                        SELECT 1
+                        FROM institution_connection
+                        WHERE institution_connection.id = credentials.institution_connection_id
+                            AND institution_connection.user_id = :user_id
+                    );
             """,
             parameters={
                 "institution_connection_id": institution_connection_id,

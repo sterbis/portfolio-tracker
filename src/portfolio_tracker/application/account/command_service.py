@@ -1,7 +1,7 @@
 from dataclasses import replace
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import StorageConnection
+from portfolio_tracker.application.persistence import StorageConnectionFactory
 from portfolio_tracker.application.shared.errors import (
     AssetAccountAlreadyActivatedError,
     AssetAccountAlreadyDeactivatedError,
@@ -14,10 +14,10 @@ from .commands import UpdateAssetAccountCommand
 class AccountCommandService(CommandService):
     def __init__(
         self,
-        storage_connection: StorageConnection,
+        storage_connection_factory: StorageConnectionFactory,
         institution_registry: InstitutionRegistry,
     ) -> None:
-        super().__init__(storage_connection)
+        super().__init__(storage_connection_factory)
         self._institution_registry = institution_registry
 
     def update_account(self, user_id: str, command: UpdateAssetAccountCommand) -> None:
@@ -28,7 +28,7 @@ class AccountCommandService(CommandService):
                 external_id=command.external_id,
                 name=command.name,
             )
-            uow.accounts.update(account)
+            uow.accounts.update_required(account)
             uow.commit()
 
     def activate_account(self, user_id: str, account_id: str) -> None:

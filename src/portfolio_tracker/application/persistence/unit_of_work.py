@@ -137,3 +137,13 @@ class StorageReadConnection(ABC):
 class StorageConnection(StorageReadConnection):
     @abstractmethod
     def unit_of_work(self, user_id: str | None = None) -> UnitOfWork: ...
+
+
+class StorageReadConnectionFactory(ABC):
+    @abstractmethod
+    def create(self) -> StorageReadConnection: ...
+
+
+class StorageConnectionFactory(StorageReadConnectionFactory):
+    @abstractmethod
+    def create(self) -> StorageConnection: ...

@@ -5,7 +5,12 @@ from types import TracebackType
 from typing import Self
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import StorageConnection, UnitOfWork
+from portfolio_tracker.application.persistence import (
+    StorageConnectionFactory,
+    StorageReadConnectionFactory,
+    StorageConnection,
+    UnitOfWork,
+)
 from portfolio_tracker.application.security import Encryptor
 
 from .builder import SqliteStatementBuilder
@@ -114,8 +119,8 @@ class SqliteStorageConnection(StorageConnection):
         institution_registry: InstitutionRegistry,
         encryptor: Encryptor,
         *,
-        read_only: bool = False,
-        timeout: float = 5,
+        read_only: bool,
+        timeout: float,
     ) -> None:
         self._uri = uri
         self._institution_registry = institution_registry
@@ -158,3 +163,43 @@ class SqliteStorageConnection(StorageConnection):
             executor=SqliteExecutor(self._connection, self._builder),
             read_only=self._read_only,
         )
+
+
+class _SqliteStorageConnectionFactoryBase:
+    def __init__(
+        self,
+        uri: str,
+        schema_registry: SchemaRegistry,
+        institution_registry: InstitutionRegistry,
+        encryptor: Encryptor,
+        timeout: float = 5,
+    ) -> None:
+        self._uri = uri
+        self._schema_registry = schema_registry
+        self._institution_registry = institution_registry
+        self._encryptor = encryptor
+        self._timeout = timeout
+
+    def _create(self, *, read_only: bool = False) -> SqliteStorageConnection:
+        return SqliteStorageConnection(
+            uri=self._uri,
+            schema_registry=self._schema_registry,
+            institution_registry=self._institution_registry,
+            encryptor=self._encryptor,
+            read_only=read_only,
+            timeout=self._timeout,
+        )
+
+
+class SqliteStorageReadConnectionFactory(
+    _SqliteStorageConnectionFactoryBase, StorageReadConnectionFactory
+):
+    def create(self) -> SqliteStorageConnection:
+        return self._create(read_only=True)
+
+
+class SqliteStorageConnectionFactory(
+    _SqliteStorageConnectionFactoryBase, StorageConnectionFactory
+):
+    def create(self) -> SqliteStorageConnection:
+        return self._create()

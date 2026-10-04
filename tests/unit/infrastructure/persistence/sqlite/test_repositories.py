@@ -1,6 +1,7 @@
 # pylint: disable=redefined-outer-name
 
 import sqlite3
+from dataclasses import replace
 
 import pytest
 
@@ -250,6 +251,18 @@ def test_credentials_repository_round_trips_credentials(
     assert loaded_credentials == stored_credentials
 
 
+def test_credentials_repository_removes_credentials_for_owned_connection(
+    credentials_repository: SqliteCredentialsRepository,
+    stored_credentials: Credentials,
+) -> None:
+    assert (
+        credentials_repository.remove(stored_credentials.institution_connection_id) == 1
+    )
+    assert (
+        credentials_repository.get(stored_credentials.institution_connection_id) is None
+    )
+
+
 def test_account_repository_round_trips_account(
     account_repository: SqliteAccountRepository,
     stored_account: AssetAccount,
@@ -265,6 +278,16 @@ def test_account_repository_round_trips_account(
     assert loaded_account_2 == stored_account
     assert len(loaded_accounts) == 1
     assert loaded_accounts[0] == stored_account
+
+
+def test_account_repository_update_is_scoped_to_user(
+    account_repository: SqliteAccountRepository,
+    stored_account: AssetAccount,
+) -> None:
+    updated_account = replace(stored_account, name="Updated")
+
+    assert account_repository.update(updated_account) == 1
+    assert account_repository.get_by_id(stored_account.id) == updated_account
 
 
 def test_transaction_repository_round_trips_transaction(

@@ -128,11 +128,11 @@ class SqliteExecutor:
     def _remap_row(
         self,
         row: tuple[Any, ...],
-        column_map: dict[ColumnReference, list[FieldReference]],
+        field_map: dict[ColumnReference, list[FieldReference]],
     ) -> Row:
         remapped_row = Row()
-        for column, value in zip(column_map.keys(), row):
-            for field in column_map[column]:
+        for column, value in zip(field_map.keys(), row):
+            for field in field_map[column]:
                 remapped_row[field] = value
 
         return remapped_row

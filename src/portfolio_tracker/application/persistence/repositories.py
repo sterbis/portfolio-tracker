@@ -169,7 +169,10 @@ class AccountReadRepository(UserScopedRepository):
     def get_by_user_id(self, user_id: str) -> list[AssetAccount]: ...
 
     @abstractmethod
-    def get_account_map(self, user_id: str) -> AccountMap: ...
+    def get_user_account_map(self) -> AccountMap: ...
+
+    @abstractmethod
+    def is_user_account(self, account_id: str) -> bool: ...
 
 
 class AccountRepository(AccountReadRepository):
@@ -211,6 +214,9 @@ class InstrumentReadRepository(ABC):
 
     @abstractmethod
     def get_ids_by_symbols(self, symbols: set[str]) -> set[str]: ...
+
+    @abstractmethod
+    def exists(self, instrument_id: str) -> bool: ...
 
 
 class InstrumentRepository(InstrumentReadRepository):

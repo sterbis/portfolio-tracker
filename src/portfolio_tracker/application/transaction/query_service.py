@@ -3,7 +3,7 @@ from datetime import date
 from filterutils import FilterNode, FilterTree, Operator
 
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import StorageReadConnection
+from portfolio_tracker.application.persistence import StorageReadConnectionFactory
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.shared.service import QueryService
 from portfolio_tracker.application.views import (
@@ -23,7 +23,7 @@ from .queries import GetTransactionsQuery
 class TransactionQueryService(QueryService):
     def __init__(
         self,
-        storage_connection: StorageReadConnection,
+        storage_connection_factory: StorageReadConnectionFactory,
         filter_mapper: FilterMapper,
         filter_splitter: FilterSplitter,
         view_builder: ViewBuilder,
@@ -31,7 +31,7 @@ class TransactionQueryService(QueryService):
         transaction_adjuster: TransactionAdjuster,
     ) -> None:
         super().__init__(
-            storage_connection, filter_mapper, filter_splitter, view_builder
+            storage_connection_factory, filter_mapper, filter_splitter, view_builder
         )
         self._institution_registry = institution_registry
         self._transaction_adjuster = transaction_adjuster
@@ -49,7 +49,7 @@ class TransactionQueryService(QueryService):
         repository_filter, memory_filter = self._resolve_filters(query.filter)
 
         with self._unit_of_work(user_id) as uow:
-            account_map = uow.accounts.get_account_map(user_id)
+            account_map = uow.accounts.get_user_account_map()
             required_account_ids = account_map.resolve_account_ids(
                 query.connection_ids, query.account_ids
             )

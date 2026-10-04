@@ -4,6 +4,9 @@ from filterutils import Filter, FilterNode, FilterTree, Operator
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import InstitutionConnectionRepository
+from portfolio_tracker.application.shared.errors import (
+    InstitutionConnectionNotFoundError,
+)
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.domain.institution import InstitutionConnection
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
@@ -25,6 +28,9 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
         )
 
     def add(self, connection: InstitutionConnection) -> None:
+        if connection.user_id != self._user_id:
+            raise InstitutionConnectionNotFoundError(connection.id)
+
         self._executor.insert(
             model=InstitutionConnection,
             values=self._institution_connection_to_values(connection),
@@ -65,6 +71,9 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
         return self.get()
 
     def update(self, connection: InstitutionConnection) -> int:
+        if connection.user_id != self._user_id:
+            raise InstitutionConnectionNotFoundError(connection.id)
+
         cursor = self._executor.update(
             model=InstitutionConnection,
             values=self._institution_connection_to_values(connection),

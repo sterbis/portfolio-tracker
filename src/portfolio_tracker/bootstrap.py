@@ -47,7 +47,7 @@ def bootstrap(
     encryptor = FernetEncryptor(configuration.encryption_key)
     institution_registry = create_institution_registry()
 
-    storage_read_connection, storage_connection = initialize_storage(
+    storage_read_connection_factory, storage_connection_factory = initialize_storage(
         type_=configuration.storage_type,
         uri=configuration.storage_uri,
         institution_registry=institution_registry,
@@ -73,29 +73,29 @@ def bootstrap(
 
     container = Container(
         account_command_service=AccountCommandService(
-            storage_connection=storage_connection,
+            storage_connection_factory=storage_connection_factory,
             institution_registry=institution_registry,
         ),
         account_query_service=AccountQueryService(
-            storage_connection=storage_read_connection,
+            storage_connection_factory=storage_read_connection_factory,
             filter_mapper=filter_mapper,
             filter_splitter=filter_splitter,
             view_builder=view_builder,
             institution_registry=institution_registry,
         ),
         institution_command_service=InstitutionCommandService(
-            storage_connection=storage_connection,
+            storage_connection_factory=storage_connection_factory,
             institution_registry=institution_registry,
         ),
         institution_query_service=InstitutionQueryService(
-            storage_connection=storage_read_connection,
+            storage_connection_factory=storage_read_connection_factory,
             filter_mapper=filter_mapper,
             filter_splitter=filter_splitter,
             view_builder=view_builder,
             institution_registry=institution_registry,
         ),
         portfolio_query_service=PortfolioQueryService(
-            storage_connection=storage_read_connection,
+            storage_connection_factory=storage_read_connection_factory,
             filter_mapper=filter_mapper,
             filter_splitter=filter_splitter,
             view_builder=view_builder,
@@ -110,16 +110,16 @@ def bootstrap(
             market_data_service=market_data_service,
         ),
         sync_service=SyncService(
-            storage_connection=storage_connection,
+            storage_connection_factory=storage_connection_factory,
             institution_registry=institution_registry,
             fx_service=fx_service,
             market_data_service=market_data_service,
         ),
         transaction_command_service=TransactionCommandService(
-            storage_connection=storage_connection,
+            storage_connection_factory=storage_connection_factory,
         ),
         transaction_query_service=TransactionQueryService(
-            storage_connection=storage_read_connection,
+            storage_connection_factory=storage_read_connection_factory,
             filter_mapper=filter_mapper,
             filter_splitter=filter_splitter,
             view_builder=view_builder,
@@ -127,7 +127,7 @@ def bootstrap(
             transaction_adjuster=transaction_adjuster,
         ),
         user_service=UserService(
-            storage_connection=storage_connection,
+            storage_connection_factory=storage_connection_factory,
             password_hasher=BcryptPasswordHasher(),
         ),
     )

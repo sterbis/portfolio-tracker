@@ -15,7 +15,7 @@ from portfolio_tracker.application.institution import (
 from portfolio_tracker.application.market_data import (
     MarketDataService,
 )
-from portfolio_tracker.application.persistence import StorageConnection, UnitOfWork
+from portfolio_tracker.application.persistence import StorageConnectionFactory, UnitOfWork
 from portfolio_tracker.application.shared.errors import (
     FxClientError,
     FxDataIntegrityError,
@@ -75,12 +75,12 @@ class InstitutionSyncResult:
 class SyncService(CommandService):
     def __init__(
         self,
-        storage_connection: StorageConnection,
+        storage_connection_factory: StorageConnectionFactory,
         institution_registry: InstitutionRegistry,
         fx_service: FxService,
         market_data_service: MarketDataService,
     ) -> None:
-        super().__init__(storage_connection)
+        super().__init__(storage_connection_factory)
         self._institution_registry = institution_registry
         self._fx_service = fx_service
         self._market_data_service = market_data_service
@@ -106,7 +106,7 @@ class SyncService(CommandService):
                 report_transactions = parser.parse(report)
 
                 with self._unit_of_work(user_id) as uow:
-                    account_map = uow.accounts.get_account_map(user_id)
+                    account_map = uow.accounts.get_user_account_map()
                     transaction_dates = self._process_transactions(
                         uow,
                         connection,
@@ -142,7 +142,7 @@ class SyncService(CommandService):
         self, user_id: str, command: SyncCommand
     ) -> AsyncGenerator[SyncEvent, None]:
         with self._unit_of_work(user_id) as uow:
-            account_map = uow.accounts.get_account_map(user_id)
+            account_map = uow.accounts.get_user_account_map()
             connection_ids = account_map.resolve_institution_connection_ids(
                 command.connection_ids,
                 command.account_ids,
@@ -348,7 +348,7 @@ class SyncService(CommandService):
                 only_dates=missing_dates,
             )
 
-            with self._storage_connection as storage:
+            with self._storage_connection_factory.create() as storage:
                 uow = storage.unit_of_work(user_id)
                 for rates in rates_series:
                     with uow:
@@ -411,7 +411,7 @@ class SyncService(CommandService):
         completed = 0
         failed_metadata_list: list[InstrumentMetadata] = []
 
-        with self._storage_connection as storage:
+        with self._storage_connection_factory.create() as storage:
             uow = storage.unit_of_work(user_id)
             for metadata in metadata_list:
                 try:

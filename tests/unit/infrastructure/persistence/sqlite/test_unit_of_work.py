@@ -13,7 +13,10 @@ from portfolio_tracker.infrastructure.persistence.sqlite.builder import (
 )
 from portfolio_tracker.infrastructure.persistence.sqlite.database import open_connection
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
+from portfolio_tracker.infrastructure.persistence.sqlite.registry import SCHEMA_REGISTRY
 from portfolio_tracker.infrastructure.persistence.sqlite.unit_of_work import (
+    SqliteStorageReadConnectionFactory,
+    SqliteStorageConnectionFactory,
     SqliteUnitOfWork,
 )
 from tests.mocks import MockEncryptor
@@ -196,3 +199,30 @@ def test_two_connections_cannot_write_at_the_same_time(
         with pytest.raises(sqlite3.OperationalError, match="database is locked"):
             with write_uow_2:
                 write_uow_2.users.add(sample_user_2)
+
+
+def test_storage_connection_factory_creates_independent_connections(
+    memory_db_uri: str,
+    sample_institution_registry: InstitutionRegistry,
+    mock_encryptor: MockEncryptor,
+) -> None:
+    read_connection_factory = SqliteStorageReadConnectionFactory(
+        uri=memory_db_uri,
+        schema_registry=SCHEMA_REGISTRY,
+        institution_registry=sample_institution_registry,
+        encryptor=mock_encryptor,
+    )
+    write_connection_factory = SqliteStorageConnectionFactory(
+        uri=memory_db_uri,
+        schema_registry=SCHEMA_REGISTRY,
+        institution_registry=sample_institution_registry,
+        encryptor=mock_encryptor,
+    )
+
+    with (
+        read_connection_factory.create() as read_connection,
+        write_connection_factory.create() as write_connection,
+    ):
+        assert write_connection._connection is not None
+        assert read_connection._connection is not None
+        assert write_connection._connection is not read_connection._connection

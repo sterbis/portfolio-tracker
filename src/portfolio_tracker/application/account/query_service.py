@@ -1,5 +1,5 @@
 from portfolio_tracker.application.institution import InstitutionRegistry
-from portfolio_tracker.application.persistence import StorageReadConnection
+from portfolio_tracker.application.persistence import StorageReadConnectionFactory
 from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
 from portfolio_tracker.application.shared.service import QueryService
 from portfolio_tracker.application.views import (
@@ -13,14 +13,14 @@ from portfolio_tracker.application.views import (
 class AccountQueryService(QueryService):
     def __init__(
         self,
-        storage_connection: StorageReadConnection,
+        storage_connection_factory: StorageReadConnectionFactory,
         filter_mapper: FilterMapper,
         filter_splitter: FilterSplitter,
         view_builder: ViewBuilder,
         institution_registry: InstitutionRegistry,
     ) -> None:
         super().__init__(
-            storage_connection, filter_mapper, filter_splitter, view_builder
+            storage_connection_factory, filter_mapper, filter_splitter, view_builder
         )
         self._institution_registry = institution_registry
 

@@ -188,3 +188,10 @@ class UsernameAlreadyExistsError(PortfolioTrackerError):
 
     def __init__(self, username: str) -> None:
         super().__init__(username=username)
+
+
+class InstrumentNotFoundError(EntityNotFoundError):
+    _entity_name = "Instrument"
+
+    def __init__(self, instrument_id: str | set[str]) -> None:
+        super().__init__(entity_id=instrument_id)

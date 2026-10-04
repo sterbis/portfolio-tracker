@@ -1,4 +1,4 @@
-from portfolio_tracker.application.persistence import StorageConnection
+from portfolio_tracker.application.persistence import StorageConnectionFactory
 from portfolio_tracker.application.security import PasswordHasher
 from portfolio_tracker.application.shared.errors import (
     InvalidUsernameOrPasswordError,
@@ -16,10 +16,10 @@ from .commands import (
 class UserService(CommandService):
     def __init__(
         self,
-        storage_connection: StorageConnection,
+        storage_connection_factory: StorageConnectionFactory,
         password_hasher: PasswordHasher,
     ) -> None:
-        super().__init__(storage_connection)
+        super().__init__(storage_connection_factory)
         self._password_hasher = password_hasher
 
     def register(self, command: RegisterUserCommand) -> str:

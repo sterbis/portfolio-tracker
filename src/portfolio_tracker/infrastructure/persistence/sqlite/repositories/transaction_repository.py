@@ -22,7 +22,7 @@ class SqliteTransactionRepository(TransactionRepository):
         self._executor = executor
 
     @cached_property
-    def _scope_filter(self) -> Filter:
+    def _user_account_ids(self) -> set[str]:
         account_id_field = FieldReference(AssetAccount, "id")
         rows = self._executor.select(
             model=AssetAccount,
@@ -31,8 +31,11 @@ class SqliteTransactionRepository(TransactionRepository):
                 "user_id", Operator.EQ, self._user_id, InstitutionConnection
             ),
         )
-        user_account_ids = {row[account_id_field] for row in rows}
-        return FilterNode("account_id", Operator.IN, user_account_ids, Transaction)
+        return {row[account_id_field] for row in rows}
+
+    @cached_property
+    def _scope_filter(self) -> Filter:
+        return FilterNode("account_id", Operator.IN, self._user_account_ids, Transaction)
 
     def add(self, transaction: Transaction) -> None:
         self._executor.insert(
@@ -76,7 +79,7 @@ class SqliteTransactionRepository(TransactionRepository):
             model=Transaction,
             fields=[executed_at_field],
             distinct=True,
-            filter_=filter_,
+            filter_=FilterTree.and_combine(filter_, self._scope_filter),
         )
         return {row[executed_at_field].date() for row in rows}
 
@@ -86,7 +89,7 @@ class SqliteTransactionRepository(TransactionRepository):
             model=Transaction,
             fields=[instrument_id_field],
             distinct=True,
-            filter_=filter_,
+            filter_=FilterTree.and_combine(filter_, self._scope_filter),
         )
         return {
             row[instrument_id_field]
@@ -108,7 +111,7 @@ class SqliteTransactionRepository(TransactionRepository):
     def remove(self, filter_: Filter) -> int:
         cursor = self._executor.delete(
             model=Transaction,
-            filter_=filter_,
+            filter_=FilterTree(filter_, self._scope_filter),
         )
         return cursor.rowcount
 

@@ -90,6 +90,9 @@ class SqliteAccountRepository(AccountRepository):
     def get_by_user_id(self, user_id: str) -> list[AssetAccount]:
         return self.get()
 
+    def is_user_account(self, account_id: str) -> bool:
+        return self.get_by_id(account_id) is not None
+
     def update(self, account: AssetAccount) -> int:
         cursor = self._executor.update(
             model=AssetAccount,
@@ -101,12 +104,14 @@ class SqliteAccountRepository(AccountRepository):
         )
         return cursor.rowcount
 
-    def get_account_map(self, user_id: str) -> AccountMap:
+    def get_user_account_map(self) -> AccountMap:
         field = FieldReference(InstitutionConnection, "id")
         rows = self._executor.select(
             model=InstitutionConnection,
             fields=[field],
-            filter_=FilterNode("user_id", Operator.EQ, user_id, InstitutionConnection),
+            filter_=FilterNode(
+                "user_id", Operator.EQ, self._user_id, InstitutionConnection
+            ),
         )
         connection_ids: set[str] = set(row[field] for row in rows)
 
@@ -145,7 +150,7 @@ class SqliteAccountRepository(AccountRepository):
                 deactivated_account_ids.add(account_id)
 
         return AccountMap(
-            user_id=user_id,
+            user_id=self._user_id,
             connection_ids=connection_ids,
             account_id_to_connection_id=account_id_to_connection_id,
             account_id_to_external_id=account_id_to_external_id,

@@ -153,6 +153,13 @@ class SqliteInstrumentRepository(InstrumentRepository):
         )
         return {row[symbol_field] for row in rows}
 
+    def exists(self, instrument_id: str) -> bool:
+        return bool(
+            self.get_metadata(
+                filter_=FilterNode("id", Operator.EQ, instrument_id, Instrument)
+            )
+        )
+
     def update_last_synced_at(
         self, instrument_id: str, last_synced_at: datetime
     ) -> None:

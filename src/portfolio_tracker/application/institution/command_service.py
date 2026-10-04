@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from portfolio_tracker.application.persistence import StorageConnection
+from portfolio_tracker.application.persistence import StorageConnectionFactory
 from portfolio_tracker.application.shared.errors import (
     InstitutionClientError,
     InvalidCredentialsError,
@@ -15,10 +15,10 @@ from .registry import InstitutionRegistry
 class InstitutionCommandService(CommandService):
     def __init__(
         self,
-        storage_connection: StorageConnection,
+        storage_connection_factory: StorageConnectionFactory,
         institution_registry: InstitutionRegistry,
     ) -> None:
-        super().__init__(storage_connection)
+        super().__init__(storage_connection_factory)
         self._institution_registry = institution_registry
 
     def connect_institution(
@@ -70,8 +70,8 @@ class InstitutionCommandService(CommandService):
 
     def disconnect_institution(self, user_id: str, connection_id: str) -> None:
         with self._unit_of_work(user_id) as uow:
-            uow.institution_connections.remove_by_id_required(connection_id)
             uow.credentials.remove_required(connection_id)
+            uow.institution_connections.remove_by_id_required(connection_id)
             uow.commit()
 
     def _verify_credentials(self, credentials: Credentials) -> None:

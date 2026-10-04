@@ -19,8 +19,10 @@ from .repositories import (
 )
 from .unit_of_work import (
     ReadUnitOfWork,
-    StorageConnection,
+    StorageConnectionFactory,
+    StorageReadConnectionFactory,
     StorageReadConnection,
+    StorageConnection,
     UnitOfWork,
 )
 
@@ -42,8 +44,10 @@ __all__ = [
     "TransactionReadRepository",
     "UserRepository",
     "UserReadRepository",
-    "StorageConnection",
+    "StorageConnectionFactory",
+    "StorageReadConnectionFactory",
     "StorageReadConnection",
+    "StorageConnection",
     "UnitOfWork",
     "ReadUnitOfWork",
 ]
