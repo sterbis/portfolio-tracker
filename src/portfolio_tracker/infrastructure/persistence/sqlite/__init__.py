@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import (
     StorageConnectionFactory,
@@ -5,10 +7,13 @@ from portfolio_tracker.application.persistence import (
 )
 from portfolio_tracker.application.security import Encryptor
 
-from .database import initialize_database
+from .database import apply_migrations
 from .mappers import register_mappers
 from .registry import SCHEMA_REGISTRY
 from .unit_of_work import SqliteStorageConnectionFactory, SqliteStorageReadConnectionFactory
+
+
+_MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 
 def initialize(
@@ -16,8 +21,8 @@ def initialize(
     institution_registry: InstitutionRegistry,
     encryptor: Encryptor,
 ) -> tuple[StorageReadConnectionFactory, StorageConnectionFactory]:
-    initialize_database(uri)
     register_mappers()
+    apply_migrations(uri, _MIGRATIONS_DIR)
 
     read_connection_factory = SqliteStorageReadConnectionFactory(
         uri=uri,

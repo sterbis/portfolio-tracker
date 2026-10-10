@@ -22,12 +22,19 @@ class Row(dict[FieldReference, Any]):
 
 class SqliteExecutor:
     def __init__(
-        self, connection: sqlite3.Connection, builder: SqliteStatementBuilder
+        self, connection: sqlite3.Connection, builder: SqliteStatementBuilder | None = None
     ) -> None:
         self._connection = connection
-        self._builder = builder
+        self._cached_builder = builder
 
-    def _log_sql(self, sql: str, parameters: dict[str, Any] | None) -> None:
+    @property
+    def _builder(self) -> SqliteStatementBuilder:
+        if self._cached_builder is None:
+            raise RuntimeError("SqliteStatementBuilder not provided for SqliteExecutor instance.")
+
+        return self._cached_builder
+
+    def _log_sql(self, sql: str, parameters: dict[str, Any] | None = None) -> None:
         formatted_sql = sqlparse.format(
             sql, reindent=True, keyword_case="upper", indent_width=2
         ).strip()
@@ -47,6 +54,10 @@ class SqliteExecutor:
     ) -> sqlite3.Cursor:
         self._log_sql(sql, parameters)
         return self._connection.execute(sql, parameters or ())
+
+    def execute_script(self, sql: str) -> sqlite3.Cursor:
+        self._log_sql(sql)
+        return self._connection.executescript(sql)
 
     def insert(self, model: Model, values: dict[str, Any]) -> sqlite3.Cursor:
         sql, parameters = self._builder.insert(model, values)

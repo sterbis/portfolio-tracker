@@ -70,7 +70,6 @@ class InstitutionCommandService(CommandService):
 
     def disconnect_institution(self, user_id: str, connection_id: str) -> None:
         with self._unit_of_work(user_id) as uow:
-            uow.credentials.remove_required(connection_id)
             uow.institution_connections.remove_by_id_required(connection_id)
             uow.commit()
 

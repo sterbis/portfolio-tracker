@@ -8,11 +8,12 @@ from uuid import uuid4
 
 import pytest
 
+from portfolio_tracker.infrastructure.persistence.sqlite import _MIGRATIONS_DIR
 from portfolio_tracker.infrastructure.persistence.sqlite.builder import (
     SqliteStatementBuilder,
 )
 from portfolio_tracker.infrastructure.persistence.sqlite.database import (
-    initialize_database,
+    apply_migrations,
     open_connection,
 )
 from portfolio_tracker.infrastructure.persistence.sqlite.mappers import register_mappers
@@ -51,7 +52,7 @@ def initialized_memory_db_connection(
     memory_db_uri: str,
     memory_db_connection: sqlite3.Connection,
 ) -> sqlite3.Connection:
-    initialize_database(memory_db_uri)
+    apply_migrations(memory_db_uri, _MIGRATIONS_DIR)
     return memory_db_connection
 
 
@@ -72,7 +73,7 @@ def temp_db_uri(tmp_path: Path) -> str:
 def open_initialized_temp_db_connection(
     temp_db_uri: str,
 ) -> Generator[Callable[..., sqlite3.Connection], None, None]:
-    initialize_database(temp_db_uri)
+    apply_migrations(temp_db_uri, _MIGRATIONS_DIR)
     connections: list[sqlite3.Connection] = []
 
     def open_(*, timeout: float = 5.0, read_only: bool = False) -> sqlite3.Connection:

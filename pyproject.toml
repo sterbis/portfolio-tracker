@@ -44,7 +44,7 @@ where = ["src"]
 "" = "src"
 
 [tool.setuptools.package-data]
-portfolio_tracker = ["py.typed"]
+portfolio_tracker = ["py.typed", "infrastructure/persistence/sqlite/migrations/*.sql"]
 
 [tool.mypy]
 python_version = "3.14"
