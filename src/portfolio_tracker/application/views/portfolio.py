@@ -13,6 +13,7 @@ from portfolio_tracker.domain.portfolio.cash_balance import (
     CashBalanceValuation,
 )
 from portfolio_tracker.domain.portfolio.position import Position, PositionValuation
+from portfolio_tracker.domain.shared import Currency
 
 from .instrument import InstrumentView
 from .shared import DualMoneyView, MoneyView
@@ -116,6 +117,8 @@ class PositionView:
 class PositionValuationView:
     market_price: DualMoneyView
     market_value: DualMoneyView
+    portfolio_weight: Decimal
+    invested_capital_weight: Decimal
     unrealized_pnl: DualMoneyView
     native_unrealized_pnl_percent: Decimal | None
     reporting_unrealized_pnl_percent: Decimal | None
@@ -130,6 +133,8 @@ class PositionValuationView:
         return cls(
             market_price=DualMoneyView.from_domain(valuation.market_price),
             market_value=DualMoneyView.from_domain(valuation.market_value),
+            portfolio_weight=valuation.portfolio_weight,
+            invested_capital_weight=valuation.invested_capital_weight,
             unrealized_pnl=DualMoneyView.from_domain(valuation.unrealized_pnl),
             native_unrealized_pnl_percent=valuation.native_unrealized_pnl_percent,
             reporting_unrealized_pnl_percent=valuation.reporting_unrealized_pnl_percent,
@@ -146,6 +151,46 @@ class PositionRowView:
     scope: ScopeView
     position: PositionView
     valuation: PositionValuationView | None
+
+
+@dataclass(frozen=True)
+class PositionRowTotalView:
+    cost_basis: MoneyView
+    market_value: MoneyView
+    portfolio_weight: Decimal
+    invested_capital_weight: Decimal
+    unrealized_pnl: MoneyView
+    unrealized_pnl_percent: Decimal | None
+
+    @classmethod
+    def from_views(
+        cls, views: list[PositionRowView], reporting_currency: Currency
+    ) -> PositionRowTotalView:
+        cost_basis_amount = Decimal("0")
+        market_value_amount = Decimal("0")
+        portfolio_weight = Decimal("0")
+        invested_capital_weight = Decimal("0")
+        unrealized_pnl_amount = Decimal("0")
+
+        for view in views:
+            if view.valuation is None:
+                continue
+
+            cost_basis_amount += view.position.cost_basis.reporting.amount
+            market_value_amount += view.valuation.market_value.reporting.amount
+            portfolio_weight += view.valuation.portfolio_weight
+            invested_capital_weight += view.valuation.invested_capital_weight
+            unrealized_pnl_amount += view.valuation.unrealized_pnl.reporting.amount
+
+        unrealized_pnl_percent = unrealized_pnl_amount / cost_basis_amount
+        return cls(
+            cost_basis=MoneyView(cost_basis_amount, reporting_currency),
+            market_value=MoneyView(market_value_amount, reporting_currency),
+            portfolio_weight=portfolio_weight,
+            invested_capital_weight=invested_capital_weight,
+            unrealized_pnl=MoneyView(unrealized_pnl_amount, reporting_currency),
+            unrealized_pnl_percent=unrealized_pnl_percent,
+        )
 
 
 @dataclass(frozen=True)
@@ -202,7 +247,7 @@ class PortfolioValuationView:
                 for asset_class, (
                     market_value,
                     weight,
-                ) in valuation.asset_allocation.items()
+                ) in valuation.asset_class_allocation.items()
             },
             instrument_type_allocation={
                 instrument_type: (MoneyView.from_domain(market_value), weight)

@@ -43,19 +43,33 @@ class PositionRowViewTable(ScopeViewTable[PositionRowView]):
     instrument_exchange = text_column("position.instrument.exchange", "Exchange")
     instrument_symbol = text_column("position.instrument.symbol", "Symbol")
     quantity = number_column("position.quantity", "Quantity", formatter=format_quantity)
-    cost_basis = money_column("position.cost_basis.reporting", "Cost Basis")
+    cost_basis = money_column(
+        "position.cost_basis.reporting", "Cost Basis", total_field="cost_basis"
+    )
     average_price = money_column("position.average_price.reporting", "Average Price")
     fees = money_column("position.fees.reporting", "Fees")
     opened_at = datetime_column("position.opened_at", "Opened At")
     last_trade_at = datetime_column("position.last_trade_at", "Last Trade At")
     last_trade_type = text_column("position.last_trade_type", "Last Trade Type")
     market_price = money_column("valuation.market_price.reporting", "Price")
-    market_value = money_column("valuation.market_value.reporting", "Market Value")
+    market_value = money_column(
+        "valuation.market_value.reporting", "Market Value", total_field="market_value"
+    )
+    portfolio_weight = percent_column("valuation.portfolio_weight", "% of Portfolio")
+    invested_capital_weight = percent_column(
+        "valuation.invested_capital_weight",
+        "% of Investments",
+        total_field="invested_capital_weight",
+    )
     unrealized_pnl = money_column(
-        "valuation.unrealized_pnl.reporting", "Unrealized PnL", profit_and_loss=True
+        "valuation.unrealized_pnl.reporting",
+        "Unrealized PnL",
+        profit_and_loss=True,
+        total_field="unrealized_pnl",
     )
     unrealized_pnl_percent = percent_column(
         "valuation.reporting_unrealized_pnl_percent",
         "Unrealized PnL %",
         profit_and_loss=True,
+        total_field="unrealized_pnl_percent",
     )

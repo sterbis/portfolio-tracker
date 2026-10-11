@@ -4,7 +4,11 @@ from typing import Annotated
 import typer
 
 from portfolio_tracker.application.portfolio import GetPortfoliosQuery
-from portfolio_tracker.application.views import CashBalanceRowView, PositionRowView
+from portfolio_tracker.application.views import (
+    CashBalanceRowView,
+    PositionRowTotalView,
+    PositionRowView,
+)
 from portfolio_tracker.domain.instrument import AssetClass, InstrumentType
 from portfolio_tracker.domain.portfolio import ScopeType
 from portfolio_tracker.domain.shared import Currency
@@ -179,10 +183,12 @@ def list_positions(
     )
 
     positions = container.portfolio_query_service.get_positions(user_id, query)
+    position_total = PositionRowTotalView.from_views(positions, reporting_currency)
 
     rendered_table = table.render(
         positions,
         settings.display.cli,
         active_columns=active_columns,
+        total_view=position_total,
     )
     console.print(rendered_table)

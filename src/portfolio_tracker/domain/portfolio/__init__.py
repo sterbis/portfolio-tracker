@@ -1,5 +1,5 @@
 from .builder import PortfolioBuilder
-from .evaluator import PortfolioEvaluator
+from .engine import PortfolioValuationEngine
 from .models import (
     Portfolio,
     PortfolioValuation,
@@ -11,7 +11,7 @@ __all__ = [
     "ScopeType",
     "Portfolio",
     "PortfolioBuilder",
-    "PortfolioEvaluator",
+    "PortfolioValuationEngine",
     "PortfolioValuation",
     "ValuedPortfolio",
 ]

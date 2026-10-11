@@ -104,6 +104,8 @@ class PositionValuation:
 
     market_price: DualMoney
     market_value: DualMoney
+    portfolio_weight: Decimal
+    invested_capital_weight: Decimal
     unrealized_pnl: DualMoney
     native_unrealized_pnl_percent: Decimal | None
     reporting_unrealized_pnl_percent: Decimal | None

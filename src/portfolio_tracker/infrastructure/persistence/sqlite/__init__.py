@@ -10,8 +10,10 @@ from portfolio_tracker.application.security import Encryptor
 from .database import apply_migrations
 from .mappers import register_mappers
 from .registry import SCHEMA_REGISTRY
-from .unit_of_work import SqliteStorageConnectionFactory, SqliteStorageReadConnectionFactory
-
+from .unit_of_work import (
+    SqliteStorageConnectionFactory,
+    SqliteStorageReadConnectionFactory,
+)
 
 _MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 

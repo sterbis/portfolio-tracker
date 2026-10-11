@@ -19,8 +19,8 @@ class CliDisplaySettings:
         default_factory=lambda: {
             "institution_connection": TableDisplaySettings(
                 active_columns=[
-                    "institution_name",
                     "connection_id",
+                    "institution_name",
                     "connection_name",
                     "sync_from",
                     "credentials",
@@ -29,6 +29,7 @@ class CliDisplaySettings:
             ),
             "transaction": TableDisplaySettings(
                 active_columns=[
+                    "transaction_id",
                     "account_name",
                     "executed_at",
                     "type",
@@ -51,12 +52,12 @@ class CliDisplaySettings:
             ),
             "position": TableDisplaySettings(
                 active_columns=[
-                    "instrument_type",
                     "instrument_name",
                     "instrument_symbol",
                     "quantity",
                     "cost_basis",
                     "market_value",
+                    "invested_capital_weight",
                     "unrealized_pnl",
                     "unrealized_pnl_percent",
                     "average_price",

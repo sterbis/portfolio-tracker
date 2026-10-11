@@ -19,9 +19,12 @@ from portfolio_tracker.application.transaction import (
 )
 from portfolio_tracker.application.user import UserService
 from portfolio_tracker.application.views import VIEW_REGISTRY, ViewBuilder
-from portfolio_tracker.domain.portfolio import PortfolioBuilder, PortfolioEvaluator
-from portfolio_tracker.domain.portfolio.cash_balance import CashBalanceEvaluator
-from portfolio_tracker.domain.portfolio.position import PositionEvaluator
+from portfolio_tracker.domain.portfolio import (
+    PortfolioBuilder,
+    PortfolioValuationEngine,
+)
+from portfolio_tracker.domain.portfolio.cash_balance import CashBalanceValuationEngine
+from portfolio_tracker.domain.portfolio.position import PositionValuationEngine
 from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import TransactionAdjuster
 from portfolio_tracker.infrastructure.configuration import (
@@ -102,9 +105,9 @@ def bootstrap(
             institution_registry=institution_registry,
             transaction_adjuster=transaction_adjuster,
             portfolio_builder=PortfolioBuilder(),
-            portfolio_evaluator=PortfolioEvaluator(
-                cash_balance_evaluator=CashBalanceEvaluator(),
-                position_evaluator=PositionEvaluator(),
+            portfolio_valuation_engine=PortfolioValuationEngine(
+                cash_balance_valuation_engine=CashBalanceValuationEngine(),
+                position_valuation_engine=PositionValuationEngine(),
             ),
             fx_service=fx_service,
             market_data_service=market_data_service,

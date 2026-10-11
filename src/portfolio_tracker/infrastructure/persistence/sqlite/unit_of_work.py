@@ -6,9 +6,9 @@ from typing import Self
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import (
+    StorageConnection,
     StorageConnectionFactory,
     StorageReadConnectionFactory,
-    StorageConnection,
     UnitOfWork,
 )
 from portfolio_tracker.application.security import Encryptor

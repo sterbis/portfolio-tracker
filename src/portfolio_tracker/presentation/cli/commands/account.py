@@ -59,7 +59,7 @@ def edit_account(
     inputs: list[Input[Any, Any]] = [
         optional_prompt_str_input("--name", name, default_value=account.name),
         optional_prompt_str_input(
-            "--external_id", external_id, default_value=account.external_id
+            "--external-id", external_id, default_value=account.external_id
         ),
     ]
     values = resolve_inputs(environment, inputs)

@@ -118,7 +118,7 @@ class PortfolioValuation:
 
     market_value: Money
     unrealized_pnl: Money
-    asset_allocation: dict[AssetClass, tuple[Money, Decimal | None]]
+    asset_class_allocation: dict[AssetClass, tuple[Money, Decimal | None]]
     instrument_type_allocation: dict[InstrumentType, tuple[Money, Decimal | None]]
 
     is_partially_valued: bool = True

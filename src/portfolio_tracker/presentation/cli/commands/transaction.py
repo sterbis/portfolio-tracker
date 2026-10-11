@@ -149,7 +149,7 @@ def list_transactions(
     )
 
     transactions = container.transaction_query_service.get_transactions(user_id, query)
-    transactions_total = TransactionTotalView.from_views(
+    transaction_total = TransactionTotalView.from_views(
         transactions, reporting_currency
     )
 
@@ -157,7 +157,7 @@ def list_transactions(
         transactions,
         settings.display.cli,
         active_columns=active_columns,
-        total_view=transactions_total,
+        total_view=transaction_total,
     )
     console.print(rendered_table)
 

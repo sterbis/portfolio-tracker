@@ -166,6 +166,7 @@ def percent_column(
     style: str | None = None,
     justify: Justify = "right",
     profit_and_loss: bool = False,
+    total_field: str | None = None,
 ) -> Column:
     return Column(
         field=field,
@@ -173,6 +174,7 @@ def percent_column(
         style=style,
         justify=justify,
         formatter=format_profit_and_loss_percent if profit_and_loss else format_percent,
+        total_field=total_field,
     )
 
 

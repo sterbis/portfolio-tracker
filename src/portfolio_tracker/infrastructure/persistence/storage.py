@@ -25,11 +25,11 @@ def initialize_storage(
 
     module = import_module(module_path, package=__package__)
 
-    storage_connections: tuple[StorageReadConnectionFactory, StorageConnectionFactory] = (
-        module.initialize(
-            uri=uri,
-            institution_registry=institution_registry,
-            encryptor=encryptor,
-        )
+    storage_connections: tuple[
+        StorageReadConnectionFactory, StorageConnectionFactory
+    ] = module.initialize(
+        uri=uri,
+        institution_registry=institution_registry,
+        encryptor=encryptor,
     )
     return storage_connections

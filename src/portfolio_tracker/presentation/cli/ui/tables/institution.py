@@ -7,8 +7,8 @@ class InstitutionConnectionViewTable(ViewTable[InstitutionConnectionView]):
     name = "institution_connection"
     title = "Connected Institutions"
 
+    connection_id = text_column("id", "ID")
     institution_name = text_column("institution.name", "Institution")
-    connection_id = text_column("id", "Connection ID")
-    connection_name = text_column("name", "Connection")
+    connection_name = text_column("name", "Name")
     sync_from = date_column("sync_from", "Sync From")
     credentials = bool_column("credentials", "API Credentials")

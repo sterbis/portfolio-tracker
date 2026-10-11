@@ -29,8 +29,8 @@ from portfolio_tracker.domain.instrument import Instrument
 from portfolio_tracker.domain.portfolio import (
     Portfolio,
     PortfolioBuilder,
-    PortfolioEvaluator,
     PortfolioValuation,
+    PortfolioValuationEngine,
     ScopeType,
     ValuedPortfolio,
 )
@@ -57,7 +57,7 @@ class PortfolioQueryService(QueryService):
         market_data_service: MarketDataService,
         transaction_adjuster: TransactionAdjuster,
         portfolio_builder: PortfolioBuilder,
-        portfolio_evaluator: PortfolioEvaluator,
+        portfolio_valuation_engine: PortfolioValuationEngine,
     ) -> None:
         super().__init__(
             storage_connection_factory, filter_mapper, filter_splitter, view_builder
@@ -67,7 +67,7 @@ class PortfolioQueryService(QueryService):
         self._fx_service = fx_service
         self._transaction_adjuster = transaction_adjuster
         self._portfolio_builder = portfolio_builder
-        self._portfolio_evaluator = portfolio_evaluator
+        self._portfolio_valuation_engine = portfolio_valuation_engine
 
     def get_cash_balances(
         self, user_id: str, query: GetPortfoliosQuery
@@ -96,7 +96,7 @@ class PortfolioQueryService(QueryService):
         institutions, connections, accounts, instruments, portfolios = (
             self._build_portfolios(user_id, query, repository_filter)
         )
-        valued_portfolios = self._evaluate_portfolios(portfolios, instruments)
+        valued_portfolios = self._value_portfolios(portfolios, instruments)
         return list(
             self._view_builder.build_valued_portfolio_views(
                 institutions,
@@ -235,7 +235,7 @@ class PortfolioQueryService(QueryService):
         )
         spot_rates = self._fx_service.get_spot_rates()
         return {
-            portfolio.scope.id: self._portfolio_evaluator.get_valuation(
+            portfolio.scope.id: self._portfolio_valuation_engine.get_valuation(
                 portfolio,
                 instruments_metadata,
                 native_market_prices,
@@ -244,7 +244,7 @@ class PortfolioQueryService(QueryService):
             for portfolio in portfolios
         }
 
-    def _evaluate_portfolios(
+    def _value_portfolios(
         self,
         portfolios: list[Portfolio],
         instruments: list[Instrument],

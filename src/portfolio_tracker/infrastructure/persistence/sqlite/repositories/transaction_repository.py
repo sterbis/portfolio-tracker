@@ -35,7 +35,9 @@ class SqliteTransactionRepository(TransactionRepository):
 
     @cached_property
     def _scope_filter(self) -> Filter:
-        return FilterNode("account_id", Operator.IN, self._user_account_ids, Transaction)
+        return FilterNode(
+            "account_id", Operator.IN, self._user_account_ids, Transaction
+        )
 
     def add(self, transaction: Transaction) -> None:
         self._executor.insert(

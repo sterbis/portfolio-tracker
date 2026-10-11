@@ -19,10 +19,10 @@ from .repositories import (
 )
 from .unit_of_work import (
     ReadUnitOfWork,
-    StorageConnectionFactory,
-    StorageReadConnectionFactory,
-    StorageReadConnection,
     StorageConnection,
+    StorageConnectionFactory,
+    StorageReadConnection,
+    StorageReadConnectionFactory,
     UnitOfWork,
 )
 

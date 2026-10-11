@@ -7,6 +7,8 @@ from enum import StrEnum
 from types import NoneType
 from typing import Any, Callable, TypeVar
 
+import typer
+
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.views import MoneyView
 from portfolio_tracker.domain.shared import Currency
@@ -164,7 +166,11 @@ def parse_sort_column(value: str, view_cls: type) -> Sort:
         reverse = False
 
     view_table = get_view_table(view_cls)
-    field = view_table.get_column_field(column_name)
+    try:
+        field = view_table.get_column_field(column_name)
+
+    except KeyError as error:
+        raise typer.BadParameter(f"Invalid column name: '{column_name}'.") from error
 
     return Sort(field=field, item_type=view_cls, reverse=reverse)
 

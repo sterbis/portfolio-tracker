@@ -18,7 +18,6 @@ class MigrationFile:
     path: Path
 
 
-
 def open_connection(
     uri: str, *, timeout: float = 5, read_only: bool = False
 ) -> sqlite3.Connection:

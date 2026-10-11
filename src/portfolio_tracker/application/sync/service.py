@@ -15,7 +15,10 @@ from portfolio_tracker.application.institution import (
 from portfolio_tracker.application.market_data import (
     MarketDataService,
 )
-from portfolio_tracker.application.persistence import StorageConnectionFactory, UnitOfWork
+from portfolio_tracker.application.persistence import (
+    StorageConnectionFactory,
+    UnitOfWork,
+)
 from portfolio_tracker.application.shared.errors import (
     FxClientError,
     FxDataIntegrityError,

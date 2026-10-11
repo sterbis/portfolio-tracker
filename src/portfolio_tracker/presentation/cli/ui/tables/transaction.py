@@ -14,6 +14,7 @@ class TransactionViewTable(ViewTable[TransactionView]):
     name = "transaction"
     title = "Transactions"
 
+    transaction_id = text_column("id", "ID")
     executed_at = datetime_column("executed_at", "Executed At")
     account_name = text_column("account.name", "Account")
     type = text_column("type", "Type")

@@ -85,5 +85,7 @@ class TransactionCommandService(CommandService):
         if not uow.accounts.is_user_account(transaction.account_id):
             raise AssetAccountNotFoundError(transaction.account_id)
 
-        if transaction.instrument_id and not uow.instruments.exists(transaction.instrument_id):
+        if transaction.instrument_id and not uow.instruments.exists(
+            transaction.instrument_id
+        ):
             raise InstrumentNotFoundError(transaction.instrument_id)

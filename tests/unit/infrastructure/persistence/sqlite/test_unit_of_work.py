@@ -15,8 +15,8 @@ from portfolio_tracker.infrastructure.persistence.sqlite.database import open_co
 from portfolio_tracker.infrastructure.persistence.sqlite.executor import SqliteExecutor
 from portfolio_tracker.infrastructure.persistence.sqlite.registry import SCHEMA_REGISTRY
 from portfolio_tracker.infrastructure.persistence.sqlite.unit_of_work import (
-    SqliteStorageReadConnectionFactory,
     SqliteStorageConnectionFactory,
+    SqliteStorageReadConnectionFactory,
     SqliteUnitOfWork,
 )
 from tests.mocks import MockEncryptor

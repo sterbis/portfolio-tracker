@@ -22,7 +22,9 @@ class Row(dict[FieldReference, Any]):
 
 class SqliteExecutor:
     def __init__(
-        self, connection: sqlite3.Connection, builder: SqliteStatementBuilder | None = None
+        self,
+        connection: sqlite3.Connection,
+        builder: SqliteStatementBuilder | None = None,
     ) -> None:
         self._connection = connection
         self._cached_builder = builder
@@ -30,7 +32,9 @@ class SqliteExecutor:
     @property
     def _builder(self) -> SqliteStatementBuilder:
         if self._cached_builder is None:
-            raise RuntimeError("SqliteStatementBuilder not provided for SqliteExecutor instance.")
+            raise RuntimeError(
+                "SqliteStatementBuilder not provided for SqliteExecutor instance."
+            )
 
         return self._cached_builder
 

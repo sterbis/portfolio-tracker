@@ -10,7 +10,7 @@ from .models import (
 )
 
 
-class CashBalanceEvaluator:
+class CashBalanceValuationEngine:
     def get_valuation(
         self, cash_balance: CashBalance, reporting_currency: Currency, rates: FxRates
     ) -> CashBalanceValuation:
@@ -23,7 +23,7 @@ class CashBalanceEvaluator:
             total_balance=Money(total_amount, reporting_currency)
         )
 
-    def evaluate(
+    def value(
         self, cash_balance: CashBalance, reporting_currency: Currency, rates: FxRates
     ) -> ValuedCashBalance:
         return ValuedCashBalance(
