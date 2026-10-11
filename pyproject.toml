@@ -44,7 +44,7 @@ where = ["src"]
 "" = "src"
 
 [tool.setuptools.package-data]
-portfolio_tracker = ["py.typed", "infrastructure/persistence/sqlite/migrations/*.sql"]
+portfolio_tracker = ["py.typed"]
 
 [tool.mypy]
 python_version = "3.14"
@@ -73,10 +73,10 @@ profile = "black"
 line_length = 88
 
 [tool.taskipy.tasks]
-format = "isort src tests && black src tests"
 lint = "mypy src tests && pylint src tests"
 test = "pytest tests -v"
+format = "isort src tests && black src tests"
 audit = "pip-audit"
 vulture = "vulture src .vulture_whitelist.py"
 secrets = "git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline"
-precommit = "task lint && task format && task test"
+precommit = "task lint && task test && task format"
