@@ -10,19 +10,15 @@ from .position import AccountingMethod, PositionBuilder
 
 
 class PortfolioBuilder:
-    def __init__(
-        self,
-        accounting_method: AccountingMethod = AccountingMethod.AVERAGE_COST,
-    ):
-        self._accounting_method = accounting_method
-
     def build(
         self,
         transactions: Iterable[ConvertedTransaction],
+        account_map: AccountMap,
         reporting_currency: Currency,
+        accounting_method: AccountingMethod,
     ) -> list[Portfolio]:
         position_builders, cash_balance_builders = self._process_transactions(
-            transactions
+            transactions, accounting_method
         )
 
         portfolios: list[Portfolio] = []
@@ -43,7 +39,8 @@ class PortfolioBuilder:
                 Portfolio(
                     scope=Scope(
                         type=ScopeType.ACCOUNT,
-                        id=account_id,
+                        connection_id=account_map.account_id_to_connection_id[account_id],
+                        account_id=account_id,
                     ),
                     reporting_currency=reporting_currency,
                     positions=positions,
@@ -56,6 +53,7 @@ class PortfolioBuilder:
     def _process_transactions(
         self,
         transactions: Iterable[ConvertedTransaction],
+        accounting_method: AccountingMethod,
     ) -> tuple[dict[str, dict[str, PositionBuilder]], dict[str, CashBalanceBuilder]]:
         position_builders: dict[str, dict[str, PositionBuilder]] = {}
         cash_balance_builder: dict[str, CashBalanceBuilder] = {}
@@ -82,7 +80,7 @@ class PortfolioBuilder:
                     instrument_id=instrument_id,
                     native_currency=transaction.price.native.currency,
                     reporting_currency=transaction.price.reporting.currency,
-                    accounting_method=self._accounting_method,
+                    accounting_method=accounting_method,
                 )
 
             position_builders[account_id][instrument_id].add(transaction)
@@ -91,26 +89,28 @@ class PortfolioBuilder:
 
     def consolidate(
         self,
-        portfolios: list[Portfolio],
+        portfolios: Iterable[Portfolio],
         scope_type: ScopeType,
-        account_map: AccountMap,
     ) -> list[Portfolio]:
+        if not portfolios:
+            return []
+    
+        portfolios = list(portfolios)
         if scope_type == ScopeType.ACCOUNT:
             return portfolios
 
         if scope_type == ScopeType.INSTITUTION:
             consolidated_portfolios: dict[str, Portfolio] = {}
             for portfolio in portfolios:
-                assert portfolio.scope.id is not None
-                institution_connection_id = account_map.account_id_to_connection_id[
-                    portfolio.scope.id
-                ]
+                connection_id = portfolio.scope.connection_id
+                assert connection_id is not None
 
-                if institution_connection_id not in consolidated_portfolios:
-                    consolidated_portfolios[institution_connection_id] = Portfolio(
+                if connection_id not in consolidated_portfolios:
+                    consolidated_portfolios[connection_id] = Portfolio(
                         scope=Scope(
                             type=ScopeType.INSTITUTION,
-                            id=institution_connection_id,
+                            connection_id=connection_id,
+                            account_id=None,
                         ),
                         reporting_currency=portfolio.reporting_currency,
                         positions=portfolio.positions,
@@ -118,7 +118,7 @@ class PortfolioBuilder:
                     )
 
                 else:
-                    consolidated_portfolios[institution_connection_id] += portfolio
+                    consolidated_portfolios[connection_id] += portfolio
 
             return list(consolidated_portfolios.values())
 

@@ -323,7 +323,7 @@ def resolve_inputs(
 class FilterInput:
     parameter: str
     value: str | None
-    model: type
+    item_type: type
     field: str
     value_parser: Callable[[str], Any] | None = None
 
@@ -331,7 +331,7 @@ class FilterInput:
         return resolve_filter_expression_input(
             parameter=self.parameter,
             value=self.value,
-            model=self.model,
+            item_type=self.item_type,
             field=self.field,
             value_parser=self.value_parser,
         )
@@ -758,7 +758,7 @@ def resolve_file_input(
 def resolve_filter_expression_input(
     parameter: str,
     value: str | None,
-    model: type,
+    item_type: type,
     field: str,
     *,
     value_parser: Callable[[str], Any] | None = None,
@@ -770,7 +770,7 @@ def resolve_filter_expression_input(
         return FilterExpressionParser.parse(
             field=field,
             expression=value,
-            item_type=model,
+            item_type=item_type,
             value_parser=value_parser,
         )
     except FilterError as error:

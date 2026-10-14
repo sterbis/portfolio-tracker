@@ -9,6 +9,14 @@ from portfolio_tracker.application.fx import FxClient
 from portfolio_tracker.application.shared.errors import FxClientError
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.shared import Currency
+from portfolio_tracker.shared.requests_utils import ApiEndpoint, HttpMethod, sync_request
+
+
+class FranfurterApiEndpoints:
+    RATES = ApiEndpoint(
+        path="/rates",
+        method=HttpMethod.GET,
+    )
 
 
 class FrankfurterClient(FxClient):
@@ -195,16 +203,14 @@ class FrankfurterClient(FxClient):
             parameters["to"] = to_date.isoformat()
 
         try:
-            response = requests.get(
-                url, params=parameters, headers=headers, stream=stream, timeout=5
+            return sync_request(
+                FranfurterApiEndpoints.RATES,
+                base_url=self._BASE_URL,
+                params=parameters,
+                headers=headers,
+                stream=stream,
+                timeout=5,
             )
-            response.raise_for_status()
-            return response
-
-        except requests.HTTPError as error:
-            raise FxClientError(
-                f"FX API request '{url}' failed: {response.status_code} {response.reason}"
-            ) from error
 
         except Exception as error:
             raise FxClientError(f"FX API request '{url}' failed: '{error}'") from error

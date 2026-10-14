@@ -11,7 +11,7 @@ from portfolio_tracker.application.persistence import (
 )
 from portfolio_tracker.application.views import ViewBuilder
 
-from .filter import FilterMapper, FilterSplitter
+from .filter_mapper import FilterMapper
 from .sort import Sort
 
 TView = TypeVar("TView")
@@ -37,12 +37,10 @@ class QueryService:
         self,
         storage_connection_factory: StorageReadConnectionFactory,
         filter_mapper: FilterMapper,
-        filter_splitter: FilterSplitter,
         view_builder: ViewBuilder,
     ) -> None:
         self._storage_connection_factory = storage_connection_factory
         self._filter_mapper = filter_mapper
-        self._filter_splitter = filter_splitter
         self._view_builder = view_builder
 
     @contextmanager
@@ -55,23 +53,18 @@ class QueryService:
         ):
             yield uow
 
-    def _resolve_filters(
-        self, filter_: Filter | None
-    ) -> tuple[Filter | None, Filter | None]:
-        if filter_:
-            filter_ = self._filter_mapper.map(filter_)
-            return self._filter_splitter.split(filter_)
-
-        return None, None
-
-    def _apply_view_options(
+    def _apply_query_options(
         self,
         views: list[TView],
         *,
+        filter_: Filter | None = None,
         sorts: list[Sort] | None = None,
         offset: int | None = None,
         limit: int | None = None,
     ) -> list[TView]:
+        if filter_:
+            views = list(filter_.apply(views))
+
         if sorts:
             views = Sort.apply_many(views, sorts)
 

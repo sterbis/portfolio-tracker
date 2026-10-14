@@ -29,7 +29,7 @@ from portfolio_tracker.domain.user import User
 TEntity = TypeVar("TEntity")
 
 
-PERSISTED_MODEL_TYPES = (
+PERSISTED_DOMAIN_TYPES = (
     User,
     InstitutionConnection,
     AssetAccount,

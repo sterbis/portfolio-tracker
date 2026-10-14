@@ -1,5 +1,5 @@
 from .repositories import (
-    PERSISTED_MODEL_TYPES,
+    PERSISTED_DOMAIN_TYPES,
     AccountReadRepository,
     AccountRepository,
     CredentialsReadRepository,
@@ -27,7 +27,7 @@ from .unit_of_work import (
 )
 
 __all__ = [
-    "PERSISTED_MODEL_TYPES",
+    "PERSISTED_DOMAIN_TYPES",
     "AccountRepository",
     "AccountReadRepository",
     "CredentialsRepository",

@@ -52,7 +52,35 @@ _SCOPE_LEVELS = {
 @dataclass(frozen=True)
 class Scope:
     type: ScopeType
-    id: str | None
+    connection_id: str | None
+    account_id: str | None
+
+    def __post_init__(self) -> None:
+        match self.type:
+            case ScopeType.ACCOUNT:
+                if self.account_id is None or self.connection_id is None:
+                    raise ValueError(
+                        f"Account ID and connection ID must be provided for Scope of the type: '{self.type}'."
+                    )
+
+            case ScopeType.INSTITUTION:
+                if self.account_id is not None or self.connection_id is None:
+                    raise ValueError(
+                        f"Only connection ID must be provided for Scope of the type: '{self.type}'."
+                    )
+
+            case ScopeType.GLOBAL:
+                if self.account_id is None or self.connection_id is not None:
+                    raise ValueError(
+                        f"Neither account ID or connection ID can be provided for Scope of the type: '{self.type}'."
+                    )
+
+            case _:
+                raise ValueError(f"Unexpected Scope type: '{self.type}'.")
+
+    @property
+    def id(self) -> str:
+        return f"{self.connection_id}|{self.account_id}"
 
 
 @dataclass(frozen=True)
@@ -91,7 +119,7 @@ class Portfolio:
             raise ValueError("Cannot consolidate multiple global portfolios.")
 
         else:
-            scope = Scope(type=ScopeType.GLOBAL, id=None)
+            scope = Scope(type=ScopeType.GLOBAL, connection_id=None, account_id=None)
 
         combined_cash_balance = self.cash_balance + other.cash_balance
         combined_positions: dict[str, Position] = {}

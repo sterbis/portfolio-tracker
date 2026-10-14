@@ -1,5 +1,7 @@
+import logging
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from pprint import pformat
 from typing import cast
 
 import pandas as pd
@@ -7,6 +9,9 @@ import yfinance as yf
 
 from portfolio_tracker.application.market_data import MarketDataClient
 from portfolio_tracker.application.shared.errors import MarketDataClientError
+
+
+logger = logging.getLogger(__name__)
 
 
 class YahooFinanceClient(MarketDataClient):
@@ -66,6 +71,21 @@ class YahooFinanceClient(MarketDataClient):
         end: date | datetime | None = None,
         extended_hours: bool = False,
     ) -> dict[str, Decimal | None]:
+        logger.debug(
+            "Fetching market prices.\n"
+            "Symbols: %s\n"
+            "Interval: %s\n"
+            "Period: %s\n"
+            "Start: %s\n"
+            "End: %s\n"
+            "Extended hours: %s\n",
+            sorted(symbols),
+            interval,
+            period,
+            start,
+            end,
+            extended_hours,
+        )
         try:
             data: pd.DataFrame = yf.download(
                 symbols,
@@ -96,6 +116,7 @@ class YahooFinanceClient(MarketDataClient):
             else:
                 prices[symbol] = self._get_last_available_price(symbol_data)
 
+        logger.debug("Fetched market prices:\n%s", pformat(prices))
         return prices
 
     def _get_last_available_price(self, data: pd.DataFrame) -> Decimal | None:

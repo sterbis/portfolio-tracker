@@ -62,6 +62,7 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
 
     def __init__(self, credentials: Trading212Credentials) -> None:
         super().__init__(credentials)
+        self._endpoints = Trading212ApiEndpoints()
 
     @property
     def _auth(self) -> tuple[str, str]:
@@ -79,7 +80,7 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
             )
             if index < len(intervals) - 1:
                 await asyncio.sleep(
-                    Trading212ApiEndpoints.REQUEST_REPORT.rate_limit.retry_after_interval
+                    self._endpoints.REQUEST_REPORT.rate_limit.retry_after_interval if self._endpoints.REQUEST_REPORT.rate_limit else 30
                 )
 
         async for download_url in self._wait_for_reports_generation(report_ids):
@@ -134,7 +135,7 @@ class Trading212Client(InstitutionClient[Trading212Credentials]):
         await asyncio.sleep(first_try_after_interval)
 
         retry_after_interval = (
-            Trading212ApiEndpoints.LIST_REPORTS.rate_limit.retry_after_interval
+            self._endpoints.LIST_REPORTS.rate_limit.retry_after_interval if self._endpoints.LIST_REPORTS.rate_limit else 60
         )
         pending_report_ids = report_ids.copy()
 

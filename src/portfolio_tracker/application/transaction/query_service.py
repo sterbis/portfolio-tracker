@@ -4,7 +4,7 @@ from filterutils import FilterNode, FilterTree, Operator
 
 from portfolio_tracker.application.institution import InstitutionRegistry
 from portfolio_tracker.application.persistence import StorageReadConnectionFactory
-from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
+from portfolio_tracker.application.shared.filter_mapper import FilterMapper
 from portfolio_tracker.application.shared.service import QueryService
 from portfolio_tracker.application.views import (
     TransactionPlainView,
@@ -25,13 +25,12 @@ class TransactionQueryService(QueryService):
         self,
         storage_connection_factory: StorageReadConnectionFactory,
         filter_mapper: FilterMapper,
-        filter_splitter: FilterSplitter,
         view_builder: ViewBuilder,
         institution_registry: InstitutionRegistry,
         transaction_adjuster: TransactionAdjuster,
     ) -> None:
         super().__init__(
-            storage_connection_factory, filter_mapper, filter_splitter, view_builder
+            storage_connection_factory, filter_mapper, view_builder
         )
         self._institution_registry = institution_registry
         self._transaction_adjuster = transaction_adjuster
@@ -46,7 +45,7 @@ class TransactionQueryService(QueryService):
     def get_transactions(
         self, user_id: str, query: GetTransactionsQuery
     ) -> list[TransactionView]:
-        repository_filter, memory_filter = self._resolve_filters(query.filter)
+        filter_split = self._filter_mapper.split(query.filter)
 
         with self._unit_of_work(user_id) as uow:
             account_map = uow.accounts.get_user_account_map()
@@ -55,7 +54,7 @@ class TransactionQueryService(QueryService):
             )
             transactions = uow.transactions.get(
                 filter_=FilterTree.and_combine(
-                    repository_filter,
+                    filter_split.repository,
                     (
                         FilterNode(
                             "account_id", Operator.IN, required_account_ids, Transaction
@@ -87,9 +86,9 @@ class TransactionQueryService(QueryService):
             converted_transactions = list(
                 converter.convert_many(adjusted_transactions, query.reporting_currency)
             )
-            if memory_filter:
+            if filter_split.memory:
                 converted_transactions = list(
-                    memory_filter.apply(converted_transactions)
+                    filter_split.memory.apply(converted_transactions)
                 )
 
             instruments = uow.instruments.get_by_ids(instrument_ids)
@@ -109,6 +108,6 @@ class TransactionQueryService(QueryService):
                 instruments,
                 converted_transactions,
             )
-            return self._apply_view_options(
+            return self._apply_query_options(
                 views, sorts=query.sorts, offset=query.offset, limit=query.limit
             )

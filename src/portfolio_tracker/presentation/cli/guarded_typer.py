@@ -81,6 +81,9 @@ class GuardedCommand(TyperCommand):
             error_console.print(f"Error: {message}")
             raise typer.Exit(code=1)
 
+        except KeyboardInterrupt:
+            error_console.print("\nPortfolio Tracker closed.")
+
 
 class GuardedTyper(typer.Typer):
     def command(

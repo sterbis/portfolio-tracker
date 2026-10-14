@@ -39,17 +39,31 @@ class SqliteExecutor:
         return self._cached_builder
 
     def _log_sql(self, sql: str, parameters: dict[str, Any] | None = None) -> None:
-        formatted_sql = sqlparse.format(
-            sql, reindent=True, keyword_case="upper", indent_width=2
-        ).strip()
-        args = [formatted_sql]
+        if logger.isEnabledFor(logging.DEBUG):
+            message = "Executing SQL:\n%s"
+            args: list[str] = []
 
-        message = "Executing SQL:\n%s"
-        if parameters:
-            message += "\nParameters:\n%s"
-            args.append(pformat(parameters, indent=2, sort_dicts=False))
+            formatted_sql = sqlparse.format(
+                sql, reindent=True, keyword_case="upper", indent_width=2
+            ).strip()
+            sql_lines = formatted_sql.split("\n")
+            if len(sql_lines) > 20:
+                formatted_sql = "\n".join(sql_lines[:20]) + "\n... [SQL TRUNCATED DUE TO LENGTH]"
 
-        logger.debug(message, *args)
+            args.append(formatted_sql)
+
+            if parameters:
+                message += "\nParameters:\n%s"
+                if len(parameters) > 20:
+                    truncated_parameters = {parameter_name: parameters[parameter_name] for parameter_name in list(parameters.keys())[:20]}
+                    formatted_parameters = pformat(truncated_parameters, indent=2, sort_dicts=False) + "\n... [PARAMETERS TRUNCATED DUE TO LENGTH]"
+
+                else:
+                    formatted_parameters = pformat(parameters, indent=2, sort_dicts=False)
+
+                args.append(formatted_parameters)
+
+            logger.debug(message, *args)
 
     def execute(
         self,

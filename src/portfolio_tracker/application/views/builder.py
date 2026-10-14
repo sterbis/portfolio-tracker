@@ -175,7 +175,7 @@ class ViewBuilder:
         self, portfolio_views: list[ValuedPortfolioView]
     ) -> dict[str | None, ValuedCashBalanceView]:
         return {
-            portfolio_view.portfolio.scope.id: ValuedCashBalanceView(
+            portfolio_view.portfolio.scope.connection_id: ValuedCashBalanceView(
                 scope=portfolio_view.portfolio.scope,
                 balance=portfolio_view.portfolio.cash_balance,
                 valuation=(
@@ -219,7 +219,7 @@ class ViewBuilder:
     def build_portfolio_views(
         self,
         institutions: Iterable[Institution],
-        institution_connections: Iterable[InstitutionConnection],
+        connections: Iterable[InstitutionConnection],
         accounts: Iterable[AssetAccount],
         instruments: Iterable[Instrument],
         portfolios: Iterable[Portfolio],
@@ -227,9 +227,9 @@ class ViewBuilder:
         institution_by_id = {
             institution.id: institution for institution in institutions
         }
-        institution_connection_by_id = {
+        connection_by_id = {
             institution_connection.id: institution_connection
-            for institution_connection in institution_connections
+            for institution_connection in connections
         }
         account_by_id = {account.id: account for account in accounts}
 
@@ -237,33 +237,24 @@ class ViewBuilder:
         portfolio_views: dict[str | None, PortfolioView] = {}
 
         for portfolio in portfolios:
-            institution = institution_connection = account = None
+            institution = connection = account = None
 
             if portfolio.scope.type == ScopeType.INSTITUTION:
-                assert portfolio.scope.id is not None
-                institution_connection = institution_connection_by_id[
-                    portfolio.scope.id
+                assert portfolio.scope.connection_id is not None
+                connection = connection_by_id[
+                    portfolio.scope.connection_id
                 ]
-                institution = institution_by_id[institution_connection.institution_id]
+                institution = institution_by_id[connection.institution_id]
 
             if portfolio.scope.type == ScopeType.ACCOUNT:
-                assert portfolio.scope.id is not None
-                account = account_by_id[portfolio.scope.id]
-                institution_connection = institution_connection_by_id[
+                assert portfolio.scope.account_id is not None
+                account = account_by_id[portfolio.scope.account_id]
+                connection = connection_by_id[
                     account.institution_connection_id
                 ]
-                institution = institution_by_id[institution_connection.institution_id]
+                institution = institution_by_id[connection.institution_id]
 
-            scope_view = ScopeView(
-                type=portfolio.scope.type,
-                id=portfolio.scope.id,
-                institution_name=institution.name if institution else None,
-                connection_name=(
-                    institution_connection.name if institution_connection else None
-                ),
-                account_name=account.name if account else None,
-            )
-
+            scope_view = ScopeView.from_domain(portfolio.scope.type, institution, connection, account)
             portfolio_views[portfolio.scope.id] = PortfolioView.from_domain(
                 portfolio, scope_view, instrument_views
             )

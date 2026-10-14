@@ -178,7 +178,7 @@ class SqliteStatementBuilder:
             return [], {}
 
         fields: list[FieldReference] = []
-        for filter_node in filter_.iter_children():
+        for filter_node in filter_.iter_nodes():
             if filter_node.item_type is None:
                 raise ValueError(f"Missing filter model reference. {filter_node}")
 
@@ -316,8 +316,8 @@ class SqliteStatementBuilder:
         return column_name_map, parameter_name_map
 
     def _is_multi_table_filter(self, model: Model, filter_: Filter) -> bool:
-        for child_filter in filter_.iter_children():
-            if child_filter.item_type != model:
+        for filter_node in filter_.iter_nodes():
+            if filter_node.item_type != model:
                 return True
 
         return False

@@ -14,6 +14,7 @@ from portfolio_tracker.domain.instrument import (
     Option,
     Stock,
 )
+from portfolio_tracker.domain.portfolio import Portfolio
 from portfolio_tracker.domain.transaction import ConvertedTransaction, Transaction
 from portfolio_tracker.domain.user import User
 
@@ -33,13 +34,13 @@ from .instrument import (
 from .transaction import TransactionView
 from .user import UserView
 
-type Model = type[Any]
+type EntityType = type[Any]
 type FieldMap = dict[str, FieldReference]
 
 
 @dataclass(frozen=True)
 class FieldReference:
-    model: Model
+    domain_type: EntityType
     name: str
 
 
@@ -148,6 +149,11 @@ TRANSACTION_FIELD_MAP = {
     ),
     **prefix_field_map(ASSET_ACCOUNT_FIELD_MAP, "account"),
     **prefix_field_map(INSTRUMENT_FIELD_MAP, "instrument"),
+}
+
+POSITION_ROW_FIELD_MAP = {
+    "scope.connection_id": FieldReference(Portfolio, "scope.connection_id"),
+    "scope.account_id": FieldReference(Portfolio, "scope.account_id"),
 }
 
 VIEW_REGISTRY = {

@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from portfolio_tracker.domain.account import AssetAccount
+from portfolio_tracker.domain.institution import Institution, InstitutionConnection
 from portfolio_tracker.domain.instrument import AssetClass, InstrumentType
 from portfolio_tracker.domain.portfolio import (
     Portfolio,
@@ -19,13 +21,33 @@ from .instrument import InstrumentView
 from .shared import DualMoneyView, MoneyView
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class ScopeView:
     type: ScopeType
-    id: str | None
+    institution_id: str | None
     institution_name: str | None = None
+    connection_id: str | None
     connection_name: str | None = None
+    account_id: str | None
     account_name: str | None = None
+
+    @classmethod
+    def from_domain(
+        cls,
+        scope_type: ScopeType,
+        institution: Institution | None = None,
+        connection: InstitutionConnection | None = None,
+        account: AssetAccount | None = None,
+    ) -> ScopeView:
+        return cls(
+            type=scope_type,
+            institution_id=institution.id if institution else None,
+            institution_name=institution.name if institution else None,
+            connection_id=connection.id if connection else None,
+            connection_name=connection.name if connection else None,
+            account_id=account.id if account else None,
+            account_name=account.name if account else None,
+        )
 
 
 @dataclass(frozen=True)

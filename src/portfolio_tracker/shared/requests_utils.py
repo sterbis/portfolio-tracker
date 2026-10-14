@@ -35,7 +35,7 @@ class RateLimit:
 class ApiEndpoint:
     path: str
     method: HttpMethod
-    rate_limit: RateLimit
+    rate_limit: RateLimit | None = None
 
     def build_url(self, base_url: str) -> str:
         return f"{base_url.rstrip('/')}/{self.path.lstrip('/')}"

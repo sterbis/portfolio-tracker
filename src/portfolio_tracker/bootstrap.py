@@ -9,9 +9,9 @@ from portfolio_tracker.application.institution import (
     InstitutionQueryService,
 )
 from portfolio_tracker.application.market_data import MarketDataService
-from portfolio_tracker.application.persistence import PERSISTED_MODEL_TYPES
+from portfolio_tracker.application.persistence import PERSISTED_DOMAIN_TYPES
 from portfolio_tracker.application.portfolio import PortfolioQueryService
-from portfolio_tracker.application.shared.filter import FilterMapper, FilterSplitter
+from portfolio_tracker.application.shared.filter_mapper import FilterMapper
 from portfolio_tracker.application.sync import SyncService
 from portfolio_tracker.application.transaction import (
     TransactionCommandService,
@@ -69,8 +69,10 @@ def bootstrap(
     market_data_client = YahooFinanceClient()
     market_data_service = MarketDataService(market_data_client)
 
-    filter_mapper = FilterMapper(view_registry=VIEW_REGISTRY)
-    filter_splitter = FilterSplitter(persisted_model_types=PERSISTED_MODEL_TYPES)
+    filter_mapper = FilterMapper(
+        view_registry=VIEW_REGISTRY,
+        persisted_domain_types=PERSISTED_DOMAIN_TYPES,
+    )
     transaction_adjuster = TransactionAdjuster()
     view_builder = ViewBuilder()
 
@@ -82,7 +84,6 @@ def bootstrap(
         account_query_service=AccountQueryService(
             storage_connection_factory=storage_read_connection_factory,
             filter_mapper=filter_mapper,
-            filter_splitter=filter_splitter,
             view_builder=view_builder,
             institution_registry=institution_registry,
         ),
@@ -93,14 +94,12 @@ def bootstrap(
         institution_query_service=InstitutionQueryService(
             storage_connection_factory=storage_read_connection_factory,
             filter_mapper=filter_mapper,
-            filter_splitter=filter_splitter,
             view_builder=view_builder,
             institution_registry=institution_registry,
         ),
         portfolio_query_service=PortfolioQueryService(
             storage_connection_factory=storage_read_connection_factory,
             filter_mapper=filter_mapper,
-            filter_splitter=filter_splitter,
             view_builder=view_builder,
             institution_registry=institution_registry,
             transaction_adjuster=transaction_adjuster,
@@ -124,7 +123,6 @@ def bootstrap(
         transaction_query_service=TransactionQueryService(
             storage_connection_factory=storage_read_connection_factory,
             filter_mapper=filter_mapper,
-            filter_splitter=filter_splitter,
             view_builder=view_builder,
             institution_registry=institution_registry,
             transaction_adjuster=transaction_adjuster,

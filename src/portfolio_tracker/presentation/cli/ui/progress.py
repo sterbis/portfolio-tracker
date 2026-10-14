@@ -17,8 +17,7 @@ from portfolio_tracker.application.sync import (
     InstrumentSyncStarted,
     SyncEvent,
 )
-
-from ..console import console, error_console
+from portfolio_tracker.presentation.cli.console import console, error_console
 
 
 async def render_sync_progress(
