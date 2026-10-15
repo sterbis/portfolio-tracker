@@ -9,7 +9,11 @@ from portfolio_tracker.application.fx import FxClient
 from portfolio_tracker.application.shared.errors import FxClientError
 from portfolio_tracker.domain.fx import FxRates
 from portfolio_tracker.domain.shared import Currency
-from portfolio_tracker.shared.requests_utils import ApiEndpoint, HttpMethod, sync_request
+from portfolio_tracker.shared.requests_utils import (
+    ApiEndpoint,
+    HttpMethod,
+    sync_request,
+)
 
 
 class FranfurterApiEndpoints:

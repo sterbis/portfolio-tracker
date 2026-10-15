@@ -10,7 +10,7 @@ from .errors import InvalidFilterError
 
 
 @dataclass(frozen=True)
-class FilterSplit:
+class SplitFilter:
     repository: Filter | None
     memory: Filter | None
 
@@ -37,12 +37,12 @@ class FilterMapper:
 
         return domain_filters
 
-    def split(self, view_filter: Filter | None) -> FilterSplit:
+    def split(self, view_filter: Filter | None) -> SplitFilter:
         if view_filter is None:
-            return FilterSplit(None, None)
+            return SplitFilter(None, None)
 
         domain_filters = self.map(view_filter)
-        return FilterSplit(
+        return SplitFilter(
             repository=FilterTree.and_combine(
                 *(
                     filter_

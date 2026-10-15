@@ -19,7 +19,7 @@ from portfolio_tracker.presentation.cli.input import (
     resolve_input,
     resolve_inputs,
 )
-from portfolio_tracker.presentation.cli.ui.tables import get_view_table
+from portfolio_tracker.presentation.cli.ui.tables import display_table
 
 from .sync import sync_portfolio
 
@@ -38,9 +38,7 @@ def list_accounts(ctx: typer.Context) -> None:
         console.print("No accounts found.")
         return
 
-    table = get_view_table(AssetAccountView)
-    rendered_table = table.render(accounts, settings.display.cli)
-    console.print(rendered_table)
+    display_table(AssetAccountView, accounts, settings.display.cli)
 
 
 @account_app.command(name="edit")

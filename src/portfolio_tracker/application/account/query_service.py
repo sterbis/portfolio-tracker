@@ -18,9 +18,7 @@ class AccountQueryService(QueryService):
         view_builder: ViewBuilder,
         institution_registry: InstitutionRegistry,
     ) -> None:
-        super().__init__(
-            storage_connection_factory, filter_mapper, view_builder
-        )
+        super().__init__(storage_connection_factory, filter_mapper, view_builder)
         self._institution_registry = institution_registry
 
     def get_account(self, user_id: str, account_id: str) -> AssetAccountView:

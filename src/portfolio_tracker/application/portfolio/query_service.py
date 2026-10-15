@@ -40,7 +40,7 @@ from portfolio_tracker.domain.transaction import (
     TransactionConverter,
 )
 
-from .queries import GetPortfoliosQuery, BuildPortfoliosQuery, GetCashBalancesQuery
+from .queries import BuildPortfoliosQuery, GetCashBalancesQuery, GetPortfoliosQuery
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -67,9 +67,7 @@ class PortfolioQueryService(QueryService):
         portfolio_builder: PortfolioBuilder,
         portfolio_valuation_engine: PortfolioValuationEngine,
     ) -> None:
-        super().__init__(
-            storage_connection_factory, filter_mapper, view_builder
-        )
+        super().__init__(storage_connection_factory, filter_mapper, view_builder)
         self._institution_registry = institution_registry
         self._market_data_service = market_data_service
         self._fx_service = fx_service
@@ -129,7 +127,9 @@ class PortfolioQueryService(QueryService):
 
         portfolios = self._portfolio_builder.consolidate(portfolios, query.scope)
 
-        valued_portfolios = self._value_portfolios(portfolios, portfolios_snapshot.instruments)
+        valued_portfolios = self._value_portfolios(
+            portfolios, portfolios_snapshot.instruments
+        )
         if filter_ := entity_filters.get(ValuedPortfolio):
             valued_portfolios = list(filter_.apply(valued_portfolios))
 

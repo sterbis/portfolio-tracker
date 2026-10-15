@@ -28,40 +28,25 @@ from portfolio_tracker.presentation.cli.input import (
     resolve_input,
     resolve_inputs,
 )
-from portfolio_tracker.presentation.cli.parameters import multi_value_option
-from portfolio_tracker.presentation.cli.ui.tables import get_view_table
+from portfolio_tracker.presentation.cli.ui.tables import display_table
 
 connection_app = GuardedTyper()
 
 
 @connection_app.command(name="list")
-def list_institution_connections(
-    ctx: typer.Context,
-    active_columns: Annotated[list[str] | None, multi_value_option("--column")] = None,
-    sort_columns: Annotated[list[str] | None, multi_value_option("--sort")] = None,
-) -> None:
+def list_institution_connections(ctx: typer.Context) -> None:
     container = get_container(ctx)
     user_id = get_logged_in_user_id(ctx)
     settings = get_settings(ctx)
 
-    institution_connections = (
-        container.institution_query_service.get_institution_connections(user_id)
+    connections = container.institution_query_service.get_institution_connections(
+        user_id
     )
-    if not institution_connections:
+    if not connections:
         console.print("No connected institutions found.")
         return
 
-    table = get_view_table(InstitutionConnectionView)
-    display_settings = settings.display.cli
-
-    rendered_table = table.render(
-        institution_connections,
-        display_settings,
-        active_columns=active_columns
-        or display_settings.tables[table.name].active_columns,
-        sort_columns=sort_columns or display_settings.tables[table.name].sort_columns,
-    )
-    console.print(rendered_table)
+    display_table(InstitutionConnectionView, connections, settings.display.cli)
 
 
 @connection_app.command(name="add")

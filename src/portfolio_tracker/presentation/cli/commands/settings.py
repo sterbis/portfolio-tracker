@@ -14,7 +14,10 @@ from portfolio_tracker.presentation.cli.guarded_typer import GuardedTyper
 from portfolio_tracker.presentation.cli.parsers import parse_settings_value
 from portfolio_tracker.presentation.cli.settings import TableDisplaySettings
 from portfolio_tracker.presentation.cli.ui.fromatters import format_settings_values
-from portfolio_tracker.presentation.cli.ui.tables import get_view_table_by_name
+from portfolio_tracker.presentation.cli.ui.tables import (
+    TableRenderer,
+    get_table_spec_by_name,
+)
 from portfolio_tracker.settings import Settings
 from portfolio_tracker.shared.dataclass_utils import (
     replace_dict_values,
@@ -54,18 +57,15 @@ def list_settings(
     if isinstance(default_settings, TableDisplaySettings):
         assert key is not None
         table_name = key.split(".")[-1]
-        view_table = get_view_table_by_name(table_name)
-
-        configuration = view_table.render_configuration(
-            active_columns=overrides.get(
-                "active_columns", default_settings.active_columns
-            ),
-            default_active_columns=default_settings.active_columns,
-            sort_columns=overrides.get("sort_columns", default_settings.sort_columns),
-            default_sort_columns=default_settings.sort_columns,
+        table_spec = get_table_spec_by_name(table_name)
+        settings_table = TableRenderer().render_settings(
+            table_spec,
+            default_settings,
+            active_columns=overrides.get("active_columns"),
+            sort_columns=overrides.get("sort_columns"),
         )
 
-        console.print(configuration)
+        console.print(settings_table)
         console.print(
             "\n"
             f"To change displayed columns run: portfolio settings set display.cli.tables.{table_name}.active_columns name1,name2...\n"

@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
 
 from portfolio_tracker.application.security import Encryptor
 from portfolio_tracker.domain.institution import Credentials, InstitutionId
+from portfolio_tracker.domain.shared import DeterministicIdEntity
 
 
 class MockEncryptor(Encryptor):
@@ -44,3 +47,23 @@ class HyperactiveBrokersCredentials(Credentials):
     @classmethod
     def secret_parameter_names(cls) -> tuple[str, ...]:
         return ("web_service_token",)
+
+
+@dataclass(frozen=True, kw_only=True)
+class MockDeterministicIdEntity(DeterministicIdEntity):
+    created_at: datetime
+    name: str
+    value: Decimal
+    note: str
+
+    @property
+    def _id_prefix(self) -> str:
+        return "mock"
+
+    @property
+    def _identity(self) -> str:
+        return f"{self.created_at.isoformat()}|{self.name}|{self.value.normalize()}"
+
+    def _validate(self) -> None:
+        if self.value > 100:
+            raise ValueError("Value cannot be greater than 100.")

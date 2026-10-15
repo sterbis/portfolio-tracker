@@ -241,20 +241,18 @@ class ViewBuilder:
 
             if portfolio.scope.type == ScopeType.INSTITUTION:
                 assert portfolio.scope.connection_id is not None
-                connection = connection_by_id[
-                    portfolio.scope.connection_id
-                ]
+                connection = connection_by_id[portfolio.scope.connection_id]
                 institution = institution_by_id[connection.institution_id]
 
             if portfolio.scope.type == ScopeType.ACCOUNT:
                 assert portfolio.scope.account_id is not None
                 account = account_by_id[portfolio.scope.account_id]
-                connection = connection_by_id[
-                    account.institution_connection_id
-                ]
+                connection = connection_by_id[account.institution_connection_id]
                 institution = institution_by_id[connection.institution_id]
 
-            scope_view = ScopeView.from_domain(portfolio.scope.type, institution, connection, account)
+            scope_view = ScopeView.from_domain(
+                portfolio.scope.type, institution, connection, account
+            )
             portfolio_views[portfolio.scope.id] = PortfolioView.from_domain(
                 portfolio, scope_view, instrument_views
             )

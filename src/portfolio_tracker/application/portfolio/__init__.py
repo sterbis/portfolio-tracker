@@ -1,4 +1,4 @@
-from .queries import GetPortfoliosQuery, BuildPortfoliosQuery, GetCashBalancesQuery
+from .queries import BuildPortfoliosQuery, GetCashBalancesQuery, GetPortfoliosQuery
 from .query_service import PortfolioQueryService
 
 __all__ = [

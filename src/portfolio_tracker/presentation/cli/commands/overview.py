@@ -4,11 +4,13 @@ from typing import Annotated
 
 import typer
 from rich.live import Live
+from rich.progress import BarColumn, Progress, TextColumn
+from rich.table import Table
 
 from portfolio_tracker.application.portfolio import (
-    GetPortfoliosQuery,
     BuildPortfoliosQuery,
     GetCashBalancesQuery,
+    GetPortfoliosQuery,
 )
 from portfolio_tracker.application.views import (
     CashBalanceRowView,
@@ -39,7 +41,11 @@ from portfolio_tracker.presentation.cli.parsers import (
     money_parser,
     parse_sort_column,
 )
-from portfolio_tracker.presentation.cli.ui.tables import get_view_table
+from portfolio_tracker.presentation.cli.ui.tables import (
+    TableRenderer,
+    display_table,
+    get_table_spec,
+)
 
 overview_app = GuardedTyper()
 
@@ -79,11 +85,10 @@ def list_cash_balance(
         ]
     )
 
-    table = get_view_table(CashBalanceRowView)
-    table_settings = settings.display.cli.tables[table.name]
-    sort_columns = sort_columns or table_settings.sort_columns
-    active_columns = active_columns or table_settings.active_columns
-
+    table_spec = get_table_spec(CashBalanceRowView)
+    sort_columns = (
+        sort_columns or settings.display.cli.tables[table_spec.name].sort_columns
+    )
     sorts = [
         parse_sort_column(sort_column, CashBalanceRowView)
         for sort_column in sort_columns
@@ -98,12 +103,10 @@ def list_cash_balance(
             sorts=sorts,
         ),
     )
-    rendered_table = table.render(
-        balances,
-        settings.display.cli,
-        active_columns=active_columns,
+
+    display_table(
+        CashBalanceRowView, balances, settings.display.cli, columns=active_columns
     )
-    console.print(rendered_table)
 
 
 @overview_app.command(name="positions")
@@ -128,6 +131,7 @@ def list_positions(
     unrealized_pnl_percent: Annotated[str | None, typer.Option()] = None,
     active_columns: Annotated[list[str] | None, multi_value_option("--column")] = None,
     sort_columns: Annotated[list[str] | None, multi_value_option("--sort")] = None,
+    live: Annotated[bool, typer.Option()] = False,
 ) -> None:
     container = get_container(ctx)
     user_id = get_logged_in_user_id(ctx)
@@ -199,44 +203,57 @@ def list_positions(
     ]
     resolved_filter = resolve_filter_inputs(filter_inputs)
 
-    portfolios_snapshot = container.portfolio_query_service.build_portfolios(
-        user_id,
-        query=BuildPortfoliosQuery(
-            reporting_currency=reporting_currency,
-            as_of=resolved_as_of,
-            accounting_method=resolved_accounting_method,
-        ),
-    )
-
-    table = get_view_table(PositionRowView)
-    table_settings = settings.display.cli.tables[table.name]
-    sort_columns = sort_columns or table_settings.sort_columns
+    table_spec = get_table_spec(PositionRowView)
+    table_settings = settings.display.cli.tables[table_spec.name]
     active_columns = active_columns or table_settings.active_columns
+    sort_columns = sort_columns or table_settings.sort_columns
     sorts = [
         parse_sort_column(sort_column, PositionRowView) for sort_column in sort_columns
     ]
+    title = f"{table_spec.title} (Live)" if live else table_spec.title
 
-    query = GetPortfoliosQuery(
-        scope=scope,
-        filter=resolved_filter,
-        sorts=sorts,
-        portfolios_snapshot=portfolios_snapshot,
-    )
-    update_count = 0
+    renderer = TableRenderer()
 
-    with Live(console=console, auto_refresh=False) as live:
+    def render_table(title: str | None = None) -> Table:
+        positions = container.portfolio_query_service.get_positions(user_id, query)
+        position_total = PositionRowTotalView.from_views(positions, reporting_currency)
+        return renderer.render(
+            table_spec,
+            positions,
+            settings.display.cli,
+            title=title,
+            columns=active_columns,
+            total_view=position_total,
+        )
+
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(pulse_style="blue"),
+        transient=True,
+    ) as progress:
+        progress.add_task("Processing...", total=None)
+        portfolios_snapshot = container.portfolio_query_service.build_portfolios(
+            user_id,
+            query=BuildPortfoliosQuery(
+                reporting_currency=reporting_currency,
+                as_of=resolved_as_of,
+                accounting_method=resolved_accounting_method,
+            ),
+        )
+        query = GetPortfoliosQuery(
+            scope=scope,
+            filter=resolved_filter,
+            sorts=sorts,
+            portfolios_snapshot=portfolios_snapshot,
+        )
+        table = render_table(title)
+
+    if not live:
+        console.print(table)
+        return
+
+    with Live(console=console, auto_refresh=False) as live_display:
+        live_display.update(table, refresh=True)
         while True:
-            positions = container.portfolio_query_service.get_positions(user_id, query)
-            position_total = PositionRowTotalView.from_views(
-                positions, reporting_currency
-            )
-            rendered_table = table.render(
-                positions,
-                settings.display.cli,
-                title=f"Positions (update {update_count})",
-                active_columns=active_columns,
-                total_view=position_total,
-            )
-            live.update(rendered_table, refresh=True)
-            update_count += 1
-            time.sleep(5)
+            time.sleep(10)
+            live_display.update(render_table(title), refresh=True)

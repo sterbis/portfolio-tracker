@@ -8,28 +8,29 @@ from portfolio_tracker.application.views import (
     TransactionView,
 )
 
-from .account import AssetAccountViewTable
-from .institution import InstitutionConnectionViewTable
-from .overview import CashBalanceRowViewTable, PositionRowViewTable
-from .transaction import TransactionViewTable
-from .view_table import ViewTable
+from .account import AssetAccountViewTableSpec
+from .cash_balance import CashBalanceRowViewTableSpec
+from .connection import InstitutionConnectionViewTableSpec
+from .position import PositionRowViewTableSpec
+from .spec import TableSpec
+from .transaction import TransactionViewTableSpec
 
-VIEW_TABLE_REGISTRY: dict[type, ViewTable[Any]] = {
-    AssetAccountView: AssetAccountViewTable(),
-    CashBalanceRowView: CashBalanceRowViewTable(),
-    PositionRowView: PositionRowViewTable(),
-    InstitutionConnectionView: InstitutionConnectionViewTable(),
-    TransactionView: TransactionViewTable(),
+TABLE_SPEC_REGISTRY: dict[type, TableSpec[Any]] = {
+    AssetAccountView: AssetAccountViewTableSpec(),
+    CashBalanceRowView: CashBalanceRowViewTableSpec(),
+    PositionRowView: PositionRowViewTableSpec(),
+    InstitutionConnectionView: InstitutionConnectionViewTableSpec(),
+    TransactionView: TransactionViewTableSpec(),
 }
 
 
-def get_view_table(view_cls: type[Any]) -> ViewTable[Any]:
-    return VIEW_TABLE_REGISTRY[view_cls]
+def get_table_spec(view_cls: type[Any]) -> TableSpec[Any]:
+    return TABLE_SPEC_REGISTRY[view_cls]
 
 
-def get_view_table_by_name(name: str) -> ViewTable[Any]:
-    for view_table in VIEW_TABLE_REGISTRY.values():
-        if view_table.name == name:
-            return view_table
+def get_table_spec_by_name(name: str) -> TableSpec[Any]:
+    for spec in TABLE_SPEC_REGISTRY.values():
+        if spec.name == name:
+            return spec
 
-    raise ValueError(f"View table with name '{name}' not found.")
+    raise ValueError(f"Table specification with name '{name}' not found.")

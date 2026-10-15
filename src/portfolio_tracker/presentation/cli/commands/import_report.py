@@ -14,7 +14,7 @@ from portfolio_tracker.presentation.cli.input import (
     resolve_file_input,
     resolve_input,
 )
-from portfolio_tracker.presentation.cli.ui.progress import render_sync_progress
+from portfolio_tracker.presentation.cli.ui.progress import display_sync_progress
 from portfolio_tracker.shared.async_utils import as_async_generator
 
 import_app = GuardedTyper()
@@ -42,7 +42,7 @@ def import_report(
     )
 
     asyncio.run(
-        render_sync_progress(
+        display_sync_progress(
             as_async_generator,
             container.sync_service.import_report(user_id, command),
         )

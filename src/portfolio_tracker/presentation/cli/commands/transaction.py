@@ -49,7 +49,7 @@ from portfolio_tracker.presentation.cli.parsers import (
     money_parser,
     parse_sort_column,
 )
-from portfolio_tracker.presentation.cli.ui.tables import get_view_table
+from portfolio_tracker.presentation.cli.ui.tables import display_table, get_table_spec
 
 transaction_app = GuardedTyper()
 
@@ -130,10 +130,10 @@ def list_transactions(
     ]
     filter_ = resolve_filter_inputs(filter_inputs)
 
-    table = get_view_table(TransactionView)
-    table_settings = settings.display.cli.tables[table.name]
-    sort_columns = sort_columns or table_settings.sort_columns
-    active_columns = active_columns or table_settings.active_columns
+    table_spec = get_table_spec(TransactionView)
+    sort_columns = (
+        sort_columns or settings.display.cli.tables[table_spec.name].sort_columns
+    )
     sorts = [
         parse_sort_column(sort_column, TransactionView) for sort_column in sort_columns
     ]
@@ -153,13 +153,13 @@ def list_transactions(
         transactions, reporting_currency
     )
 
-    rendered_table = table.render(
+    display_table(
+        TransactionView,
         transactions,
         settings.display.cli,
-        active_columns=active_columns,
+        columns=active_columns,
         total_view=transaction_total,
     )
-    console.print(rendered_table)
 
 
 @transaction_app.command(name="add")

@@ -1,8 +1,11 @@
-from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from dataclasses import InitVar, dataclass, field
 from decimal import Decimal
 from enum import StrEnum
 from functools import total_ordering
 from typing import TYPE_CHECKING
+
+from portfolio_tracker.shared.id_utils import generate_deterministic_hex_id
 
 if TYPE_CHECKING:
     from portfolio_tracker.domain.fx import FxRates
@@ -12,6 +15,33 @@ class Currency(StrEnum):
     CZK = "CZK"
     EUR = "EUR"
     USD = "USD"
+
+
+@dataclass(frozen=True, kw_only=True)
+class DeterministicIdEntity(ABC):
+    id: str = field(init=False)
+    provided_id: InitVar[str | None] = None
+
+    @property
+    @abstractmethod
+    def _id_prefix(self) -> str: ...
+
+    @property
+    @abstractmethod
+    def _identity(self) -> str: ...
+
+    def __post_init__(self, provided_id: str | None) -> None:
+        id_ = generate_deterministic_hex_id(self._id_prefix, self._identity)
+        if provided_id is not None and provided_id != id_:
+            raise ValueError(
+                f"Provided {self.__class__.__name__} id '{provided_id}' does not match computed id '{id_}'."
+            )
+
+        object.__setattr__(self, "id", id_)
+        self._validate()
+
+    def _validate(self) -> None:
+        pass
 
 
 @total_ordering

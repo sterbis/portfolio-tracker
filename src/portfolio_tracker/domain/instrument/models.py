@@ -1,11 +1,9 @@
-from abc import ABC, abstractmethod
-from dataclasses import InitVar, dataclass, field, fields
+from dataclasses import dataclass, field, fields
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from portfolio_tracker.domain.shared import Currency
-from portfolio_tracker.shared.id_utils import generate_deterministic_hex_id
+from portfolio_tracker.domain.shared import Currency, DeterministicIdEntity
 
 
 class AssetClass(StrEnum):
@@ -65,9 +63,7 @@ class InstrumentMetadata:
 
 
 @dataclass(frozen=True, kw_only=True)
-class Instrument(ABC):
-    id: str = field(init=False)
-    provided_id: InitVar[str | None] = None
+class Instrument(DeterministicIdEntity):
     type: InstrumentType
     asset_class: AssetClass
     name: str
@@ -77,8 +73,8 @@ class Instrument(ABC):
     last_synced_at: datetime | None = None
 
     @property
-    @abstractmethod
-    def _identifier(self) -> str: ...
+    def _id_prefix(self) -> str:
+        return "instr"
 
     @property
     def metadata(self) -> InstrumentMetadata:
@@ -88,17 +84,6 @@ class Instrument(ABC):
                 for field_ in fields(InstrumentMetadata)
             }
         )
-
-    def __post_init__(self, provided_id: str | None) -> None:
-        data = f"{self.type.value}|{self._identifier}"
-        id_ = generate_deterministic_hex_id(prefix="instr", data=data)
-
-        if provided_id and provided_id != id_:
-            raise ValueError(
-                f"Provided instrument id {provided_id} does not match generated id {id_}."
-            )
-
-        object.__setattr__(self, "id", id_)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -117,8 +102,8 @@ class Bond(Instrument):
     maturity_on: date
 
     @property
-    def _identifier(self) -> str:
-        return f"{self.isin}|{self.symbol}"
+    def _identity(self) -> str:
+        return f"{self.type.value}|{self.isin}|{self.symbol}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -128,8 +113,8 @@ class Cfd(DerivativeInstrument):
     leverage: Decimal
 
     @property
-    def _identifier(self) -> str:
-        return f"{self.institution_id}|{self.symbol}"
+    def _identity(self) -> str:
+        return f"{self.type.value}|{self.institution_id}|{self.symbol}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -139,8 +124,8 @@ class Commodity(Instrument):
     unit: str
 
     @property
-    def _identifier(self) -> str:
-        return f"{self.symbol}|{self.unit}"
+    def _identity(self) -> str:
+        return f"{self.type.value}|{self.symbol}|{self.unit}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -149,8 +134,8 @@ class Crypto(Instrument):
     asset_class: AssetClass = field(init=False, default=AssetClass.CRYPTO)
 
     @property
-    def _identifier(self) -> str:
-        return f"{self.symbol}|{self.currency}"
+    def _identity(self) -> str:
+        return f"{self.type.value}|{self.symbol}|{self.currency}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -160,8 +145,8 @@ class Etf(Instrument):
     isin: str
 
     @property
-    def _identifier(self) -> str:
-        return f"{self.isin}|{self.symbol}"
+    def _identity(self) -> str:
+        return f"{self.type.value}|{self.isin}|{self.symbol}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -172,8 +157,8 @@ class Future(DerivativeInstrument):
     multiplier: int
 
     @property
-    def _identifier(self) -> str:
-        return f"{self.isin}|{self.symbol}"
+    def _identity(self) -> str:
+        return f"{self.type.value}|{self.isin}|{self.symbol}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -186,8 +171,8 @@ class Option(DerivativeInstrument):
     multiplier: int
 
     @property
-    def _identifier(self) -> str:
-        return f"{self.isin}|{self.symbol}"
+    def _identity(self) -> str:
+        return f"{self.type.value}|{self.isin}|{self.symbol}"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -197,5 +182,5 @@ class Stock(Instrument):
     isin: str
 
     @property
-    def _identifier(self) -> str:
-        return f"{self.isin}|{self.symbol}"
+    def _identity(self) -> str:
+        return f"{self.type.value}|{self.isin}|{self.symbol}"

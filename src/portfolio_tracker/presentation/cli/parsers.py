@@ -12,7 +12,7 @@ import typer
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.views import MoneyView
 from portfolio_tracker.domain.shared import Currency
-from portfolio_tracker.presentation.cli.ui.tables import get_view_table
+from portfolio_tracker.presentation.cli.ui.tables import get_table_spec
 from portfolio_tracker.shared.dataclass_utils import (
     register_converter,
     resolve_field_type,
@@ -165,7 +165,7 @@ def parse_sort_column(value: str, view_cls: type) -> Sort:
         column_name = value
         reverse = False
 
-    view_table = get_view_table(view_cls)
+    view_table = get_table_spec(view_cls)
     try:
         field = view_table.get_column_field(column_name)
 

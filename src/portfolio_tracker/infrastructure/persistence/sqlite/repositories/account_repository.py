@@ -171,7 +171,7 @@ class SqliteAccountRepository(AccountRepository):
             return FieldReference(AssetAccount, field)
 
         return AssetAccount(
-            id=row[field("id")],
+            provided_id=row[field("id")],
             external_id=row[field("external_id")],
             institution_connection_id=row[field("institution_connection_id")],
             name=row[field("name")],

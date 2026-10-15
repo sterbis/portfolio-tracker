@@ -100,7 +100,6 @@ def sample_credentials(
 @pytest.fixture(scope="session")
 def sample_account() -> AssetAccount:
     return AssetAccount(
-        id="acc_001",
         institution_connection_id="conn_001",
         external_id="3210123",
         name="Invest",
@@ -111,7 +110,7 @@ def sample_account() -> AssetAccount:
 def sample_transaction(googl_stock: Stock) -> Transaction:
     return Transaction(
         executed_at=datetime(2026, 6, 1, 16, 15, 0, tzinfo=timezone.utc),
-        account_id="acc_001",
+        account_id="acc_d81749a412c9be7c",
         type=TransactionType.BUY,
         instrument_id=googl_stock.id,
         quantity=Decimal("10"),

@@ -1,7 +1,7 @@
 from typing import Any, AsyncGenerator, Callable
 
 import typer
-from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
+from rich.progress import BarColumn, Progress, TaskID, TextColumn, TimeElapsedColumn
 
 from portfolio_tracker.application.sync import (
     FxSyncCompleted,
@@ -20,7 +20,7 @@ from portfolio_tracker.application.sync import (
 from portfolio_tracker.presentation.cli.console import console, error_console
 
 
-async def render_sync_progress(
+async def display_sync_progress(
     sync_function: Callable[..., AsyncGenerator[SyncEvent, None]],
     *args: Any,
     **kwargs: Any,
@@ -29,9 +29,9 @@ async def render_sync_progress(
     failed = False
 
     with Progress(
-        SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
+        BarColumn(pulse_style="blue"),
+        TimeElapsedColumn(),
         console=console,
     ) as progress:
         async for event in sync_function(*args, **kwargs):
@@ -41,7 +41,7 @@ async def render_sync_progress(
                     connection_name=connection_name,
                 ):
                     task_id = progress.add_task(
-                        f"Syncing '{connection_name}' ({connection_id})...", total=100
+                        f"Syncing '{connection_name}' account...", total=None
                     )
                     task_ids[connection_id] = task_id
 
@@ -51,8 +51,9 @@ async def render_sync_progress(
                 ):
                     progress.update(
                         task_ids[connection_id],
+                        total=100,
                         completed=100,
-                        description=f"[green]✔ '{connection_name}' ({connection_id}) sync completed[/green]",
+                        description=f"[green]✔ '{connection_name}' account sync completed[/green]",
                     )
 
                 case InstitutionSyncFailed(
@@ -62,8 +63,7 @@ async def render_sync_progress(
                 ):
                     progress.update(
                         task_ids[connection_id],
-                        completed=100,
-                        description=f"[red]✖ '{connection_name}' ({connection_id}) sync failed. {error}[/red]",
+                        description=f"[red]✖ '{connection_name}' account sync failed. {error}[/red]",
                     )
                     failed = True
 

@@ -1,16 +1,23 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from portfolio_tracker.shared.id_utils import generate_random_hex_id
+from portfolio_tracker.domain.shared import DeterministicIdEntity
 
 
 @dataclass(frozen=True, kw_only=True)
-class AssetAccount:
-    id: str = field(default_factory=lambda: generate_random_hex_id(prefix="acc"))
+class AssetAccount(DeterministicIdEntity):
     institution_connection_id: str
     external_id: str
     name: str
     is_active: bool = True
+
+    @property
+    def _id_prefix(self) -> str:
+        return "acc"
+
+    @property
+    def _identity(self) -> str:
+        return f"{self.institution_connection_id}|{self.external_id}"
 
 
 @dataclass(frozen=True, kw_only=True)

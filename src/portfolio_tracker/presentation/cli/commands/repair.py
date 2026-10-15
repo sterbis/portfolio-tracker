@@ -15,7 +15,7 @@ from portfolio_tracker.presentation.cli.guarded_typer import GuardedTyper
 from portfolio_tracker.presentation.cli.input import resolve_optional_multi_value_input
 from portfolio_tracker.presentation.cli.parameters import multi_value_option
 from portfolio_tracker.presentation.cli.parsers import date_parser
-from portfolio_tracker.presentation.cli.ui.progress import render_sync_progress
+from portfolio_tracker.presentation.cli.ui.progress import display_sync_progress
 from portfolio_tracker.shared.async_utils import as_async_generator
 
 repair_app = GuardedTyper(invoke_without_command=True)
@@ -37,7 +37,7 @@ def repair_fx_rates(
         all=all_,
     )
     asyncio.run(
-        render_sync_progress(
+        display_sync_progress(
             as_async_generator, container.sync_service.sync_fx_rates(user_id, command)
         )
     )
@@ -61,7 +61,7 @@ def repair_instruments(
         all=all_,
     )
     asyncio.run(
-        render_sync_progress(
+        display_sync_progress(
             as_async_generator,
             container.sync_service.sync_instruments(user_id, command),
         )

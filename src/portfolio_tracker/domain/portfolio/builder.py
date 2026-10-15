@@ -39,7 +39,9 @@ class PortfolioBuilder:
                 Portfolio(
                     scope=Scope(
                         type=ScopeType.ACCOUNT,
-                        connection_id=account_map.account_id_to_connection_id[account_id],
+                        connection_id=account_map.account_id_to_connection_id[
+                            account_id
+                        ],
                         account_id=account_id,
                     ),
                     reporting_currency=reporting_currency,
@@ -94,7 +96,7 @@ class PortfolioBuilder:
     ) -> list[Portfolio]:
         if not portfolios:
             return []
-    
+
         portfolios = list(portfolios)
         if scope_type == ScopeType.ACCOUNT:
             return portfolios

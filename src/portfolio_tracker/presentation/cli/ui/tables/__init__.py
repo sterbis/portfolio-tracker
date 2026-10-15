@@ -1,6 +1,9 @@
-from .registry import get_view_table, get_view_table_by_name
+from .registry import get_table_spec, get_table_spec_by_name
+from .renderer import TableRenderer, display_table
 
 __all__ = [
-    "get_view_table",
-    "get_view_table_by_name",
+    "TableRenderer",
+    "display_table",
+    "get_table_spec",
+    "get_table_spec_by_name",
 ]

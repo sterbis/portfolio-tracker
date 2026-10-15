@@ -13,7 +13,7 @@ from portfolio_tracker.presentation.cli.guarded_typer import GuardedTyper
 from portfolio_tracker.presentation.cli.input import resolve_optional_input
 from portfolio_tracker.presentation.cli.parameters import multi_value_option
 from portfolio_tracker.presentation.cli.parsers import datetime_parser
-from portfolio_tracker.presentation.cli.ui.progress import render_sync_progress
+from portfolio_tracker.presentation.cli.ui.progress import display_sync_progress
 
 sync_app = GuardedTyper()
 
@@ -56,4 +56,4 @@ def sync_portfolio(
         end=resolved_end,
         restore=restore,
     )
-    asyncio.run(render_sync_progress(container.sync_service.sync, user_id, command))
+    asyncio.run(display_sync_progress(container.sync_service.sync, user_id, command))

@@ -1,3 +1,5 @@
+# pylint: disable=protected-access
+
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -5,6 +7,24 @@ import pytest
 
 from portfolio_tracker.domain.shared.models import Currency, Money
 from portfolio_tracker.domain.transaction.models import Transaction, TransactionType
+
+
+def test_transaction_id_is_deterministic(sample_transaction: Transaction) -> None:
+    assert sample_transaction.id == "txn_d743148131953d75"
+
+
+def test_transaction_identity(sample_transaction: Transaction) -> None:
+    assert sample_transaction._identity == (
+        "acc_d81749a412c9be7c|"
+        "2026-06-01T16:15:00+00:00|"
+        "BUY|"
+        "instr_a4afe411ebbf539a|"
+        "1E+1|"
+        "100.5 USD|"
+        "0 USD|"
+        "0 USD|"
+        "-1005 USD"
+    )
 
 
 def test_valid_buy_transaction() -> None:
