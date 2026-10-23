@@ -47,3 +47,11 @@ class UserService(CommandService):
                 raise InvalidUsernameOrPasswordError()
 
             return user.id
+
+    def exists(self, user_id: str) -> bool:
+        with self._unit_of_work() as uow:
+            return uow.users.exists(user_id)
+
+    def has_users(self) -> bool:
+        with self._unit_of_work() as uow:
+            return uow.users.has_users()

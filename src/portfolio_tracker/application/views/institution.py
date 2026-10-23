@@ -32,6 +32,7 @@ class InstitutionConnectionView:
     sync_from: date
     last_synced_at: datetime | None
     credentials: Credentials | None
+    has_credentials: bool
 
     @classmethod
     def from_domain(
@@ -47,4 +48,5 @@ class InstitutionConnectionView:
             sync_from=connection.sync_from,
             last_synced_at=connection.last_synced_at,
             credentials=credentials,
+            has_credentials=credentials is not None,
         )

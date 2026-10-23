@@ -68,6 +68,12 @@ class UserReadRepository(ABC):
     @abstractmethod
     def get_by_username(self, username: str) -> User | None: ...
 
+    @abstractmethod
+    def exists(self, user_id: str) -> bool: ...
+
+    @abstractmethod
+    def has_users(self) -> bool: ...
+
 
 class UserRepository(UserReadRepository):
     @abstractmethod

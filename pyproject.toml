@@ -21,6 +21,7 @@ dependencies = [
     "keyring>=25.0.0",
     "pandas>=3.0.0",
     "platformdirs>=4.0.0",
+    "pyside6>=6.12.0",
     "python-dotenv>=1.0.0",
     "requests>=2.34.0",
     "rich>=15.0.0",
@@ -35,7 +36,10 @@ dependencies = [
 dev = []
 
 [project.scripts]
-portfolio = "portfolio_tracker.presentation.cli.main:app"
+portfolio = "portfolio_tracker.presentation.desktop.cli.main:app"
+
+[project.gui-scripts]
+portfolio-gui = "portfolio_tracker.presentation.desktop.gui.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

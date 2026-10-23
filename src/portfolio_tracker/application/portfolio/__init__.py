@@ -1,9 +1,12 @@
-from .queries import BuildPortfoliosQuery, GetCashBalancesQuery, GetPortfoliosQuery
-from .query_service import PortfolioQueryService
+from .queries import BuildPortfolioSnapshotQuery, GetCashBalancesQuery, GetPositionsQuery, ViewPortfolioSnapshotQuery
+from .query_service import PortfolioQueryService, PortfolioSnapshot, PositionsResult
 
 __all__ = [
-    "GetPortfoliosQuery",
-    "BuildPortfoliosQuery",
-    "PortfolioQueryService",
+    "BuildPortfolioSnapshotQuery",
     "GetCashBalancesQuery",
+    "GetPositionsQuery",
+    "PortfolioQueryService",
+    "PortfolioSnapshot",
+    "PositionsResult",
+    "ViewPortfolioSnapshotQuery",
 ]

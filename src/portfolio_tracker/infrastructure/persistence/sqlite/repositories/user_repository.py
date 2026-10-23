@@ -33,6 +33,18 @@ class SqliteUserRepository(UserRepository):
 
         return self._row_to_user(row)
 
+    def exists(self, user_id: str) -> bool:
+        return bool(
+            self._executor.select_one(
+                model=User,
+                fields=[FieldReference(User, "id")],
+                filter_=FilterNode("id", Operator.EQ, user_id, User),
+            ),
+        )
+
+    def has_users(self) -> bool:
+        return bool(self._executor.select_one(model=User, fields=[FieldReference(User, "id")]))
+
     def _row_to_user(self, row: Row) -> User:
         def field(name: str) -> FieldReference:
             return FieldReference(User, name)

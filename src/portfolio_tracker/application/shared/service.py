@@ -1,5 +1,6 @@
 from contextlib import contextmanager
-from typing import Generator, TypeVar
+from dataclasses import dataclass
+from typing import Generator, Iterable, TypeVar
 
 from filterutils import Filter
 
@@ -15,6 +16,14 @@ from .filter_mapper import FilterMapper
 from .sort import Sort
 
 TView = TypeVar("TView")
+
+
+@dataclass(frozen=True, kw_only=True)
+class QueryOptions:
+    filter: Filter | None = None
+    sorts: tuple[Sort] | None = None
+    offset: int | None = None
+    limit: int | None = None
 
 
 class CommandService:
@@ -53,21 +62,13 @@ class QueryService:
         ):
             yield uow
 
-    def _apply_query_options(
-        self,
-        views: list[TView],
-        *,
-        filter_: Filter | None = None,
-        sorts: list[Sort] | None = None,
-        offset: int | None = None,
-        limit: int | None = None,
-    ) -> list[TView]:
-        if filter_:
-            views = list(filter_.apply(views))
+    def _apply_query_options(self, views: Iterable[TView], options: QueryOptions) -> list[TView]:
+        if options.filter:
+            views = options.filter.apply(views)
 
-        if sorts:
-            views = Sort.apply_many(views, sorts)
+        if options.sorts:
+            views = Sort.apply_many(views, options.sorts)
 
-        start = offset or 0
-        end = (start + limit) if limit is not None else None
-        return views[start:end]
+        start = options.offset or 0
+        end = (start + options.limit) if options.limit is not None else None
+        return list(views)[start:end]

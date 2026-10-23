@@ -11,6 +11,7 @@ from portfolio_tracker.application.institution import (
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.persistence import PERSISTED_DOMAIN_TYPES
 from portfolio_tracker.application.portfolio import PortfolioQueryService
+from portfolio_tracker.application.settings import ApplicationSettings
 from portfolio_tracker.application.shared.filter_mapper import FilterMapper
 from portfolio_tracker.application.sync import SyncService
 from portfolio_tracker.application.transaction import (
@@ -39,13 +40,14 @@ from portfolio_tracker.infrastructure.security import (
     BcryptPasswordHasher,
     FernetEncryptor,
 )
+from portfolio_tracker.presentation.desktop.cli.settings import CLI_DISPLAY_SETTINGS
 from portfolio_tracker.shared.settings_utils import JsonSettingsStore, SettingsCache
 
-from .settings import Settings
+from .settings import Settings, DisplaySettingsGroup
 
 
 def bootstrap(
-    configuration: Configuration,
+    configuration: Configuration
 ) -> tuple[Container, SettingsCache[Settings]]:
     encryptor = FernetEncryptor(configuration.encryption_key)
     institution_registry = create_institution_registry()
@@ -87,6 +89,8 @@ def bootstrap(
             view_builder=view_builder,
             institution_registry=institution_registry,
         ),
+        fx_service=fx_service,
+        market_data_service=market_data_service,
         institution_command_service=InstitutionCommandService(
             storage_connection_factory=storage_connection_factory,
             institution_registry=institution_registry,
@@ -138,7 +142,13 @@ def bootstrap(
             settings_dir=configuration.users_settings_dir,
             settings_cls=Settings,
         ),
-        default_settings=Settings(),
+        default_settings=Settings(
+            application=ApplicationSettings(),
+            display=DisplaySettingsGroup(
+                cli=CLI_DISPLAY_SETTINGS,
+                gui=CLI_DISPLAY_SETTINGS,
+            )
+        ),
     )
 
     return container, settings

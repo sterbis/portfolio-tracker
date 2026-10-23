@@ -12,8 +12,10 @@ class MarketDataSettings:
 
 @dataclass(frozen=True)
 class ApplicationSettings:
-    consolidation_scope: ScopeType = ScopeType.ACCOUNT
+    consolidation_scope_type: ScopeType = ScopeType.ACCOUNT
     accounting_method: AccountingMethod = AccountingMethod.AVERAGE_COST
     reporting_currency: Currency = Currency.USD
-    cli_login_session_ttl: int = 3600
+    cli_session_ttl: int = 60 * 60
+    gui_session_ttl: int = 69 * 60
+    gui_session_touch_interval: int = 15 * 60
     market_data: MarketDataSettings = field(default_factory=MarketDataSettings)

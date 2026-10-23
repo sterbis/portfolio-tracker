@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from types import MappingProxyType
 
 from portfolio_tracker.domain.shared import Currency
 
@@ -9,7 +10,7 @@ from portfolio_tracker.domain.shared import Currency
 class FxRates:
     effective_on: date
     base_currency: Currency
-    rates: dict[Currency, Decimal]
+    rates: MappingProxyType[Currency, Decimal]
 
     def get_rate(self, base_currency: Currency, quote_currency: Currency) -> Decimal:
         if base_currency == quote_currency:

@@ -77,7 +77,7 @@ class SettingsCache(Generic[TSettings]):
             section = section.setdefault(section_key, {})
 
         section[value_key] = value
-        return self._update_settings(user_id, overrides)
+        return self._update(user_id, overrides)
 
     def reset_value(self, user_id: str, key: str) -> bool:
         overrides = copy.deepcopy(self.get_overrides(user_id))
@@ -94,16 +94,16 @@ class SettingsCache(Generic[TSettings]):
             return False
 
         del section_overrides[value_key]
-        self._save_overrides(user_id, overrides)
+        self._save(user_id, overrides)
         return True
 
     def reset_all(self, user_id: str) -> TSettings:
-        return self._save_overrides(user_id, {})
+        return self._save(user_id, {})
 
     def get_overrides(self, user_id: str) -> dict[str, Any]:
         return self._store.load(user_id)
 
-    def get_settings(self, user_id: str | None = None) -> TSettings:
+    def get(self, user_id: str | None = None) -> TSettings:
         if user_id is None:
             return self.default_settings
 
@@ -115,12 +115,12 @@ class SettingsCache(Generic[TSettings]):
 
         return self._cache[user_id]
 
-    def _update_settings(self, user_id: str, overrides: dict[str, Any]) -> TSettings:
+    def _update(self, user_id: str, overrides: dict[str, Any]) -> TSettings:
         current_overrides = self.get_overrides(user_id)
         merged_overrides = replace_dict_values(current_overrides, overrides)
-        return self._save_overrides(user_id, merged_overrides)
+        return self._save(user_id, merged_overrides)
 
-    def _save_overrides(self, user_id: str, overrides: dict[str, Any]) -> TSettings:
+    def _save(self, user_id: str, overrides: dict[str, Any]) -> TSettings:
         overrides = prune_replacement_values(overrides, self._default_settings)
         self._store.save(user_id, overrides)
         self._cache[user_id] = replace_dataclass_values(

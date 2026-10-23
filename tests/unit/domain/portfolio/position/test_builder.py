@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from types import MappingProxyType
 
 import pytest
 
@@ -84,16 +85,16 @@ def aapl_transactions(
 def rates_by_date() -> dict[date, FxRates]:
     return {
         date(2026, 1, 1): FxRates(
-            date(2026, 1, 1), Currency.USD, {Currency.CZK: Decimal("20.0")}
+            date(2026, 1, 1), Currency.USD, MappingProxyType({Currency.CZK: Decimal("20.0")})
         ),
         date(2026, 1, 2): FxRates(
-            date(2026, 1, 2), Currency.USD, {Currency.CZK: Decimal("20.5")}
+            date(2026, 1, 2), Currency.USD, MappingProxyType({Currency.CZK: Decimal("20.5")})
         ),
         date(2026, 1, 3): FxRates(
-            date(2026, 1, 3), Currency.USD, {Currency.CZK: Decimal("21.0")}
+            date(2026, 1, 3), Currency.USD, MappingProxyType({Currency.CZK: Decimal("21.0")})
         ),
         date(2026, 1, 4): FxRates(
-            date(2026, 1, 4), Currency.USD, {Currency.CZK: Decimal("21.5")}
+            date(2026, 1, 4), Currency.USD, MappingProxyType({Currency.CZK: Decimal("21.5")})
         ),
     }
 

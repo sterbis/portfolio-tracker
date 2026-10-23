@@ -23,11 +23,7 @@ class AccountCommandService(CommandService):
     def update_account(self, user_id: str, command: UpdateAssetAccountCommand) -> None:
         with self._unit_of_work(user_id) as uow:
             account = uow.accounts.get_by_id_required(command.account_id)
-            account = replace(
-                account,
-                external_id=command.external_id,
-                name=command.name,
-            )
+            account = replace(account, name=command.name)
             uow.accounts.update_required(account)
             uow.commit()
 

@@ -200,8 +200,16 @@ class ViewBuilder:
         ]
 
     def build_position_row_views(
-        self, portfolio_views: list[ValuedPortfolioView]
+        self,
+        institutions: Iterable[Institution],
+        connections: Iterable[InstitutionConnection],
+        accounts: Iterable[AssetAccount],
+        instruments: Iterable[Instrument],
+        portfolios: Iterable[ValuedPortfolio],
     ) -> list[PositionRowView]:
+        portfolio_views = self.build_valued_portfolio_views(
+            institutions, connections, accounts, instruments, portfolios
+        )
         return [
             PositionRowView(
                 scope=portfolio_view.portfolio.scope,
@@ -212,7 +220,7 @@ class ViewBuilder:
                     else None
                 ),
             )
-            for portfolio_view in portfolio_views
+            for portfolio_view in portfolio_views.values()
             for position_view in portfolio_view.portfolio.positions
         ]
 
@@ -274,7 +282,7 @@ class ViewBuilder:
         institution_connections: Iterable[InstitutionConnection],
         accounts: Iterable[AssetAccount],
         instruments: Iterable[Instrument],
-        valued_portfolios: list[ValuedPortfolio],
+        valued_portfolios: Iterable[ValuedPortfolio],
     ) -> dict[str | None, ValuedPortfolioView]:
         portfolio_views = self.build_portfolio_views(
             institutions,

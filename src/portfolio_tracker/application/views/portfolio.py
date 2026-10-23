@@ -174,6 +174,15 @@ class PositionRowView:
     position: PositionView
     valuation: PositionValuationView | None
 
+    @property
+    def key(self) -> tuple[str | None, str | None, str | None, str]:
+        return (
+            self.scope.institution_id,
+            self.scope.connection_id,
+            self.scope.account_id,
+            self.position.instrument.id,
+        )
+
 
 @dataclass(frozen=True)
 class PositionRowTotalView:
@@ -184,41 +193,11 @@ class PositionRowTotalView:
     unrealized_pnl: MoneyView
     unrealized_pnl_percent: Decimal | None
 
-    @classmethod
-    def from_views(
-        cls, views: list[PositionRowView], reporting_currency: Currency
-    ) -> PositionRowTotalView:
-        cost_basis_amount = Decimal("0")
-        market_value_amount = Decimal("0")
-        portfolio_weight = Decimal("0")
-        invested_capital_weight = Decimal("0")
-        unrealized_pnl_amount = Decimal("0")
-
-        for view in views:
-            if view.valuation is None:
-                continue
-
-            cost_basis_amount += view.position.cost_basis.reporting.amount
-            market_value_amount += view.valuation.market_value.reporting.amount
-            portfolio_weight += view.valuation.portfolio_weight
-            invested_capital_weight += view.valuation.invested_capital_weight
-            unrealized_pnl_amount += view.valuation.unrealized_pnl.reporting.amount
-
-        unrealized_pnl_percent = unrealized_pnl_amount / cost_basis_amount
-        return cls(
-            cost_basis=MoneyView(cost_basis_amount, reporting_currency),
-            market_value=MoneyView(market_value_amount, reporting_currency),
-            portfolio_weight=portfolio_weight,
-            invested_capital_weight=invested_capital_weight,
-            unrealized_pnl=MoneyView(unrealized_pnl_amount, reporting_currency),
-            unrealized_pnl_percent=unrealized_pnl_percent,
-        )
-
 
 @dataclass(frozen=True)
 class PortfolioView:
     scope: ScopeView
-    reporting_currency: str
+    reporting_currency: Currency
     positions: list[PositionView]
     cash_balance: CashBalanceView
 

@@ -1,6 +1,7 @@
 from collections.abc import Iterator
 from datetime import date
 from decimal import Decimal
+from types import MappingProxyType
 
 from filterutils import Filter, FilterNode, Operator
 
@@ -70,7 +71,7 @@ class SqliteFxRatesRepository(FxRatesRepository):
                 yield FxRates(
                     effective_on=current_date,
                     base_currency=base_currency,
-                    rates=accumulated_rates,
+                    rates=MappingProxyType(accumulated_rates),
                 )
                 accumulated_rates = {}
 
@@ -82,7 +83,7 @@ class SqliteFxRatesRepository(FxRatesRepository):
             yield FxRates(
                 effective_on=current_date,
                 base_currency=current_base_currency,
-                rates=accumulated_rates,
+                rates=MappingProxyType(accumulated_rates),
             )
 
     def get_by_date(self, effective_on: date) -> FxRates | None:

@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from types import MappingProxyType
 
 import pytest
 
@@ -175,10 +176,12 @@ def sample_rates() -> FxRates:
     return FxRates(
         effective_on=date(2026, 6, 1),
         base_currency=Currency.USD,
-        rates={
-            Currency.EUR: Decimal("0.90"),
-            Currency.CZK: Decimal("23.00"),
-        },
+        rates=MappingProxyType(
+            {
+                Currency.EUR: Decimal("0.90"),
+                Currency.CZK: Decimal("23.00"),
+            }
+        ),
     )
 
 

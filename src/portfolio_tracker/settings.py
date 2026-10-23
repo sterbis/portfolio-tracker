@@ -1,15 +1,32 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from portfolio_tracker.application.settings import ApplicationSettings
-from portfolio_tracker.presentation.cli.settings import CliDisplaySettings
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
+class TableDisplaySettings:
+    active_columns: list[str]
+    sort_columns: list[str]
+
+
+@dataclass(frozen=True, kw_only=True)
 class DisplaySettings:
-    cli: CliDisplaySettings = field(default_factory=CliDisplaySettings)
+    date_format: str
+    time_format: str
+    none_value: str
+    quantity_decimal_places: int
+    percent_decimal_places: int
+    money_decimal_places: int
+    tables: dict[str, TableDisplaySettings]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
+class DisplaySettingsGroup:
+    cli: DisplaySettings
+    gui: DisplaySettings
+
+
+@dataclass(frozen=True, kw_only=True)
 class Settings:
-    application: ApplicationSettings = field(default_factory=ApplicationSettings)
-    display: DisplaySettings = field(default_factory=DisplaySettings)
+    application: ApplicationSettings
+    display: DisplaySettingsGroup

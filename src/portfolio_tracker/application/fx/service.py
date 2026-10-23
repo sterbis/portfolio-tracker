@@ -1,3 +1,5 @@
+import logging
+
 from collections.abc import Iterator
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING
@@ -14,6 +16,7 @@ from .client import FxClient
 if TYPE_CHECKING:
     from portfolio_tracker.application.persistence import UnitOfWork
 
+logger = logging.getLogger(__name__)
 
 class FxService:
     def __init__(
@@ -21,12 +24,13 @@ class FxService:
         base_currency: Currency,
         quote_currencies: set[Currency],
         fx_client: FxClient,
+        spot_rates_cache_ttl: int = 60 * 60 * 24,
     ):
         self._base_currency = base_currency
         self._quote_currencies = quote_currencies
         self._fx_client = fx_client
+        self._spot_rates_cache_ttl = spot_rates_cache_ttl
         self._cached_spot_rates: FxRates | None = None
-        self._cached_spot_rates_ttl: int = 300
         self._last_spot_rates_fetch_at: datetime | None = None
 
     @property
@@ -37,20 +41,29 @@ class FxService:
     def quote_currencies(self) -> set[Currency]:
         return self._quote_currencies
 
+    @property
+    def cached_spot_rates(self) -> FxRates | None:
+        if self._cached_spot_rates is None or self._last_spot_rates_fetch_at is None:
+            return None
+
+        now = datetime.now(tz=timezone.utc)
+        age = (now - self._last_spot_rates_fetch_at).total_seconds()
+        if age > self._spot_rates_cache_ttl:
+            return None
+
+        return self._cached_spot_rates
+
     def get_spot_rates(self, uow: UnitOfWork | None = None) -> FxRates:
-        now = datetime.now(timezone.utc)
+        if cached_spot_rates := self._cached_spot_rates:
+            return cached_spot_rates
 
-        if self._cached_spot_rates and self._last_spot_rates_fetch_at:
-            age = (now - self._last_spot_rates_fetch_at).total_seconds()
-            if age < self._cached_spot_rates_ttl:
-                return self._cached_spot_rates
-
+        now = datetime.now(tz=timezone.utc)
         try:
             rates = self._fx_client.fetch_spot_rates(
                 self._base_currency, self._quote_currencies
             )
-
-        except FxClientError:
+        except FxClientError as error:
+            logger.warning("Failed to fetch FX rates: %s", error)
             if not uow:
                 raise
 
@@ -83,11 +96,9 @@ class FxService:
         lag_days = (today - rates.effective_on).days
 
         if lag_days > max_allowed_lag_days:
-            raise FxDataIntegrityError(
-                detail=(
-                    "Cannot provide fallback spot rates for faild API call. "
-                    f"Latest repository rates ({rates.effective_on}) are too stale ({lag_days} days old)."
-                )
+            raise FxClientError(
+                "Cannot provide fallback rates for faild fetch. "
+                f"Latest repository rates ({rates.effective_on}) are too stale ({lag_days} days old)."
             )
 
         return rates

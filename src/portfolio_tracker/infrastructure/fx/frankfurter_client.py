@@ -2,6 +2,7 @@ import json
 from collections.abc import Iterator
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from types import MappingProxyType
 
 import requests
 
@@ -122,11 +123,13 @@ class FrankfurterClient(FxClient):
                 yield FxRates(
                     effective_on=date.fromisoformat(required_date),
                     base_currency=Currency(base_currency),
-                    rates={
-                        Currency(quote_currency): Decimal(rate)
-                        for quote_currency, rate in latest_rates.items()
-                    },
-                )
+                    rates=MappingProxyType(
+                        {
+                            Currency(quote_currency): Decimal(rate)
+                            for quote_currency, rate in latest_rates.items()
+                        }
+                    ),
+                    )
                 sorted_required_dates.pop(0)
                 if not sorted_required_dates:
                     return
@@ -142,10 +145,12 @@ class FrankfurterClient(FxClient):
             yield FxRates(
                 effective_on=date.fromisoformat(required_date),
                 base_currency=Currency(required_base_currency),
-                rates={
-                    Currency(quote_currency): Decimal(rate)
-                    for quote_currency, rate in latest_rates.items()
-                },
+                rates=MappingProxyType(
+                    {
+                        Currency(quote_currency): Decimal(rate)
+                        for quote_currency, rate in latest_rates.items()
+                    }
+                ),
             )
 
     def _verify_available_rates(
@@ -173,10 +178,12 @@ class FrankfurterClient(FxClient):
         return FxRates(
             effective_on=date_ or datetime.now(tz=timezone.utc).date(),
             base_currency=Currency(base_currency.upper()),
-            rates={
-                Currency(data["quote"].upper()): Decimal(str(data["rate"]))
-                for data in response.json()
-            },
+            rates=MappingProxyType(
+                {
+                    Currency(data["quote"].upper()): Decimal(str(data["rate"]))
+                    for data in response.json()
+                }
+            ),
         )
 
     def _fetch(

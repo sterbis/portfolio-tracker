@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Sequence, TypeVar
+from typing import Any, Iterable, Sequence, TypeVar
 
 from portfolio_tracker.shared.dataclass_utils import resolve_field_value
 
@@ -24,7 +24,7 @@ class Sort:
         )
 
     @classmethod
-    def apply_many(cls, items: Sequence[TItem], sorts: Sequence[Sort]) -> list[TItem]:
+    def apply_many(cls, items: Iterable[TItem], sorts: Sequence[Sort]) -> list[TItem]:
         sorted_items = list(items)
         for sort in reversed(sorts):
             sorted_items = sort.apply(sorted_items)
