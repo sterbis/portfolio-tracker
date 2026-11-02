@@ -46,8 +46,8 @@ class SqliteUserRepository(UserRepository):
         return bool(self._executor.select_one(model=User, fields=[FieldReference(User, "id")]))
 
     def _row_to_user(self, row: Row) -> User:
-        def field(name: str) -> FieldReference:
-            return FieldReference(User, name)
+        def field(path: str) -> FieldReference:
+            return FieldReference(User, path)
 
         return User(
             id=row[field("id")],

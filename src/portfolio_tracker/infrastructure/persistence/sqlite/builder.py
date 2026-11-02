@@ -179,10 +179,10 @@ class SqliteStatementBuilder:
 
         fields: list[FieldReference] = []
         for filter_node in filter_.iter_nodes():
-            if filter_node.item_type is None:
+            if filter_node.item_class is None:
                 raise ValueError(f"Missing filter model reference. {filter_node}")
 
-            fields.append(FieldReference(filter_node.item_type, filter_node.field))
+            fields.append(FieldReference(filter_node.item_class, filter_node.field_path))
 
         field_map = self._get_field_map(fields)
         return list(field_map), field_map
@@ -203,7 +203,7 @@ class SqliteStatementBuilder:
 
         direction_map: dict[ColumnReference, str] = {}
         for sort in sorts:
-            field = FieldReference(sort.item_type, sort.field)
+            field = FieldReference(sort.item_class, sort.field_path)
             column = self._resolver.get_column(field)
             direction_map[column] = "DESC" if sort.reverse else "ASC"
 
@@ -317,7 +317,7 @@ class SqliteStatementBuilder:
 
     def _is_multi_table_filter(self, model: Model, filter_: Filter) -> bool:
         for filter_node in filter_.iter_nodes():
-            if filter_node.item_type != model:
+            if filter_node.item_class != model:
                 return True
 
         return False

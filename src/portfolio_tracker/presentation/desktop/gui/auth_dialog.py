@@ -35,12 +35,15 @@ class AuthDialog(QDialog):
     def __init__(self, user_service: UserService, *, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._user_id: str | None = None
+        self.setWindowTitle("Portfolio Tracker Log In")
 
-        self._stacked_widget = QStackedWidget()
+        self._page_stackedwidget = QStackedWidget()
         self._login_page = LoginPage(user_service)
         self._register_page = RegisterPage(user_service)
-        self._stacked_widget.addWidget(self._login_page)
-        self._stacked_widget.addWidget(self._register_page)
+        self._page_stackedwidget.addWidget(self._login_page)
+        self._page_stackedwidget.addWidget(self._register_page)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self._page_stackedwidget)
 
         self._login_page.authenticated.connect(self._finish)
         self._login_page.registration_requested.connect(lambda: self._show(self._register_page))
@@ -52,7 +55,7 @@ class AuthDialog(QDialog):
         self._show(self._login_page if has_users else self._register_page)
 
     def _show(self, page: _AuthPage) -> None:
-        self._stacked_widget.setCurrentWidget(page)
+        self._page_stackedwidget.setCurrentWidget(page)
         page.focus_first_field()
 
     def _finish(self, user_id: str) -> None:

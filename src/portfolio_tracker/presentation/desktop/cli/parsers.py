@@ -7,8 +7,6 @@ from enum import StrEnum
 from types import NoneType
 from typing import Any, Callable, TypeVar
 
-import typer
-
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.views import MoneyView
 from portfolio_tracker.domain.shared import Currency
@@ -16,7 +14,7 @@ from portfolio_tracker.presentation.shared.tables import get_table_spec
 from portfolio_tracker.shared.dataclass_utils import (
     register_converter,
     resolve_field_type,
-    structure_field,
+    structure_field_value,
 )
 
 TEnum = TypeVar("TEnum", bound=StrEnum)
@@ -116,13 +114,13 @@ def datetime_parser(value: str) -> datetime:
     return parse_datetime(value, date_formats=DATE_FORMATS)
 
 
-def parse_enum(value: str, enum_cls: type[TEnum]) -> TEnum:
-    return enum_cls(value.upper())
+def parse_enum(value: str, enum_class: type[TEnum]) -> TEnum:
+    return enum_class(value.upper())
 
 
-def enum_parser(enum_cls: type[TEnum]) -> Callable[[str], TEnum]:
+def enum_parser(enum_class: type[TEnum]) -> Callable[[str], TEnum]:
     def parser(value: str) -> TEnum:
-        return parse_enum(value, enum_cls)
+        return parse_enum(value, enum_class)
 
     return parser
 
@@ -152,7 +150,7 @@ def money_parser(default_currency: Currency) -> Callable[[str], MoneyView]:
     return parser
 
 
-def parse_sort_column(value: str, view_cls: type) -> Sort:
+def parse_sort_column(value: str, view_class: type) -> Sort:
     if value.lower().endswith((":asc", "=asc", ":desc", "=desc")):
         column_name = value.split(":", 1)[0].split("=", 1)[0]
         reverse = value.lower().endswith("desc")
@@ -165,19 +163,19 @@ def parse_sort_column(value: str, view_cls: type) -> Sort:
         column_name = value
         reverse = False
 
-    view_table = get_table_spec(view_cls)
+    table_spec = get_table_spec(view_class)
     try:
-        field = view_table.get_column_field(column_name)
+        field_path = table_spec.get_column_field(column_name)
 
     except KeyError as error:
-        raise typer.BadParameter(f"Invalid column name: '{column_name}'.") from error
+        raise ValueError(f"Invalid column name: '{column_name}'.") from error
 
-    return Sort(field=field, item_type=view_cls, reverse=reverse)
+    return Sort(field_path=field_path, item_class=view_class, reverse=reverse)
 
 
-def sort_column_parser(view_cls: type) -> Callable[[str], Sort]:
+def sort_column_parser(view_class: type) -> Callable[[str], Sort]:
     def parser(value: str) -> Sort:
-        return parse_sort_column(value, view_cls)
+        return parse_sort_column(value, view_class)
 
     return parser
 
@@ -188,9 +186,9 @@ register_converter(date, date_parser)
 register_converter(datetime, datetime_parser)
 
 
-def parse_settings_value(settings_cls: type, key: str, value: str) -> Any:
+def parse_settings_value(settings_class: type, key: str, value: str) -> Any:
     try:
-        field_type = resolve_field_type(settings_cls, key)
+        field_type = resolve_field_type(settings_class, key)
     except ValueError as error:
         raise KeyError(f"Invalid settings key: '{key}'.") from error
 
@@ -205,6 +203,6 @@ def parse_settings_value(settings_cls: type, key: str, value: str) -> Any:
         parsed_value = [item for item in value.split(",") if item.strip()]
 
     try:
-        return structure_field(parsed_value, field_type)
+        return structure_field_value(parsed_value, field_type)
     except (TypeError, ValueError) as error:
         raise ValueError(f"Invalid '{key}' settings value: '{value}'.") from error

@@ -29,7 +29,7 @@ dependencies = [
     "typer>=0.27.0",
     "yfinance>=1.5.0",
     
-    "filterutils @ file:///${PROJECT_ROOT}/../python/utils/filterutils",
+    "filterutils",
 ]
 
 [dependency-groups]
@@ -37,6 +37,7 @@ dev = []
 
 [project.scripts]
 portfolio = "portfolio_tracker.presentation.desktop.cli.main:app"
+portfolio-gui-dev = "portfolio_tracker.presentation.desktop.gui.main:main"
 
 [project.gui-scripts]
 portfolio-gui = "portfolio_tracker.presentation.desktop.gui.main:main"

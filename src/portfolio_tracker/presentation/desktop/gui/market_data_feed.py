@@ -20,7 +20,7 @@ class MarketDataFeed(QObject):
         task_runner: TaskRunner,
         fx_service: FxService,
         market_data_service: MarketDataService,
-        interval: int = 15,
+        interval: int = 60,
         parent: QObject | None = None,
     ):
         super().__init__(parent)
@@ -122,5 +122,5 @@ class MarketDataFeed(QObject):
         if market_data == self._latest_market_data:
             return
 
-        self.changed.emit(market_data)
         self._latest_market_data = market_data
+        self.changed.emit(market_data)

@@ -8,12 +8,12 @@ TItem = TypeVar("TItem")
 
 @dataclass(frozen=True)
 class Sort:
-    field: str
-    item_type: type
+    field_path: str
+    item_class: type
     reverse: bool = False
 
     def _sort_key(self, item: TItem) -> tuple[bool, Any]:
-        value = resolve_field_value(item, self.field)
+        value = resolve_field_value(item, self.field_path)
         return value is not None if self.reverse else value is None, value
 
     def apply(self, items: Sequence[TItem]) -> list[TItem]:

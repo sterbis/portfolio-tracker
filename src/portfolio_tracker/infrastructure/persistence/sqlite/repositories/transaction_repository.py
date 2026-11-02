@@ -152,8 +152,8 @@ class SqliteTransactionRepository(TransactionRepository):
         }
 
     def _row_to_transaction(self, row: Row) -> Transaction:
-        def field(name: str) -> FieldReference:
-            return FieldReference(Transaction, name)
+        def field(path: str) -> FieldReference:
+            return FieldReference(Transaction, path)
 
         return Transaction(
             provided_id=row[field("id")],

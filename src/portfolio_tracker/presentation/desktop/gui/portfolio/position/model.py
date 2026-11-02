@@ -9,13 +9,14 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QColor
 
+from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.views import MoneyView
 from portfolio_tracker.presentation.shared.tables import (
     ColumnSpec,
     HorizontalAlignment,
     Tone,
 )
-from portfolio_tracker.settings import DisplaySettings
+from portfolio_tracker.presentation.shared.settings import DisplaySettings
 
 QT_ALIGNMENTS = {
     HorizontalAlignment.LEFT: Qt.AlignmentFlag.AlignLeft
@@ -41,7 +42,7 @@ def cell_foreground_color(value: Any, column_spec: ColumnSpec) -> QColor | None:
     return None
 
 
-class RowView(Protocol):
+class RowObject(Protocol):
     @property
     def key(self) -> Hashable: ...
 
@@ -50,15 +51,19 @@ class SpecTableModel(QAbstractTableModel):
     def __init__(
         self,
         column_specs: Sequence[ColumnSpec],
+        object_class: type,
         settings: DisplaySettings,
+        sorts: tuple[Sort, ...] = (),
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._column_specs = column_specs
+        self._object_class = object_class
         self._display_settings = settings
-        self._rows: list[RowView] = []
-        self._row_keys: list[Hashable] = []
-        self._sort: tuple[int, Qt.SortOrder] | None = None
+        self._sorts = sorts
+        self._rows: list[RowObject] = []
+        self._sorted_rows: list[RowObject] = []
+        self._sorted_row_keys: list[Hashable] = []
 
     def rowCount(
         self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()
@@ -85,8 +90,8 @@ class SpecTableModel(QAbstractTableModel):
         if role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ForegroundRole):
             return None
 
-        view = self._rows[index.row()]
-        value = column_spec.get_value(view)
+        obj = self._sorted_rows[index.row()]
+        value = column_spec.get_value(obj)
 
         if role == Qt.ItemDataRole.DisplayRole:
             return column_spec.format_value(value, self._display_settings)
@@ -115,17 +120,19 @@ class SpecTableModel(QAbstractTableModel):
         self.beginResetModel()
         self._column_specs = list(column_specs)
         self._display_settings = display_settings
-        self._sort = None
+        self._sorts = ()
         self.endResetModel()
 
-    def set_rows(self, rows: Sequence[RowView]) -> None:
-        row_keys = [row.key for row in rows]
+    def set_rows(self, rows: Sequence[RowObject]) -> None:
+        self._rows = list(rows)
+        sorted_rows = Sort.apply_many(self._rows, self._sorts)
+        sorted_row_keys = [row.key for row in sorted_rows]
 
-        if row_keys == self._row_keys:
+        if sorted_row_keys == self._sorted_row_keys:
             if not rows or not self._column_specs:
                 return
 
-            self._rows = list(rows)
+            self._sorted_rows = sorted_rows
             self.dataChanged.emit(  # pylint: disable=no-member
                 self.index(0, 0),
                 self.index(len(rows) - 1, len(self._column_specs) - 1)
@@ -133,39 +140,28 @@ class SpecTableModel(QAbstractTableModel):
 
         else:
             self.beginResetModel()
-            self._rows = list(rows)
-            self._row_keys = row_keys
+            self._sorted_rows = sorted_rows
+            self._sorted_row_keys = sorted_row_keys
             self.endResetModel()
 
-    def row_by_index(self, index: int) -> RowView:
-        return self._rows[index]
+    def row_by_index(self, index: int) -> RowObject:
+        return self._sorted_rows[index]
 
     def row_by_key(self, key: Hashable) -> int | None:
         try:
-            return self._row_keys.index(key)
+            return self._sorted_row_keys.index(key)
         except ValueError:
             return None
 
     def sort(self, column_index: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
-        self._sort = (column_index, order) if column_index >= 0 else None
+        if 0 <= column_index < len(self._column_specs):
+            field_path = self._column_specs[column_index].field_path
+            reverse = order == Qt.SortOrder.DescendingOrder
+            self._sorts = (Sort(field_path, self._object_class, reverse), )
+        else:
+            self._sorts = ()
+
         self.beginResetModel()
-        self._rows = self._sorted(self._rows)
-        self._row_keys = [row.key for row in self._rows]
+        self._sorted_rows = Sort.apply_many(self._rows, self._sorts)
+        self._sorted_row_keys = [row.key for row in self._sorted_rows]
         self.endResetModel()
-
-    def _sorted(self, rows: Sequence[RowView]) -> list[RowView]:
-        if self._sort is None or not 0 <= self._sort[0] < len(self._column_specs):
-            return list(rows)
-
-        column_spec = self._column_specs[self._sort[0]]
-        reverse = self._sort[1] == Qt.SortOrder.DescendingOrder
-
-        def sort_value(row: RowView) -> Any:
-            value = column_spec.get_value(row)
-            value = getattr(value, "amount", value)          # unwrap MoneyView
-            return value.casefold() if isinstance(value, str) else value
-
-        keyed = [(sort_value(row), row) for row in rows]
-        present = sorted((p for p in keyed if p[0] is not None), key=lambda p: p[0], reverse=reverse)
-        missing = [p for p in keyed if p[0] is None]
-        return [row for _, row in present] + [row for _, row in missing]

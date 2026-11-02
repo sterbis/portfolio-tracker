@@ -1,3 +1,4 @@
+import functools
 import types
 import typing
 from collections.abc import Mapping
@@ -41,49 +42,14 @@ def register_converter(cls: type[T], converter: Callable[[Any], T]) -> None:
     _CONVERTERS[cls] = converter
 
 
-def unpack_type(type_: type) -> Generator[type, None, None]:
-    if typing.get_origin(type_) in (typing.Union, types.UnionType):
-        yield from typing.get_args(type_)
-
-    else:
-        yield type_
+class ConversionError(ValueError): ...
 
 
-def resolve_field_type(cls: type, field_: str) -> Any:
-    current_type = cls
-    for name in field_.split("."):
-        for type_ in unpack_type(current_type):
-            if is_dataclass(type_):
-                annotations = typing.get_type_hints(type_)
-                if name not in annotations:
-                    raise ValueError(
-                        f"Dataclass '{type_.__name__}' has no field '{name}'."
-                    )
-
-                current_type = annotations[name]
-                break
-
-            if typing.get_origin(type_) is dict and len(typing.get_args(type_)) == 2:
-                current_type = typing.get_args(type_)[1]
-                break
-
-        else:
-            raise ValueError(
-                f"Type '{getattr(current_type, '__name__', current_type)}' has no field '{name}'."
-            )
-
-    return current_type
-
-
-def resolve_field_value(obj: Any, field: str) -> Any:
-    value = obj
-    for name in field.split("."):
-        if value is None:
-            return None
-
-        value = value[name] if isinstance(value, Mapping) else getattr(value, name)
-
-    return value
+class DataclassValueError(ValueError):
+    def __init__(self, field_path: str | None, reason: str) -> None:
+        self.field_path = field_path
+        self.reason = reason
+        super().__init__(f"{field_path or '<root>'}: {reason}")
 
 
 def unstructure(value: Any) -> Any:
@@ -115,94 +81,118 @@ def structure(value: Any, cls: type[T]) -> T:
     if isinstance(value, cls):
         return value
 
-    if is_dataclass(cls):
-        return cast(T, structure_dataclass(value, cls))
-
-    if converter := _CONVERTERS.get(cls):
-        return cast(T, converter(value))
-
+    converter = _CONVERTERS.get(cls)
     try:
-        return cls(value)  # type: ignore[call-arg]
-    except TypeError as error:
-        raise TypeError(
-            f"No converter registered for type {cls.__name__}. "
-            f"Direct construction failed: {error}."
+        return cast(T, converter(value) if converter else cls(value))  # type: ignore[call-arg]
+    except (TypeError, ValueError) as error:
+        hint = (
+            " (no converter registered)"
+            if converter is None and isinstance(error, TypeError)
+            else ""
+        )
+        raise ConversionError(
+            f"Cannot convert {value} to {cls.__name__}{hint}: {error}"
         ) from error
 
 
-def structure_dataclass(values: dict[str, Any], cls: type[TDataclass]) -> TDataclass:
-    annotations = typing.get_type_hints(cls)
-    return cls(
-        **{
-            filed_name: structure_field(value, annotations[filed_name])
-            for filed_name, value in values.items()
-            if filed_name in annotations
-        }
-    )
-
-
-def structure_values_from_dataclass(
-    values: dict[str, Any], cls: type[TDataclass]
-) -> dict[str, Any]:
-    annotations = typing.get_type_hints(cls)
-    return {
-        filed_name: structure_field(
-            value, annotations[filed_name], dataclass_as_dict=True
-        )
-        for filed_name, value in values.items()
-        if filed_name in annotations
-    }
-
-
-def structure_field(
-    value: Any, field_type: Any, dataclass_as_dict: bool = False
+def structure_field_value(
+    field_path: str,
+    field_type: Any,
+    value: Any,
+    *,
+    unknown_fields: bool = False,
+    dataclass_as_dict: bool = False,
 ) -> Any:
     if field_type is typing.Any:
         return value
 
+    if _is_dataclass_class(field_type) and isinstance(value, dict):
+        if dataclass_as_dict:
+            return structure_values_by_dataclass(
+                field_type,
+                value,
+                parent_field_path=field_path,
+                unknown_fields=unknown_fields,
+                dataclass_as_dict=dataclass_as_dict,
+            )
+
+        return structure_dataclass(
+            field_type,
+            value,
+            parent_field_path=field_path,
+            unknown_fields=unknown_fields,
+        )
+
     origin_type = typing.get_origin(field_type)
 
-    if _is_dataclass_cls(field_type) and isinstance(value, dict):
-        if dataclass_as_dict:
-            return structure_values_from_dataclass(value, field_type)
-
-        return structure_dataclass(value, field_type)
-
     if origin_type is dict and isinstance(value, dict):
-        args = typing.get_args(field_type)
-        key_type = args[0] if args else typing.Any
-        item_type = args[1] if args else typing.Any
+        item_types = typing.get_args(field_type)
+        key_type = item_types[0] if item_types else typing.Any
+        item_type = item_types[1] if item_types else typing.Any
         return {
-            structure_field(key, key_type, dataclass_as_dict): structure_field(
-                item, item_type, dataclass_as_dict
+            structure_field_value(
+                field_path=f"{field_path}.{key}",
+                field_type=key_type,
+                value=key,
+                unknown_fields=unknown_fields,
+                dataclass_as_dict=dataclass_as_dict,
+            ): structure_field_value(
+                field_path=f"{field_path}.{key}",
+                field_type=item_type,
+                value=item,
+                unknown_fields=unknown_fields,
+                dataclass_as_dict=dataclass_as_dict,
             )
             for key, item in value.items()
         }
 
     if origin_type in (list, set) and isinstance(value, list):
-        args = typing.get_args(field_type)
-        item_type = args[0] if args else typing.Any
+        item_types = typing.get_args(field_type)
+        item_type = item_types[0] if item_types else typing.Any
         return origin_type(
-            structure_field(item, item_type, dataclass_as_dict) for item in value
+            structure_field_value(
+                f"{field_path}[{index}]",
+                item_type,
+                item,
+                unknown_fields=unknown_fields,
+                dataclass_as_dict=dataclass_as_dict,
+            )
+            for index, item in enumerate(value)
         )
 
     if origin_type is tuple and isinstance(value, list):
-        args = typing.get_args(field_type)
-        if not args:
+        item_types = typing.get_args(field_type)
+        if not item_types:
             return tuple(value)
 
-        if len(args) == 2 and args[1] is Ellipsis:
-            item_type = args[0]
+        if len(item_types) == 2 and item_types[1] is Ellipsis:
+            item_type = item_types[0]
             return tuple(
-                structure_field(item, item_type, dataclass_as_dict) for item in value
+                structure_field_value(
+                    f"{field_path}[{index}]",
+                    item_type,
+                    item,
+                    unknown_fields=unknown_fields,
+                    dataclass_as_dict=dataclass_as_dict,
+                )
+                for index, item in enumerate(value)
             )
 
-        if len(args) != len(value):
-            raise ValueError(f"Expected tuple of length {len(args)}, got {len(value)}")
+        if len(item_types) != len(value):
+            raise DataclassValueError(
+                field_path=field_path,
+                reason=f"Expected {len(item_types)} items, got {len(value)}",
+            )
 
         return tuple(
-            structure_field(item, item_type, dataclass_as_dict)
-            for item, item_type in zip(value, args)
+            structure_field_value(
+                f"{field_path}[{index}]",
+                item_type,
+                item,
+                unknown_fields=unknown_fields,
+                dataclass_as_dict=dataclass_as_dict,
+            )
+            for index, (item, item_type) in enumerate(zip(value, item_types))
         )
 
     if origin_type in (typing.Union, types.UnionType):
@@ -212,18 +202,108 @@ def structure_field(
             if isinstance(union_type, type) and isinstance(value, union_type):
                 return value
 
+        if len(union_types) == 2 and types.NoneType in union_types:
+            union_type = next(
+                union_type
+                for union_type in union_types
+                if union_type is not types.NoneType
+            )
+            return structure_field_value(
+                field_path,
+                union_type,
+                value,
+                unknown_fields=unknown_fields,
+                dataclass_as_dict=dataclass_as_dict,
+            )
+
+        errors: list[tuple[Any, DataclassValueError]] = []
         for union_type in union_types:
             try:
-                return structure_field(value, union_type, dataclass_as_dict)
-            except TypeError, ValueError:
-                continue
+                return structure_field_value(
+                    field_path,
+                    union_type,
+                    value,
+                    unknown_fields=unknown_fields,
+                    dataclass_as_dict=dataclass_as_dict,
+                )
+            except DataclassValueError as error:
+                errors.append((union_type, error))
 
-        raise ValueError(
-            f"Cannot convert value {value} to any of: "
-            f"{', '.join(getattr(union_type, '__name__', str(union_type)) for union_type in union_types)}."
+        raise DataclassValueError(
+            field_path=field_path,
+            reason=", ".join(
+                f"{union_type}: {error.reason}" for union_type, error in errors
+            ),
         )
 
-    return structure(value, field_type)
+    if origin_type in (dict, list, set, tuple):
+        raise DataclassValueError(
+            field_path, f"Expected {origin_type.__name__}, got {type(value).__name__}."
+        )
+
+    if not isinstance(field_type, type):
+        raise DataclassValueError(field_path, "Unsupported annotation.")
+
+    try:
+        return structure(value, field_type)
+    except ConversionError as error:
+        raise DataclassValueError(field_path, str(error)) from error
+
+
+def structure_dataclass(
+    cls: type[TDataclass],
+    values: dict[str, Any],
+    *,
+    parent_field_path: str | None = None,
+    unknown_fields: bool = False,
+) -> TDataclass:
+    structured_values = structure_values_by_dataclass(
+        cls,
+        values,
+        parent_field_path=parent_field_path,
+        unknown_fields=unknown_fields,
+        dataclass_as_dict=False,
+    )
+
+    try:
+        return cls(**structured_values)
+    except Exception as error:
+        raise DataclassValueError(parent_field_path, str(error)) from error
+
+
+def structure_values_by_dataclass(
+    cls: type[DataclassInstance],
+    values: dict[str, Any],
+    *,
+    parent_field_path: str | None = None,
+    unknown_fields: bool = False,
+    dataclass_as_dict: bool = True,
+) -> dict[str, Any]:
+    annotations = get_cached_type_hints(cls)
+    field_types = {
+        field.name: annotations[field.name] for field in fields(cls) if field.init
+    }
+    structured_values: dict[str, Any] = {}
+
+    for field_name, value in values.items():
+        field_path = (
+            f"{parent_field_path}.{field_name}" if parent_field_path else field_name
+        )
+        if field_name not in field_types:
+            if unknown_fields:
+                continue
+            raise DataclassValueError(field_path, "Uknow field.")
+
+        field_type = field_types[field_name]
+        structured_values[field_name] = structure_field_value(
+            field_path,
+            field_type,
+            value,
+            unknown_fields=unknown_fields,
+            dataclass_as_dict=dataclass_as_dict,
+        )
+
+    return structured_values
 
 
 def replace_dataclass_values(
@@ -231,6 +311,7 @@ def replace_dataclass_values(
     replacement_values: dict[str, Any],
     *,
     allow_unknown_keys: bool = False,
+    parent_field_path: str | None = None,
 ) -> TDataclass:
     if not replacement_values:
         return instance
@@ -238,38 +319,55 @@ def replace_dataclass_values(
     replacements: dict[str, Any] = {}
 
     for field_name, replacement_value in replacement_values.items():
+        field_path = (
+            f"{parent_field_path}.{field_name}" if parent_field_path else field_name
+        )
+
         if not hasattr(instance, field_name):
-            raise ValueError(f"Unknown replacement value field name: '{field_name}'.")
+            raise DataclassValueError(field_path, "unknown field")
 
         original_value = getattr(instance, field_name)
 
         if _is_dataclass_instance(original_value):
             replacements[field_name] = replace_dataclass_values(
-                original_value, replacement_value, allow_unknown_keys=allow_unknown_keys
+                original_value,
+                replacement_value,
+                allow_unknown_keys=allow_unknown_keys,
+                parent_field_path=field_path,
             )
 
         elif isinstance(original_value, dict) and isinstance(replacement_value, dict):
             replacements[field_name] = replace_dict_values(
-                original_value, replacement_value, allow_unknown_keys=allow_unknown_keys
+                original_value,
+                replacement_value,
+                allow_unknown_keys=allow_unknown_keys,
+                parent_field_path=field_path,
             )
 
         else:
             replacements[field_name] = replacement_value
 
-    return replace(instance, **replacements)
+    try:
+        return replace(instance, **replacements)
+    except Exception as error:
+        raise DataclassValueError(field_path, str(error)) from error
 
 
 def replace_dict_values(
     original: dict[str, Any],
     replacement: dict[str, Any],
+    *,
     allow_unknown_keys: bool = False,
+    parent_field_path: str | None = None,
 ) -> dict[str, Any]:
     replaced = dict(original)
 
     for key, replacement_item in replacement.items():
+        key_path = f"{parent_field_path}.{key}" if parent_field_path else key
+
         if key not in original:
             if not allow_unknown_keys:
-                raise ValueError(f"Unknown key '{key}' in replacement dictionary.")
+                raise DataclassValueError(key_path, "unknown key")
 
             replaced[key] = replacement_item
             continue
@@ -278,12 +376,18 @@ def replace_dict_values(
 
         if _is_dataclass_instance(original_item):
             replaced[key] = replace_dataclass_values(
-                original_item, replacement_item, allow_unknown_keys=allow_unknown_keys
+                original_item,
+                replacement_item,
+                allow_unknown_keys=allow_unknown_keys,
+                parent_field_path=key_path,
             )
 
         elif isinstance(original_item, dict) and isinstance(replacement_item, dict):
             replaced[key] = replace_dict_values(
-                original_item, replacement_item, allow_unknown_keys=allow_unknown_keys
+                original_item,
+                replacement_item,
+                allow_unknown_keys=allow_unknown_keys,
+                parent_field_path=key_path,
             )
 
         else:
@@ -293,7 +397,8 @@ def replace_dict_values(
 
 
 def prune_replacement_values(
-    replacement_values: dict[str, Any], original_values: TDataclass | dict[str, Any]
+    replacement_values: dict[str, Any],
+    original_values: DataclassInstance | dict[str, Any],
 ) -> dict[str, Any]:
     pruned_values: dict[str, Any] = {}
 
@@ -330,9 +435,52 @@ def prune_replacement_values(
     return pruned_values
 
 
-def diff_from_defaults(value: T, default_value: T) -> dict[str, Any]:
-    result = _diff(value, default_value)
-    return {} if result is _UNCHANGED else result
+def resolve_field_type(cls: type[DataclassInstance], field_path: str) -> type:
+    field_type = cls
+    for field_name in field_path.split("."):
+        for unpacked_field_type in _unpack_field_type(field_type):
+            if is_dataclass(unpacked_field_type):
+                annotations = get_cached_type_hints(unpacked_field_type)
+                if field_name not in annotations:
+                    raise ValueError(
+                        f"Dataclass '{unpacked_field_type.__name__}' has no field '{field_name}'."
+                    )
+
+                field_type = annotations[field_name]
+                break
+
+            if (
+                typing.get_origin(unpacked_field_type) is dict
+                and len(typing.get_args(unpacked_field_type)) == 2
+            ):
+                field_type = typing.get_args(unpacked_field_type)[1]
+                break
+
+        else:
+            raise ValueError(
+                f"Type '{getattr(field_type, '__name__', field_type)}' has no field '{field_name}'."
+            )
+
+    return field_type
+
+
+def resolve_field_value(instance: DataclassInstance, field_path: str) -> Any:
+    field_value = instance
+    for field_name in field_path.split("."):
+        if isinstance(field_value, Mapping):
+            field_value = field_value[field_name]
+        else:
+            field_value = getattr(field_value, field_name)
+
+    return field_value
+
+
+def _unpack_field_type(field_type: type) -> Generator[type, None, None]:
+    if typing.get_origin(field_type) in (typing.Union, types.UnionType):
+        yield from typing.get_args(field_type)
+
+    else:
+        yield field_type
 
 
 def _diff(value: Any, default_value: Any) -> Any:
@@ -363,5 +511,10 @@ def _is_dataclass_instance(value: Any) -> bool:
     return is_dataclass(value) and not isinstance(value, type)
 
 
-def _is_dataclass_cls(value: Any) -> bool:
+def _is_dataclass_class(value: Any) -> bool:
     return is_dataclass(value) and isinstance(value, type)
+
+
+@functools.cache
+def get_cached_type_hints(cls: type[DataclassInstance]) -> dict[str, Any]:
+    return typing.get_type_hints(cls)

@@ -45,7 +45,7 @@ _PARSERS: dict[InstitutionId, type[InstitutionReportParser]] = {
 
 def create_institution_registry() -> InstitutionRegistry:
     return InstitutionRegistry(
-        institution_id_cls=InstitutionCode,
+        institution_id_class=InstitutionCode,
         institution_map=_INSTITUTIONS,
         credentials_map=_CREDENTIALS,
         client_map=_CLIENTS,

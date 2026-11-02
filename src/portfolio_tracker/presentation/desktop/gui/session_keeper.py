@@ -25,14 +25,14 @@ class LoginSessionKeeper(QObject):
     def __init__(
         self, user_id: str,
         store: LoginSessionStore,
-        policy: Callable[[], LoginSessionPolicy],
+        policy_factory: Callable[[], LoginSessionPolicy],
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
 
         self._user_id = user_id
         self._store = store
-        self._policy = policy
+        self._policy = policy_factory
         self._is_active = True
 
         self._timer = QTimer(self)

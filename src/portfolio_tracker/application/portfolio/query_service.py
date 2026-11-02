@@ -139,6 +139,7 @@ class PortfolioQueryService(QueryService):
         portfolio_weight = Decimal("0")
         invested_capital_weight = Decimal("0")
         unrealized_pnl_amount = Decimal("0")
+        unrealized_pnl_percent = Decimal("0")
 
         for view in views:
             if view.valuation is None:
@@ -150,11 +151,9 @@ class PortfolioQueryService(QueryService):
             invested_capital_weight += view.valuation.invested_capital_weight
             unrealized_pnl_amount += view.valuation.unrealized_pnl.reporting.amount
 
-        unrealized_pnl_percent = (
-            unrealized_pnl_amount / cost_basis_amount
-            if cost_basis_amount
-            else Decimal("0")
-        )
+        if cost_basis_amount != 0:
+            unrealized_pnl_percent = unrealized_pnl_amount / cost_basis_amount
+
         return PositionRowTotalView(
             cost_basis=MoneyView(cost_basis_amount, reporting_currency),
             market_value=MoneyView(market_value_amount, reporting_currency),
@@ -331,22 +330,14 @@ class PortfolioQueryService(QueryService):
         ]
 
     def fetch_market_data(self, instruments: Iterable[Instrument | InstrumentMetadata]) -> MarketData | None:
-        if cached_rates := self._fx_service.cached_spot_rates:
-            rates = cached_rates
+        try:
+            rates = self._fx_service.get_spot_rates()
+        except FxClientError:
+            return None
 
-        else:
-            try:
-                rates = self._fx_service.get_spot_rates()
-            except FxClientError:
-                return None
-
-        if cached_prices := self._market_data_service.cached_prices(instruments):
-            prices = cached_prices
-
-        else:
-            try:
-                prices = self._market_data_service.get_spot_prices(instruments)
-            except MarketDataClientError:
-                return None
+        try:
+            prices = self._market_data_service.get_spot_prices(instruments)
+        except MarketDataClientError:
+            return None
 
         return MarketData(rates=rates, prices=prices)

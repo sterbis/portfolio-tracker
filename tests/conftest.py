@@ -30,7 +30,7 @@ from .mocks import (
 @pytest.fixture(scope="session")
 def sample_institution_registry() -> InstitutionRegistry:
     return InstitutionRegistry(
-        institution_id_cls=MockInstitutionCode,
+        institution_id_class=MockInstitutionCode,
         institution_map={
             MockInstitutionCode.TRADING_321: Institution(
                 id=MockInstitutionCode.TRADING_321,

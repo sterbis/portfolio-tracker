@@ -8,6 +8,7 @@ from portfolio_tracker.domain.shared import Currency
 @dataclass(frozen=True)
 class MarketDataSettings:
     provider: str = "yahoo_finance"
+    refresh_interval: int = 60 * 15
 
 
 @dataclass(frozen=True)

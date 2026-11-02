@@ -18,7 +18,7 @@ from .models import (
     Stock,
 )
 
-INSTRUMENT_CLS_BY_TYPE: dict[InstrumentType, type[Instrument]] = {
+INSTRUMENT_CLASS_BY_TYPE: dict[InstrumentType, type[Instrument]] = {
     InstrumentType.BOND: Bond,
     InstrumentType.COMMODITY: Commodity,
     InstrumentType.CRYPTO: Crypto,
@@ -26,7 +26,7 @@ INSTRUMENT_CLS_BY_TYPE: dict[InstrumentType, type[Instrument]] = {
     InstrumentType.STOCK: Stock,
 }
 
-DERIVATIVE_INSTRUMENT_CLS_BY_TYPE: dict[InstrumentType, type[DerivativeInstrument]] = {
+DERIVATIVE_INSTRUMENT_CLASS_BY_TYPE: dict[InstrumentType, type[DerivativeInstrument]] = {
     InstrumentType.CFD: Cfd,
     InstrumentType.FUTURE: Future,
     InstrumentType.OPTION: Option,
@@ -59,15 +59,15 @@ def create_instrument(
                 f"No derivative instrument base data provided for instrument type {type_}."
             )
 
-        derivative_instrument_cls = DERIVATIVE_INSTRUMENT_CLS_BY_TYPE[type_]
-        return derivative_instrument_cls(
+        derivative_instrument_class = DERIVATIVE_INSTRUMENT_CLASS_BY_TYPE[type_]
+        return derivative_instrument_class(
             **base_data,
             **derivative_base_data,
             **details,
         )
 
-    instrument_cls = INSTRUMENT_CLS_BY_TYPE[type_]
-    return instrument_cls(
+    instrument_class = INSTRUMENT_CLASS_BY_TYPE[type_]
+    return instrument_class(
         **base_data,
         **details,
     )

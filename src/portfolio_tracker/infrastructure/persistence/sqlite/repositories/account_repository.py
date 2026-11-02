@@ -167,8 +167,8 @@ class SqliteAccountRepository(AccountRepository):
         }
 
     def _row_to_account(self, row: dict[FieldReference, Any]) -> AssetAccount:
-        def field(field: str) -> FieldReference:
-            return FieldReference(AssetAccount, field)
+        def field(path: str) -> FieldReference:
+            return FieldReference(AssetAccount, path)
 
         return AssetAccount(
             provided_id=row[field("id")],

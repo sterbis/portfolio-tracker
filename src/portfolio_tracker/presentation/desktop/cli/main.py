@@ -4,10 +4,6 @@ from typing import Annotated
 
 import typer
 
-from portfolio_tracker.infrastructure.configuration import load_configuration
-from portfolio_tracker.infrastructure.logging import configure_logging
-from portfolio_tracker.infrastructure.keyring_session_store import KeyringLoginSessionStore
-
 from .commands import (
     account_app,
     connection_app,
@@ -19,8 +15,7 @@ from .commands import (
     transaction_app,
     user_app,
 )
-from .context import CONFIGURATION_KEY, ENVIRONMENT_KEY, LOGIN_SESSION_STORE_KEY
-from .environment import CliEnvironment
+from .context import ENVIRONMENT_KEY, CliEnvironment
 from .guarded_typer import GuardedTyper
 
 logger = logging.getLogger(__name__)
@@ -42,19 +37,10 @@ app.add_typer(user_app)
 
 @app.callback()
 def app_callback(
-    ctx: typer.Context, no_input: Annotated[bool, typer.Option()] = False
+    ctx: typer.Context, interactive: Annotated[bool, typer.Option()] = True
 ) -> None:
-    configuration = load_configuration()
-    configure_logging(configuration)
-
-    logger.info("Run command: '%s'", " ".join(sys.argv))
-
-    ctx.meta[CONFIGURATION_KEY] = configuration
     ctx.meta[ENVIRONMENT_KEY] = CliEnvironment(
-        is_interactive=(not no_input and sys.stdin.isatty()),
-    )
-    ctx.meta[LOGIN_SESSION_STORE_KEY] = KeyringLoginSessionStore(
-        SESSION_STORE_SERVICE_NAME, SESSION_STORE_ENTRY_NAME
+        is_interactive=(interactive and sys.stdin.isatty()),
     )
 
 

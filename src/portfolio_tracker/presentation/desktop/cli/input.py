@@ -52,8 +52,8 @@ def _prompt(parameter: str) -> str:
     return parameter.replace("_", " ").replace("-", " ").strip().capitalize()
 
 
-def _enum_prompt(parameter: str, enum_cls: type[StrEnum]) -> str:
-    return f"{_prompt(parameter)} ({'|'.join(enum_cls)})"
+def _enum_prompt(parameter: str, enum_class: type[StrEnum]) -> str:
+    return f"{_prompt(parameter)} ({'|'.join(enum_class)})"
 
 
 @dataclass(frozen=True)
@@ -248,7 +248,7 @@ def optional_prompt_decimal_input(
 def required_enum_input(
     parameter: str,
     value: str | None,
-    enum_cls: type[StrEnum],
+    enum_class: type[StrEnum],
     *,
     prompt: str | None = None,
     default_value: StrEnum | None = None,
@@ -256,8 +256,8 @@ def required_enum_input(
     return RequiredInput(
         parameter,
         value,
-        prompt=prompt or _enum_prompt(parameter, enum_cls),
-        value_parser=enum_parser(enum_cls),
+        prompt=prompt or _enum_prompt(parameter, enum_class),
+        value_parser=enum_parser(enum_class),
         default_value=default_value,
     )
 
@@ -265,7 +265,7 @@ def required_enum_input(
 def optional_prompt_enum_input(
     parameter: str,
     value: str | None,
-    enum_cls: type[StrEnum],
+    enum_class: type[StrEnum],
     *,
     prompt: str | None = None,
     default_value: StrEnum | None = None,
@@ -273,8 +273,8 @@ def optional_prompt_enum_input(
     return OptionalPromptInput(
         parameter,
         value,
-        prompt=prompt or _enum_prompt(parameter, enum_cls),
-        value_parser=enum_parser(enum_cls),
+        prompt=prompt or _enum_prompt(parameter, enum_class),
+        value_parser=enum_parser(enum_class),
         default_value=default_value,
     )
 
@@ -323,16 +323,16 @@ def resolve_inputs(
 class FilterInput:
     parameter: str
     value: str | None
-    item_type: type
-    field: str
+    item_class: type
+    field_path: str
     value_parser: Callable[[str], Any] | None = None
 
     def resolve(self) -> Filter | None:
         return resolve_filter_expression_input(
             parameter=self.parameter,
             value=self.value,
-            item_type=self.item_type,
-            field=self.field,
+            item_class=self.item_class,
+            field_path=self.field_path,
             value_parser=self.value_parser,
         )
 
@@ -340,19 +340,19 @@ class FilterInput:
 def transaction_filter_input(
     parameter: str,
     value: str | None,
-    field: str,
+    field_path: str,
     value_parser: Callable[[str], Any] | None = None,
 ) -> FilterInput:
-    return FilterInput(parameter, value, TransactionView, field, value_parser)
+    return FilterInput(parameter, value, TransactionView, field_path, value_parser)
 
 
 def position_filter_input(
     parameter: str,
     value: str | None,
-    field: str,
+    field_path: str,
     value_parser: Callable[[str], Any] | None = None,
 ) -> FilterInput:
-    return FilterInput(parameter, value, PositionRowView, field, value_parser)
+    return FilterInput(parameter, value, PositionRowView, field_path, value_parser)
 
 
 def resolve_filter_inputs(inputs: list[FilterInput]) -> FilterTree:
@@ -758,8 +758,8 @@ def resolve_file_input(
 def resolve_filter_expression_input(
     parameter: str,
     value: str | None,
-    item_type: type,
-    field: str,
+    item_class: type,
+    field_path: str,
     *,
     value_parser: Callable[[str], Any] | None = None,
 ) -> Filter | None:
@@ -768,9 +768,9 @@ def resolve_filter_expression_input(
 
     try:
         return FilterExpressionParser.parse(
-            field=field,
+            field_path=field_path,
             expression=value,
-            item_type=item_type,
+            item_class=item_class,
             value_parser=value_parser,
         )
     except FilterError as error:
@@ -807,8 +807,8 @@ def resolve_credential_parameters(
 
             raise typer.BadParameter(error.message) from error
 
-    credentials_cls = service.get_credentials_cls(institution_code)
-    secret_parameters = credentials_cls.secret_parameter_names()
+    credentials_class = service.get_credentials_class(institution_code)
+    secret_parameters = credentials_class.secret_parameter_names()
 
     for missing_parameter in missing_parameters:
         default_value = None

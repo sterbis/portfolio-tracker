@@ -11,7 +11,7 @@ from portfolio_tracker.application.institution import (
 from portfolio_tracker.application.market_data import MarketDataService
 from portfolio_tracker.application.persistence import PERSISTED_DOMAIN_TYPES
 from portfolio_tracker.application.portfolio import PortfolioQueryService
-from portfolio_tracker.application.settings import ApplicationSettings
+from portfolio_tracker.application.shared.settings import ApplicationSettings
 from portfolio_tracker.application.shared.filter_mapper import FilterMapper
 from portfolio_tracker.application.sync import SyncService
 from portfolio_tracker.application.transaction import (
@@ -140,7 +140,7 @@ def bootstrap(
     settings = SettingsCache(
         store=JsonSettingsStore(
             settings_dir=configuration.users_settings_dir,
-            settings_cls=Settings,
+            settings_class=Settings,
         ),
         default_settings=Settings(
             application=ApplicationSettings(),

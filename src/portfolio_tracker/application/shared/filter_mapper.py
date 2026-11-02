@@ -65,18 +65,18 @@ class FilterMapper:
             if field_map := self._view_registry.get(
                 self._ensure_view_type(filter_node)
             ):
-                if field := field_map.get(filter_node.field):
-                    domain_types.add(field.domain_type)
+                if field := field_map.get(filter_node.field_path):
+                    domain_types.add(field.domain_class)
 
         return domain_types
 
     def _ensure_view_type(self, view_filter: FilterNode) -> type:
-        if view_filter.item_type is None:
+        if view_filter.item_class is None:
             raise InvalidFilterError(
                 message=f"Missing filter view type reference. {view_filter}"
             )
 
-        return view_filter.item_type
+        return view_filter.item_class
 
     def _map_to_domain_filter(
         self, view_filter: Filter, domain_types: set[type]
@@ -108,15 +108,15 @@ class FilterMapper:
         if field_map is None:
             return None
 
-        field = field_map.get(view_filter.field)
-        if not field or field.domain_type not in domain_types:
+        field = field_map.get(view_filter.field_path)
+        if not field or field.domain_class not in domain_types:
             return None
 
         return FilterNode(
-            field=field.name,
+            field_path=field.path,
             operator=view_filter.operator,
             value=self._map_filter_value(view_filter.value),
-            item_type=field.domain_type,
+            item_class=field.domain_class,
         )
 
     def _map_filter_value(self, value: Any) -> Any:

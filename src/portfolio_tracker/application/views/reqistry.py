@@ -34,18 +34,17 @@ from .instrument import (
 from .transaction import TransactionView
 from .user import UserView
 
-type EntityType = type[Any]
 type FieldMap = dict[str, FieldReference]
 
 
 @dataclass(frozen=True)
 class FieldReference:
-    domain_type: EntityType
-    name: str
+    domain_class: type[Any]
+    path: str
 
 
 def prefix_field_map(field_map: FieldMap, prefix: str) -> FieldMap:
-    return {f"{prefix}.{field_name}": field for field_name, field in field_map.items()}
+    return {f"{prefix}.{field_path}": field for field_path, field in field_map.items()}
 
 
 USER_FIELD_MAP = {

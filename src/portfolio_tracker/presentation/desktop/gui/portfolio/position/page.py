@@ -91,7 +91,7 @@ class PositionsPage(Page):
         column_specs = self._active_column_specs(settings)
 
         self._presenter = PositionsPresenter(context, self)
-        self._model = SpecTableModel(column_specs, display_settings, self)
+        self._model = SpecTableModel(column_specs, PositionRowView, display_settings, parent=self)
 
         self._filter_bar = FilterBar(
             self._table_spec,

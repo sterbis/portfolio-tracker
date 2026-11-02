@@ -1,67 +1,67 @@
-from typing import TypeVar
-
-from typer._click.core import Context
+from dataclasses import dataclass
 
 from portfolio_tracker.application.container import Container
-from portfolio_tracker.infrastructure.configuration import Configuration
-from portfolio_tracker.presentation.desktop.session import LoginSessionStore
+from portfolio_tracker.application.shared.errors import UserNotLoggedInError, UserAlreadyLoggedOutError
+from portfolio_tracker.presentation.desktop.session import LoginSession, LoginSessionStore
 from portfolio_tracker.settings import Settings
-from portfolio_tracker.shared.settings_utils import SettingsCache
-
-from .environment import CliEnvironment
+from portfolio_tracker.shared.settings_utils import SettingsCache, SettingsValidationError
 
 
-TContextMetadata = TypeVar("TContextMetadata")
-
-
-CONFIGURATION_KEY = f"{__name__}.configuration"
 ENVIRONMENT_KEY = f"{__name__}.environment"
-LOGIN_SESSION_STORE_KEY = f"{__name__}.login_session_store"
-LOGGED_IN_USER_ID_KEY = f"{__name__}.logged_user_id"
-SETTINGS_CACHE_KEY = f"{__name__}.settings_cache"
 
 
-def get_container(ctx: Context) -> Container:
-    if not isinstance(ctx.obj, Container):
-        raise RuntimeError(
-            f"Expected Container type for ctx.obj value, got {type(ctx.obj).__name__}."
+@dataclass(frozen=True, kw_only=True)
+class CliEnvironment:
+    is_interactive: bool
+
+
+@dataclass(kw_only=True)
+class CliContext:
+    current_user_id: str | None
+    container: Container
+    settings_cache: SettingsCache[Settings]
+    session_store: LoginSessionStore
+    environment: CliEnvironment
+
+    @property
+    def user_id(self) -> str:
+        if self.current_user_id is None:
+            raise UserNotLoggedInError()
+
+        return self.current_user_id
+
+    @property
+    def settings(self) -> Settings:
+        return self.settings_cache.get(self.current_user_id)
+
+    @property
+    def user_or_default_settings(self) -> Settings:
+        try:
+            return self.settings_cache.get(self.current_user_id)
+        except SettingsValidationError:
+            return self.settings_cache.default_settings
+
+    def log_in(self, user_id: str) -> None:
+        self.current_user_id = user_id
+        self.session_store.save(
+            LoginSession.start(
+                user_id=user_id,
+                ttl=self.user_or_default_settings.application.cli_session_ttl)
         )
 
-    return ctx.obj
+    def log_out(self) -> None:
+        if self.session_store.load() is None:
+            raise UserAlreadyLoggedOutError()
 
+        self.current_user_id = None
+        self.session_store.clear()
 
-def get_environment(ctx: Context) -> CliEnvironment:
-    return _get_context_metadata(ctx, ENVIRONMENT_KEY, CliEnvironment)
-
-
-def get_configuration(ctx: Context) -> Configuration:
-    return _get_context_metadata(ctx, CONFIGURATION_KEY, Configuration)
-
-
-def get_login_session_store(ctx: Context) -> LoginSessionStore:
-    return _get_context_metadata(ctx, LOGIN_SESSION_STORE_KEY, LoginSessionStore) # type: ignore[type-abstract]
-
-
-def get_logged_in_user_id(ctx: Context) -> str:
-    return _get_context_metadata(ctx, LOGGED_IN_USER_ID_KEY, str)
-
-
-def get_settings(ctx: Context, user_id: str | None = None) -> Settings:
-    return get_settings_cache(ctx).get(user_id)
-
-
-def get_settings_cache(ctx: Context) -> SettingsCache[Settings]:
-    return _get_context_metadata(ctx, SETTINGS_CACHE_KEY, SettingsCache)
-
-
-def _get_context_metadata(
-    ctx: Context, key: str, value_type: type[TContextMetadata]
-) -> TContextMetadata:
-    value = ctx.meta.get(key)
-    if not isinstance(value, value_type):
-        raise RuntimeError(
-            f"Expected {value_type.__name__} type for ctx.meta '{key}' value, "
-            f"got {type(value).__name__}."
-        )
-
-    return value
+    def touch_session(self) -> None:
+        session = self.session_store.load()
+        if session is not None:
+            self.session_store.save(
+                LoginSession.start(
+                    user_id=session.user_id, 
+                    ttl=self.user_or_default_settings.application.cli_session_ttl
+                )
+            )

@@ -155,7 +155,7 @@ class FilterWidget(QWidget):
         )
 
     def to_filter(
-        self, item_type: type, reporting_currency: Currency
+        self, item_class: type, reporting_currency: Currency
     ) -> FilterNode:
         if self._current_kind is None:
             raise FilterInputError("Select a column")
@@ -177,7 +177,7 @@ class FilterWidget(QWidget):
             )
 
         return FilterNode(
-            field=column_spec.field, operator=operator, value=value, item_type=item_type
+            field_path=column_spec.field_path, operator=operator, value=value, item_class=item_class
         )
 
     def _on_column_changed(self, _index: int) -> None:
@@ -263,7 +263,7 @@ class FilterPanel(QWidget):
             self._remove_filter(widget)
 
     def build_filter(
-        self, item_type: type, reporting_currency: Currency
+        self, item_class: type, reporting_currency: Currency
     ) -> Filter | None:
         filters: list[FilterNode] = []
         invalid = False
@@ -272,7 +272,7 @@ class FilterPanel(QWidget):
             if widget.is_blank():
                 continue
             try:
-                filters.append(widget.to_filter(item_type, reporting_currency))
+                filters.append(widget.to_filter(item_class, reporting_currency))
             except FilterInputError as error:
                 widget.set_error(str(error))
                 invalid = True
@@ -304,12 +304,12 @@ class FilterBar(QWidget):
     def __init__(
         self,
         table_spec: TableSpec[Any],
-        item_type: type,
+        item_class: type,
         default_query: GetPositionsQuery,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._item_type = item_type
+        self._item_class = item_class
         self._default_query = default_query
 
         self._currency_combobox = self._enum_combobox(Currency)
@@ -367,9 +367,9 @@ class FilterBar(QWidget):
         self.setEnabled(not busy)
 
     @staticmethod
-    def _enum_combobox[E: StrEnum](enum_cls: type[E]) -> QComboBox:
+    def _enum_combobox[E: StrEnum](enum_class: type[E]) -> QComboBox:
         combobox = QComboBox()
-        for member in enum_cls:
+        for member in enum_class:
             combobox.addItem(
                 (
                     member.value.replace("_", " ").title()
@@ -406,7 +406,7 @@ class FilterBar(QWidget):
         )
         accounting_method = AccountingMethod(self._accounting_combobox.currentData())
         scope_type = ScopeType(self._scope_combobox.currentData())
-        filter_ = self._filter_panel.build_filter(self._item_type, reporting_currency)
+        filter_ = self._filter_panel.build_filter(self._item_class, reporting_currency)
 
         return GetPositionsQuery(
             build=BuildPortfolioSnapshotQuery(

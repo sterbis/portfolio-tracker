@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from datetime import date, datetime
-from typing import Callable, TypeVar
+from typing import TYPE_CHECKING, Callable, TypeVar
 
 from filterutils import Filter
 
-from portfolio_tracker.application.institution.registry import InstitutionRegistry
 from portfolio_tracker.application.shared.errors import (
     AssetAccountNotFoundError,
     CredentialsNotFoundError,
@@ -26,6 +25,9 @@ from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import Transaction
 from portfolio_tracker.domain.user import User
 
+if TYPE_CHECKING:
+    from portfolio_tracker.application.institution.registry import InstitutionRegistry
+
 TEntity = TypeVar("TEntity")
 
 
@@ -43,20 +45,20 @@ PERSISTED_DOMAIN_TYPES = (
 def get_by_id_required(
     get_by_id: Callable[[str], TEntity | None],
     entity_id: str,
-    error_cls: type[EntityNotFoundError],
+    error_class: type[EntityNotFoundError],
 ) -> TEntity:
     entity = get_by_id(entity_id)
     if entity is None:
-        raise error_cls(entity_id)
+        raise error_class(entity_id)
 
     return entity
 
 
 def ensure_record_affected(
-    affected_record_count: int, entity_id: str, error_cls: type[EntityNotFoundError]
+    affected_record_count: int, entity_id: str, error_class: type[EntityNotFoundError]
 ) -> None:
     if affected_record_count == 0:
-        raise error_cls(entity_id)
+        raise error_class(entity_id)
 
 
 class UserScopedRepository(ABC):

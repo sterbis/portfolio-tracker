@@ -8,7 +8,6 @@ class LoginSession:
     user_id: str
     expires_at: datetime
 
-    @property
     def is_expired(self) -> bool:
         return datetime.now(timezone.utc) >= self.expires_at
 

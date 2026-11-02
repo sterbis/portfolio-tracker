@@ -137,7 +137,7 @@ class TableRenderer:
 
 
 def display_table(
-    view_cls: type[TView],
+    view_class: type[TView],
     views: Iterable[TView],
     settings: DisplaySettings,
     *,
@@ -145,7 +145,7 @@ def display_table(
     columns: list[str] | None = None,
     total_view: Any | None = None,
 ) -> None:
-    spec = get_table_spec(view_cls)
+    spec = get_table_spec(view_class)
     columns = columns or settings.tables[spec.name].active_columns
     renderer = TableRenderer()
     table = renderer.render(

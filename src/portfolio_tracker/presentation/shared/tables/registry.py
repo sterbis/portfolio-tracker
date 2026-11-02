@@ -24,8 +24,8 @@ TABLE_SPEC_REGISTRY: dict[type, TableSpec[Any]] = {
 }
 
 
-def get_table_spec(view_cls: type[Any]) -> TableSpec[Any]:
-    return TABLE_SPEC_REGISTRY[view_cls]
+def get_table_spec(view_class: type[Any]) -> TableSpec[Any]:
+    return TABLE_SPEC_REGISTRY[view_class]
 
 
 def get_table_spec_by_name(name: str) -> TableSpec[Any]:

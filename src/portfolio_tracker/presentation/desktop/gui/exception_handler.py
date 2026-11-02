@@ -37,6 +37,9 @@ class ExceptionHandler(QObject):
             sys.__excepthook__(exc_type, exc, tb)
             return
 
+        if sys.stderr is not None:
+            sys.__excepthook__(exc_type, exc, tb)
+    
         logger.critical("Unexpected critical error", exc_info=(exc_type, exc, tb))
         self._handle.emit(exc_type, exc, tb)
 

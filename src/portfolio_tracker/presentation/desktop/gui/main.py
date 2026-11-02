@@ -22,6 +22,7 @@ from .market_data_feed import MarketDataFeed
 from .session_keeper import LoginSessionKeeper, LoginSessionPolicy
 from .tasks import TaskRunner
 
+print(__name__)
 logger = logging.getLogger(__name__)
 
 SESSION_STORE_SERVICE_NAME = "portfolio-tracker"
@@ -29,6 +30,7 @@ SESSION_STORE_ENTRY_NAME = "gui-login-session"
 
 
 def main() -> int:
+    logger.info("PortfolioTracker running...")
     app = QApplication(sys.argv)
     app.setOrganizationName(APP_NAME)
     app.setApplicationName(APP_NAME)
@@ -38,18 +40,20 @@ def main() -> int:
     install_exception_handler(app, log_file)
     container, settings_cache = bootstrap(configuration)
 
-    store = create_session_store()
-    user_id = resolve_user(container.user_service, store)
+    session_store = create_session_store()
+    user_id = resolve_user(container.user_service, session_store)
     if user_id is None:
+        logger.info("Login cancelled, exiting.")
         return 0
 
-    keeper = start_session_keeper(user_id, app, store, settings_cache)
+    settings = settings_cache.get(user_id)
+    session_keeper = start_session_keeper(user_id, app, session_store, settings_cache)
     task_runner = TaskRunner(app)
     market_data_feed = MarketDataFeed(
         task_runner=task_runner,
         fx_service=container.fx_service,
         market_data_service=container.market_data_service,
-        interval=15,
+        interval=settings.application.market_data.refresh_interval,
         parent=app,
     )
 
@@ -60,7 +64,7 @@ def main() -> int:
             market_data_feed=market_data_feed,
             task_runner=task_runner,
             settings_cache=settings_cache,
-            session_keeper=keeper,
+            session_keeper=session_keeper,
         )
     )
     window.show()
@@ -76,12 +80,10 @@ def create_session_store() -> LoginSessionStore:
 
 def resolve_user(user_service: UserService, store: LoginSessionStore) -> str | None:
     session = store.load()
-    if session is None or session.is_expired:
-        return None
-
     if session is not None:
-        if user_service.exists(session.user_id):
+        if not session.is_expired() and user_service.exists(session.user_id):
             return session.user_id
+
         store.clear()
 
     dialog = AuthDialog(user_service)
@@ -100,13 +102,9 @@ def start_session_keeper(
     keeper = LoginSessionKeeper(
         user_id,
         store,
-        policy=lambda: LoginSessionPolicy.from_settings(settings_cache.get(user_id)),
+        policy_factory=lambda: LoginSessionPolicy.from_settings(settings_cache.get(user_id)),
         parent=app,
     )
     keeper.touch()
     app.aboutToQuit.connect(keeper.touch)  # pylint: disable=no-member
     return keeper
-
-
-if __name__ == "__main__":
-    main()

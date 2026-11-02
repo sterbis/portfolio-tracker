@@ -70,14 +70,14 @@ def list_cash_balance(
             FilterInput(
                 parameter="--connection-id",
                 value=connection_id,
-                item_type=CashBalanceRowView,
-                field="scope.connection_id",
+                item_class=CashBalanceRowView,
+                field_path="scope.connection_id",
             ),
             FilterInput(
                 parameter="--account-id",
                 value=account_id,
-                item_type=CashBalanceRowView,
-                field="scope.account_id",
+                item_class=CashBalanceRowView,
+                field_path="scope.account_id",
             ),
         ]
     )

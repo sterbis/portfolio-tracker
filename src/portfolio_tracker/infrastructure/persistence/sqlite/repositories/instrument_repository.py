@@ -32,7 +32,7 @@ from portfolio_tracker.infrastructure.persistence.sqlite.registry import FieldRe
 
 
 class SqliteInstrumentRepository(InstrumentRepository):
-    _cls_by_type: dict[InstrumentType, type[Instrument]] = {
+    _class_by_type: dict[InstrumentType, type[Instrument]] = {
         InstrumentType.BOND: Bond,
         InstrumentType.CFD: Cfd,
         InstrumentType.COMMODITY: Commodity,
@@ -114,7 +114,7 @@ class SqliteInstrumentRepository(InstrumentRepository):
         instruments: list[Instrument] = []
 
         for instrument_type, instrument_ids in instrument_ids_by_type.items():
-            model = self._cls_by_type[instrument_type]
+            model = self._class_by_type[instrument_type]
 
             rows = self._executor.select(
                 model=model,
@@ -227,8 +227,8 @@ class SqliteInstrumentRepository(InstrumentRepository):
                 raise ValueError(f"Unsupported instrument type: {type(instrument)}.")
 
     def _row_to_metadata(self, row: Row) -> InstrumentMetadata:
-        def field(name: str) -> FieldReference:
-            return FieldReference(InstrumentMetadata, name)
+        def field(path: str) -> FieldReference:
+            return FieldReference(InstrumentMetadata, path)
 
         return InstrumentMetadata(
             id=row[field("id")],
@@ -244,8 +244,8 @@ class SqliteInstrumentRepository(InstrumentRepository):
     def _row_to_instrument(
         self, row: Row, model: type[Instrument], metadata: InstrumentMetadata
     ) -> Instrument:
-        def field(name: str) -> FieldReference:
-            return FieldReference(model, name)
+        def field(path: str) -> FieldReference:
+            return FieldReference(model, path)
 
         instrument_type = metadata.type
 

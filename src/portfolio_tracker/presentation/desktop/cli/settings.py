@@ -1,4 +1,4 @@
-from portfolio_tracker.settings import DisplaySettings, TableDisplaySettings
+from portfolio_tracker.presentation.shared.settings import DisplaySettings, TableDisplaySettings
 
 
 CLI_DISPLAY_SETTINGS = DisplaySettings(

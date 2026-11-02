@@ -63,8 +63,8 @@ class InstitutionQueryService(QueryService):
     def get_institution(self, institution_id: InstitutionId) -> Institution:
         return self._institution_registry.get_institution(institution_id)
 
-    def get_credentials_cls(self, institution_id: InstitutionId) -> type[Credentials]:
-        return self._institution_registry.get_credentials_cls(institution_id)
+    def get_credentials_class(self, institution_id: InstitutionId) -> type[Credentials]:
+        return self._institution_registry.get_credentials_class(institution_id)
 
     def parse_credential_parameters(
         self, institution_id: InstitutionId, parameters: dict[str, str]

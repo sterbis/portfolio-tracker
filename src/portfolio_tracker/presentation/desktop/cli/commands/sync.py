@@ -1,14 +1,11 @@
 import asyncio
 from typing import Annotated
 
+import click
 import typer
 
 from portfolio_tracker.application.sync import SyncCommand
-from portfolio_tracker.presentation.desktop.cli.console import error_console
-from portfolio_tracker.presentation.desktop.cli.context import (
-    get_container,
-    get_logged_in_user_id,
-)
+from portfolio_tracker.presentation.desktop.cli.context import CliContext
 from portfolio_tracker.presentation.desktop.cli.guarded_typer import GuardedTyper
 from portfolio_tracker.presentation.desktop.cli.input import resolve_optional_input
 from portfolio_tracker.presentation.desktop.cli.parameters import multi_value_option
@@ -29,8 +26,7 @@ def sync_portfolio(
     end: Annotated[str | None, typer.Option()] = None,
     restore: Annotated[bool, typer.Option()] = False,
 ) -> None:
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
+    context: CliContext = ctx.obj
 
     resolved_start = resolve_optional_input(
         parameter="--start",
@@ -44,10 +40,7 @@ def sync_portfolio(
     )
 
     if restore and (start or end):
-        error_console.print(
-            "Error: --restore option overrides both --start and --end options."
-        )
-        raise typer.Exit(code=1)
+        raise click.UsageError("--restore cannot be combined with --start or --end.")
 
     command = SyncCommand(
         connection_ids=(set(connection_ids) if connection_ids else set()),
@@ -56,4 +49,4 @@ def sync_portfolio(
         end=resolved_end,
         restore=restore,
     )
-    asyncio.run(display_sync_progress(container.sync_service.sync, user_id, command))
+    asyncio.run(display_sync_progress(context.container.sync_service.sync, context.user_id, command))

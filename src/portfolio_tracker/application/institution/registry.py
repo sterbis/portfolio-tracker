@@ -16,25 +16,25 @@ TItem = TypeVar("TItem")
 class InstitutionRegistry:
     def __init__(
         self,
-        institution_id_cls: type[InstitutionId],
+        institution_id_class: type[InstitutionId],
         institution_map: dict[InstitutionId, Institution],
         credentials_map: dict[InstitutionId, type[Credentials]],
         client_map: dict[InstitutionId, type[InstitutionClient[Any]]],
         parser_map: dict[InstitutionId, type[InstitutionReportParser]],
     ) -> None:
-        self._institution_id_cls = institution_id_cls
+        self._institution_id_class = institution_id_class
         self._institutions = institution_map
         self._credentials_map = credentials_map
         self._client_map = client_map
         self._parser_map = parser_map
 
     def get_institution_id(self, institution_id_string: str) -> InstitutionId:
-        return self._institution_id_cls(institution_id_string)
+        return self._institution_id_class(institution_id_string)
 
     def get_institution(self, institution_id: InstitutionId) -> Institution:
         return self._get(self._institutions, institution_id)
 
-    def get_credentials_cls(self, institution_id: InstitutionId) -> type[Credentials]:
+    def get_credentials_class(self, institution_id: InstitutionId) -> type[Credentials]:
         return self._get(self._credentials_map, institution_id)
 
     def create_credentials(
@@ -43,19 +43,19 @@ class InstitutionRegistry:
         institution_connection_id: str,
         parameters: dict[str, Any],
     ) -> Credentials:
-        return self.get_credentials_cls(institution_id)(
+        return self.get_credentials_class(institution_id)(
             institution_id=institution_id,
             institution_connection_id=institution_connection_id,
             **parameters,
         )
 
     def create_client(self, credentials: Credentials) -> InstitutionClient[Any]:
-        credentials_cls = self._get(self._credentials_map, credentials.institution_id)
+        credentials_class = self._get(self._credentials_map, credentials.institution_id)
 
-        if not isinstance(credentials, credentials_cls):
+        if not isinstance(credentials, credentials_class):
             raise TypeError(
                 "Invalid credentials type. "
-                f"Expected {credentials_cls.__name__}, got {type(credentials).__name__}."
+                f"Expected {credentials_class.__name__}, got {type(credentials).__name__}."
             )
 
         return self._get(self._client_map, credentials.institution_id)(credentials)
@@ -75,8 +75,8 @@ class InstitutionRegistry:
             ],
         }
 
-        credentials_cls = self.get_credentials_cls(institution_id)
-        required_parameters = credentials_cls.parameter_names()
+        credentials_class = self.get_credentials_class(institution_id)
+        required_parameters = credentials_class.parameter_names()
 
         missing_parameters = [
             name for name in required_parameters if name not in parameters
@@ -94,7 +94,7 @@ class InstitutionRegistry:
 
         return {
             name: converters[type_hint](parameters[name])
-            for name, type_hint in typing.get_type_hints(credentials_cls).items()
+            for name, type_hint in typing.get_type_hints(credentials_class).items()
             if name in required_parameters
         }
 

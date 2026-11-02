@@ -5,7 +5,7 @@ from functools import cached_property
 from types import MappingProxyType
 from typing import Any, Callable, ClassVar, Generic, Mapping, TypeVar
 
-from portfolio_tracker.settings import DisplaySettings
+from portfolio_tracker.presentation.shared.settings import DisplaySettings
 from portfolio_tracker.presentation.shared.fromatters import (
     format_bool,
     format_date,
@@ -45,7 +45,7 @@ class ColumnKind(StrEnum):
 @dataclass(frozen=True, kw_only=True)
 class ColumnSpec:
     title: str
-    field: str
+    field_path: str
     total_field: str | None = None
     tone: Tone = Tone.DEFAULT
     kind: ColumnKind = ColumnKind.TEXT
@@ -53,7 +53,7 @@ class ColumnSpec:
     formatter: ValueFormatter | None = None
 
     def get_value(self, obj: Any) -> Any:
-        return resolve_field_value(obj, self.field)
+        return resolve_field_value(obj, self.field_path)
 
     def get_total_value(self, obj: Any) -> Any | None:
         if self.total_field is None:
@@ -90,13 +90,13 @@ class ColumnSpec:
 
 
 def text_column(
-    field: str,
+    field_path: str,
     title: str,
     tone: Tone = Tone.DEFAULT,
     horizontal_alignment: HorizontalAlignment = HorizontalAlignment.LEFT,
 ) -> ColumnSpec:
     return ColumnSpec(
-        field=field,
+        field_path=field_path,
         title=title,
         tone=tone,
         horizontal_alignment=horizontal_alignment,
@@ -104,13 +104,13 @@ def text_column(
 
 
 def bool_column(
-    field: str,
+    field_path: str,
     title: str,
     tone: Tone = Tone.DEFAULT,
     horizontal_alignment: HorizontalAlignment = HorizontalAlignment.CENTER,
 ) -> ColumnSpec:
     return ColumnSpec(
-        field=field,
+        field_path=field_path,
         title=title,
         tone=tone,
         horizontal_alignment=horizontal_alignment,
@@ -119,13 +119,13 @@ def bool_column(
 
 
 def date_column(
-    field: str,
+    field_path: str,
     title: str,
     tone: Tone = Tone.DEFAULT,
     horizontal_alignment: HorizontalAlignment = HorizontalAlignment.LEFT,
 ) -> ColumnSpec:
     return ColumnSpec(
-        field=field,
+        field_path=field_path,
         title=title,
         tone=tone,
         horizontal_alignment=horizontal_alignment,
@@ -134,13 +134,13 @@ def date_column(
 
 
 def datetime_column(
-    field: str,
+    field_path: str,
     title: str,
     tone: Tone = Tone.DEFAULT,
     horizontal_alignment: HorizontalAlignment = HorizontalAlignment.LEFT,
 ) -> ColumnSpec:
     return ColumnSpec(
-        field=field,
+        field_path=field_path,
         title=title,
         tone=tone,
         horizontal_alignment=horizontal_alignment,
@@ -149,7 +149,7 @@ def datetime_column(
 
 
 def number_column(
-    field: str,
+    field_path: str,
     title: str,
     tone: Tone = Tone.DEFAULT,
     horizontal_alignment: HorizontalAlignment = HorizontalAlignment.RIGHT,
@@ -164,7 +164,7 @@ def number_column(
         formatter = format_
 
     return ColumnSpec(
-        field=field,
+        field_path=field_path,
         title=title,
         tone=tone,
         horizontal_alignment=horizontal_alignment,
@@ -173,14 +173,14 @@ def number_column(
 
 
 def percent_column(
-    field: str,
+    field_path: str,
     title: str,
     tone: Tone = Tone.DEFAULT,
     horizontal_alignment: HorizontalAlignment = HorizontalAlignment.RIGHT,
     total_field: str | None = None,
 ) -> ColumnSpec:
     return ColumnSpec(
-        field=field,
+        field_path=field_path,
         title=title,
         tone=tone,
         horizontal_alignment=horizontal_alignment,
@@ -190,14 +190,14 @@ def percent_column(
 
 
 def money_column(
-    field: str,
+    field_path: str,
     title: str,
     tone: Tone = Tone.DEFAULT,
     horizontal_alignment: HorizontalAlignment = HorizontalAlignment.RIGHT,
     total_field: str | None = None,
 ) -> ColumnSpec:
     return ColumnSpec(
-        field=field,
+        field_path=field_path,
         title=title,
         tone=tone,
         horizontal_alignment=horizontal_alignment,
@@ -222,9 +222,9 @@ class TableSpec(Generic[TView]):
         )
 
     def __post_init__(self) -> None:
-        titles = [column.title or column.field for column in self.columns.values()]
+        titles = [column.title or column.field_path for column in self.columns.values()]
         if len(titles) != len(set(titles)):
             raise ValueError(f"Duplicate column titles in table spec '{self.name}'.")
 
     def get_column_field(self, column_name: str) -> str:
-        return self.columns[column_name].field
+        return self.columns[column_name].field_path

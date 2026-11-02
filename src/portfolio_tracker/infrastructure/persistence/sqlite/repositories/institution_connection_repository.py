@@ -109,8 +109,8 @@ class SqliteInstitutionConnectionRepository(InstitutionConnectionRepository):
     def _row_to_institution_connection(
         self, row: dict[FieldReference, Any]
     ) -> InstitutionConnection:
-        def field(field: str) -> FieldReference:
-            return FieldReference(InstitutionConnection, field)
+        def field(path: str) -> FieldReference:
+            return FieldReference(InstitutionConnection, path)
 
         return InstitutionConnection(
             id=row[field("id")],
