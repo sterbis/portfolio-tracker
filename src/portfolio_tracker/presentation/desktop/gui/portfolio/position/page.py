@@ -19,7 +19,8 @@ from portfolio_tracker.presentation.desktop.gui.base import Page
 from portfolio_tracker.presentation.desktop.gui.context import GuiContext
 from portfolio_tracker.presentation.desktop.gui.filters import FilterBar
 from portfolio_tracker.presentation.shared.tables import ColumnSpec, get_table_spec
-from portfolio_tracker.settings import Settings, DisplaySettings
+from portfolio_tracker.presentation.shared.settings import DisplaySettings
+from portfolio_tracker.settings import Settings
 
 from .presenter import PositionsPresenter
 from .model import SpecTableModel

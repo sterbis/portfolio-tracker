@@ -9,18 +9,14 @@ from typer.core import TyperCommand
 
 from portfolio_tracker.application.shared.errors import PortfolioTrackerError
 from portfolio_tracker.bootstrap import bootstrap
-from portfolio_tracker.presentation.desktop.session import (
-    LoginSessionStore,
-    LoginSession,
-)
-from portfolio_tracker.shared.settings_utils import SettingsValidationError
+from portfolio_tracker.presentation.desktop.session import LoginSessionStore
+
+from portfolio_tracker.shared.settings_utils import SettingsError
 from portfolio_tracker.infrastructure.configuration import load_configuration
 from portfolio_tracker.infrastructure.logging import configure_logging
 from portfolio_tracker.infrastructure.keyring_session_store import (
     KeyringLoginSessionStore,
 )
-from portfolio_tracker.settings import Settings
-from portfolio_tracker.shared.settings_utils import SettingsCache
 
 from .console import error_console
 from .context import ENVIRONMENT_KEY, CliContext, CliEnvironment
@@ -38,11 +34,11 @@ class GuardedCommand(TyperCommand):
         self,
         *args: Any,
         login_required: bool = True,
-        allow_invalid_settins: bool = False,
+        allow_invalid_settings: bool = False,
         **kwargs: Any,
     ) -> None:
         self.login_required = login_required
-        self.allow_default_settings = allow_invalid_settins
+        self.allow_invalid_settings = allow_invalid_settings
         super().__init__(*args, **kwargs)
 
     def invoke(self, ctx: Context) -> Any:
@@ -96,6 +92,11 @@ class GuardedCommand(TyperCommand):
             error_console.print(f"Error: {error.message}")
             raise typer.Exit(code=1)
 
+        except SettingsError as error:
+            logger.error(str(error))
+            error_console.print(f"Error: {error}", markup=False, highlight=False)
+            raise typer.Exit(code=1)
+
         except Exception as error:
             message = (
                 "Unexpected critical error occurred. "
@@ -126,8 +127,8 @@ class GuardedCommand(TyperCommand):
         return session.user_id
 
     def _validate_settings(self, context: CliContext) -> None:
-        if self.login_required and not self.allow_default_settings:
-            context.settings
+        if self.login_required and not self.allow_invalid_settings:
+            context.settings  # pylint: disable=pointless-statement
 
 
 class GuardedTyper(typer.Typer):
@@ -142,6 +143,6 @@ class GuardedTyper(typer.Typer):
         kwargs["cls"] = functools.partial(
             GuardedCommand,
             login_required=login_required,
-            allow_invalid_settins=allow_invalid_settings,
+            allow_invalid_settings=allow_invalid_settings,
         )
         return super().command(name, **kwargs)

@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
 
-from filterutils import Filter
 
-from portfolio_tracker.application.shared.sort import Sort
+from portfolio_tracker.application.shared.service import QueryOptions
 from portfolio_tracker.domain.shared import Currency
 
 
@@ -11,7 +10,4 @@ class GetTransactionsQuery:
     connection_ids: set[str] = field(default_factory=set)
     account_ids: set[str] = field(default_factory=set)
     reporting_currency: Currency
-    filter: Filter | None = None
-    sorts: list[Sort] | None = None
-    limit: int | None = None
-    offset: int | None = None
+    options: QueryOptions = QueryOptions()

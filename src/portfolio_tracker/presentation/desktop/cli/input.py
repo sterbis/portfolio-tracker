@@ -20,7 +20,7 @@ from portfolio_tracker.application.views import (
 )
 from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.infrastructure.institution import InstitutionCode
-from portfolio_tracker.presentation.desktop.cli.environment import CliEnvironment
+from portfolio_tracker.presentation.desktop.cli.context import CliEnvironment
 
 from .parsers import (
     date_parser,

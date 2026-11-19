@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Generator, Iterable, TypeVar
+from typing import TYPE_CHECKING, Generator, Iterable, TypeVar
 
 from filterutils import Filter
 
@@ -12,16 +12,19 @@ from portfolio_tracker.application.persistence import (
 )
 from portfolio_tracker.application.views import ViewBuilder
 
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
+
 from .filter_mapper import FilterMapper
 from .sort import Sort
 
-TView = TypeVar("TView")
+TView = TypeVar("TView", bound="DataclassInstance")
 
 
 @dataclass(frozen=True, kw_only=True)
 class QueryOptions:
     filter: Filter | None = None
-    sorts: tuple[Sort] | None = None
+    sorts: tuple[Sort, ...] | None = None
     offset: int | None = None
     limit: int | None = None
 

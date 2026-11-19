@@ -1,4 +1,4 @@
-from typing import Any, AsyncGenerator, Callable
+from typing import AsyncGenerator
 
 import typer
 from rich.progress import BarColumn, Progress, TaskID, TextColumn, TimeElapsedColumn
@@ -20,11 +20,7 @@ from portfolio_tracker.application.sync import (
 from portfolio_tracker.presentation.desktop.cli.console import console, error_console
 
 
-async def display_sync_progress(
-    sync_function: Callable[..., AsyncGenerator[SyncEvent, None]],
-    *args: Any,
-    **kwargs: Any,
-) -> None:
+async def display_progress(job: AsyncGenerator[SyncEvent, None]) -> None:
     task_ids: dict[str, TaskID] = {}
     failed = False
 
@@ -34,7 +30,7 @@ async def display_sync_progress(
         TimeElapsedColumn(),
         console=console,
     ) as progress:
-        async for event in sync_function(*args, **kwargs):
+        async for event in job:
             match event:
                 case InstitutionSyncStarted(
                     connection_id=connection_id,
@@ -113,9 +109,9 @@ async def display_sync_progress(
 
     if failed:
         if len(task_ids) > 1:
-            error_console.print("[bold red]Some sync operations failed.[/bold red]")
+            error_console.print("[bold red]Some operations failed.[/bold red]")
 
         raise typer.Exit(1)
 
     if len(task_ids) > 1:
-        console.print("[bold green]All sync operations completed.[/bold green]")
+        console.print("[bold green]All operations completed.[/bold green]")

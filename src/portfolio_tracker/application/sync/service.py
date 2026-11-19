@@ -38,7 +38,7 @@ from portfolio_tracker.domain.instrument import (
     create_instrument,
 )
 from portfolio_tracker.domain.transaction import Transaction
-from portfolio_tracker.shared.async_utils import as_async_generator
+from portfolio_tracker.shared.async_utils import to_async_generator
 
 from .commands import (
     ImportReportCommand,
@@ -200,12 +200,12 @@ class SyncService(CommandService):
                 )
 
         if transaction_dates:
-            async for event in as_async_generator(
+            async for event in to_async_generator(
                 self.sync_fx_rates(user_id, SyncFxRatesCommand(dates=transaction_dates))
             ):
                 yield event
 
-            async for event in as_async_generator(
+            async for event in to_async_generator(
                 self.sync_instruments(user_id, SyncInstrumentsCommand(new_only=True))
             ):
                 yield event

@@ -14,4 +14,4 @@ class InstitutionConnectionViewTableSpec(TableSpec[InstitutionConnectionView]):
     institution_name: ColumnSpec = text_column("institution.name", "Institution")
     connection_name: ColumnSpec = text_column("name", "Name")
     sync_from: ColumnSpec = date_column("sync_from", "Sync From")
-    has_credentials: ColumnSpec = bool_column("has_credentials", "API Credentials")
+    credentials: ColumnSpec = bool_column("credentials", "API Credentials")

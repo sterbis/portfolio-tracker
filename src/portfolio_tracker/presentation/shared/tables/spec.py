@@ -3,9 +3,8 @@ from decimal import Decimal
 from enum import StrEnum
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, Callable, ClassVar, Generic, Mapping, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, Mapping, TypeVar
 
-from portfolio_tracker.presentation.shared.settings import DisplaySettings
 from portfolio_tracker.presentation.shared.fromatters import (
     format_bool,
     format_date,
@@ -15,6 +14,9 @@ from portfolio_tracker.presentation.shared.fromatters import (
     format_percent,
 )
 from portfolio_tracker.shared.dataclass_utils import resolve_field_value
+
+if TYPE_CHECKING:
+    from portfolio_tracker.presentation.shared.settings import DisplaySettings
 
 
 TView = TypeVar("TView")

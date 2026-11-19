@@ -1,7 +1,7 @@
 import functools
 import types
 import typing
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import fields, is_dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
@@ -15,41 +15,65 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 TDataclass = TypeVar("TDataclass", bound="DataclassInstance")
+Registry = MutableMapping[type, Callable[[Any], Any]]
 
 
+_UNION_ORIGINS = (typing.Union, types.UnionType)
 _UNCHANGED = object()
 
-
-_ADAPTERS: dict[type, Callable[[Any], Any]] = {
+_ENCODERS: Registry = {
     Decimal: str,
     date: lambda value: value.isoformat(),
     datetime: lambda value: value.isoformat(),
     Path: str,
 }
 
-_CONVERTERS: dict[type, Callable[[Any], Any]] = {
+_DECODERS: Registry = {
     Decimal: lambda value: Decimal(str(value)),
     date: date.fromisoformat,
     datetime: datetime.fromisoformat,
 }
 
-
-def register_adapter(cls: type[T], adapter: Callable[[T], Any]) -> None:
-    _ADAPTERS[cls] = adapter
+_PARSERS: Registry = {}
 
 
-def register_converter(cls: type[T], converter: Callable[[Any], T]) -> None:
-    _CONVERTERS[cls] = converter
+def register_encoder(cls: type[T], adapter: Callable[[T], Any]) -> None:
+    _ENCODERS[cls] = adapter
 
 
-class ConversionError(ValueError): ...
+def register_decoder(cls: type[T], converter: Callable[[Any], T]) -> None:
+    _DECODERS[cls] = converter
 
 
-class DataclassValueError(ValueError):
+def register_parser(cls: type[T], parser: Callable[[str], T]) -> None:
+    _PARSERS[cls] = parser
+
+
+class UnsupportedAnnotationError(TypeError): ...
+
+
+class InvalidFieldError(ValueError):
     def __init__(self, field_path: str | None, reason: str) -> None:
         self.field_path = field_path
         self.reason = reason
         super().__init__(f"{field_path or '<root>'}: {reason}")
+
+
+_EXPECTED = {int: "an integer", float: "a number", Decimal: "a decimal number", str: "text"}
+
+def _expected(class_: type) -> str:
+    return _EXPECTED.get(class_, class_.__name__)
+
+
+def _convert(registry: Registry, class_: type[T], value: Any) -> T:
+    if isinstance(value, class_) and (class_ is bool or not isinstance(value, bool)):
+        return value
+
+    converter = registry.get(class_)
+    if converter is None:
+        raise UnsupportedAnnotationError(f"No converter registered for {class_}")
+    
+    return cast(T, converter(value))
 
 
 def unstructure(value: Any) -> Any:
@@ -63,7 +87,7 @@ def unstructure(value: Any) -> Any:
         return [unstructure(item) for item in value]
 
     if isinstance(value, Mapping):
-        return {key: unstructure(item) for key, item in value.items()}
+        return {unstructure(key): unstructure(item) for key, item in value.items()}
 
     if _is_dataclass_instance(value):
         return {
@@ -71,27 +95,34 @@ def unstructure(value: Any) -> Any:
             for field in fields(value)
         }
 
-    if adapter := _ADAPTERS.get(type(value)):
-        return adapter(value)
+    if encoder := _ENCODERS.get(type(value)):
+        try:
+            return encoder(value)
+        except (TypeError, ValueError) as error:
+            reason = str(error)
+    else:
+        reason = "No adapter registered."
 
-    raise TypeError(f"No adapter registered for object of type {type(value).__name__}.")
+    raise ValueError(
+        f"Cannot adapt value {value} of the type {type(value).__name__}: {reason}"
+    )
 
 
-def structure(value: Any, cls: type[T]) -> T:
-    if isinstance(value, cls):
+def structure(value: Any, class_: type[T]) -> T:
+    if isinstance(value, class_):
         return value
 
-    converter = _CONVERTERS.get(cls)
+    converter = _DECODERS.get(class_)
     try:
-        return cast(T, converter(value) if converter else cls(value))  # type: ignore[call-arg]
+        return cast(T, converter(value) if converter else class_(value))  # type: ignore[call-arg]
     except (TypeError, ValueError) as error:
         hint = (
             " (no converter registered)"
             if converter is None and isinstance(error, TypeError)
             else ""
         )
-        raise ConversionError(
-            f"Cannot convert {value} to {cls.__name__}{hint}: {error}"
+        raise ValueError(
+            f"Cannot convert {value} to {class_.__name__}{hint}: {error}"
         ) from error
 
 
@@ -100,19 +131,16 @@ def structure_field_value(
     field_type: Any,
     value: Any,
     *,
-    unknown_fields: bool = False,
+    allow_unknown_fields: bool = False,
     dataclass_as_dict: bool = False,
 ) -> Any:
-    if field_type is typing.Any:
-        return value
-
     if _is_dataclass_class(field_type) and isinstance(value, dict):
         if dataclass_as_dict:
             return structure_values_by_dataclass(
                 field_type,
                 value,
                 parent_field_path=field_path,
-                unknown_fields=unknown_fields,
+                allow_unknown_fields=allow_unknown_fields,
                 dataclass_as_dict=dataclass_as_dict,
             )
 
@@ -120,8 +148,14 @@ def structure_field_value(
             field_type,
             value,
             parent_field_path=field_path,
-            unknown_fields=unknown_fields,
+            allow_unknown_fields=allow_unknown_fields,
         )
+
+    recurse = functools.partial(
+        structure_field_value,
+        allow_unknown_fields=allow_unknown_fields,
+        dataclass_as_dict=dataclass_as_dict,
+    )
 
     origin_type = typing.get_origin(field_type)
 
@@ -134,120 +168,41 @@ def structure_field_value(
                 field_path=f"{field_path}.{key}",
                 field_type=key_type,
                 value=key,
-                unknown_fields=unknown_fields,
+                allow_unknown_fields=allow_unknown_fields,
                 dataclass_as_dict=dataclass_as_dict,
             ): structure_field_value(
                 field_path=f"{field_path}.{key}",
                 field_type=item_type,
                 value=item,
-                unknown_fields=unknown_fields,
+                allow_unknown_fields=allow_unknown_fields,
                 dataclass_as_dict=dataclass_as_dict,
             )
             for key, item in value.items()
         }
 
-    if origin_type in (list, set) and isinstance(value, list):
-        item_types = typing.get_args(field_type)
-        item_type = item_types[0] if item_types else typing.Any
-        return origin_type(
-            structure_field_value(
-                f"{field_path}[{index}]",
-                item_type,
-                item,
-                unknown_fields=unknown_fields,
-                dataclass_as_dict=dataclass_as_dict,
-            )
-            for index, item in enumerate(value)
-        )
+    if origin_type in (list, tuple, set):
+        if not isinstance(value, list):
+            raise InvalidFieldError(field_path, "expected a list")
 
-    if origin_type is tuple and isinstance(value, list):
-        item_types = typing.get_args(field_type)
-        if not item_types:
-            return tuple(value)
+        return _convert_sequence(field_path, field_type, origin_type, value, recurse)
 
-        if len(item_types) == 2 and item_types[1] is Ellipsis:
-            item_type = item_types[0]
-            return tuple(
-                structure_field_value(
-                    f"{field_path}[{index}]",
-                    item_type,
-                    item,
-                    unknown_fields=unknown_fields,
-                    dataclass_as_dict=dataclass_as_dict,
-                )
-                for index, item in enumerate(value)
-            )
-
-        if len(item_types) != len(value):
-            raise DataclassValueError(
-                field_path=field_path,
-                reason=f"Expected {len(item_types)} items, got {len(value)}",
-            )
-
-        return tuple(
-            structure_field_value(
-                f"{field_path}[{index}]",
-                item_type,
-                item,
-                unknown_fields=unknown_fields,
-                dataclass_as_dict=dataclass_as_dict,
-            )
-            for index, (item, item_type) in enumerate(zip(value, item_types))
-        )
-
-    if origin_type in (typing.Union, types.UnionType):
+    if origin_type in _UNION_ORIGINS:
         union_types = typing.get_args(field_type)
-
         for union_type in union_types:
             if isinstance(union_type, type) and isinstance(value, union_type):
                 return value
-
-        if len(union_types) == 2 and types.NoneType in union_types:
-            union_type = next(
-                union_type
-                for union_type in union_types
-                if union_type is not types.NoneType
-            )
-            return structure_field_value(
-                field_path,
-                union_type,
-                value,
-                unknown_fields=unknown_fields,
-                dataclass_as_dict=dataclass_as_dict,
-            )
-
-        errors: list[tuple[Any, DataclassValueError]] = []
-        for union_type in union_types:
-            try:
-                return structure_field_value(
-                    field_path,
-                    union_type,
-                    value,
-                    unknown_fields=unknown_fields,
-                    dataclass_as_dict=dataclass_as_dict,
-                )
-            except DataclassValueError as error:
-                errors.append((union_type, error))
-
-        raise DataclassValueError(
-            field_path=field_path,
-            reason=", ".join(
-                f"{union_type}: {error.reason}" for union_type, error in errors
-            ),
-        )
-
-    if origin_type in (dict, list, set, tuple):
-        raise DataclassValueError(
-            field_path, f"Expected {origin_type.__name__}, got {type(value).__name__}."
-        )
+    
+        return _convert_union(field_path, union_types, value, recurse)
 
     if not isinstance(field_type, type):
-        raise DataclassValueError(field_path, "Unsupported annotation.")
+        raise UnsupportedAnnotationError(
+            f"{field_path}: Unsupported annotation '{field_type}'."
+        )
 
     try:
         return structure(value, field_type)
-    except ConversionError as error:
-        raise DataclassValueError(field_path, str(error)) from error
+    except ValueError as error:
+        raise InvalidFieldError(field_path, str(error)) from error
 
 
 def structure_dataclass(
@@ -255,20 +210,20 @@ def structure_dataclass(
     values: dict[str, Any],
     *,
     parent_field_path: str | None = None,
-    unknown_fields: bool = False,
+    allow_unknown_fields: bool = False,
 ) -> TDataclass:
     structured_values = structure_values_by_dataclass(
         cls,
         values,
         parent_field_path=parent_field_path,
-        unknown_fields=unknown_fields,
+        allow_unknown_fields=allow_unknown_fields,
         dataclass_as_dict=False,
     )
 
     try:
         return cls(**structured_values)
     except Exception as error:
-        raise DataclassValueError(parent_field_path, str(error)) from error
+        raise InvalidFieldError(parent_field_path, str(error)) from error
 
 
 def structure_values_by_dataclass(
@@ -276,13 +231,10 @@ def structure_values_by_dataclass(
     values: dict[str, Any],
     *,
     parent_field_path: str | None = None,
-    unknown_fields: bool = False,
+    allow_unknown_fields: bool = False,
     dataclass_as_dict: bool = True,
 ) -> dict[str, Any]:
-    annotations = get_cached_type_hints(cls)
-    field_types = {
-        field.name: annotations[field.name] for field in fields(cls) if field.init
-    }
+    field_types = _get_cached_field_types(cls)
     structured_values: dict[str, Any] = {}
 
     for field_name, value in values.items():
@@ -290,16 +242,16 @@ def structure_values_by_dataclass(
             f"{parent_field_path}.{field_name}" if parent_field_path else field_name
         )
         if field_name not in field_types:
-            if unknown_fields:
+            if allow_unknown_fields:
                 continue
-            raise DataclassValueError(field_path, "Uknow field.")
+            raise InvalidFieldError(field_path, "Unknow field.")
 
         field_type = field_types[field_name]
         structured_values[field_name] = structure_field_value(
             field_path,
             field_type,
             value,
-            unknown_fields=unknown_fields,
+            allow_unknown_fields=allow_unknown_fields,
             dataclass_as_dict=dataclass_as_dict,
         )
 
@@ -324,7 +276,7 @@ def replace_dataclass_values(
         )
 
         if not hasattr(instance, field_name):
-            raise DataclassValueError(field_path, "unknown field")
+            raise InvalidFieldError(field_path, "Unknown field.")
 
         original_value = getattr(instance, field_name)
 
@@ -350,7 +302,7 @@ def replace_dataclass_values(
     try:
         return replace(instance, **replacements)
     except Exception as error:
-        raise DataclassValueError(field_path, str(error)) from error
+        raise InvalidFieldError(field_path, str(error)) from error
 
 
 def replace_dict_values(
@@ -367,7 +319,7 @@ def replace_dict_values(
 
         if key not in original:
             if not allow_unknown_keys:
-                raise DataclassValueError(key_path, "unknown key")
+                raise InvalidFieldError(key_path, "Unknown key.")
 
             replaced[key] = replacement_item
             continue
@@ -435,44 +387,147 @@ def prune_replacement_values(
     return pruned_values
 
 
-def resolve_field_type(cls: type[DataclassInstance], field_path: str) -> type:
-    field_type = cls
+def resolve_field_type(cls: type[DataclassInstance], field_path: str) -> Any:
+    current_field_type: Any = cls
+    current_field_path = ""
     for field_name in field_path.split("."):
-        for unpacked_field_type in _unpack_field_type(field_type):
-            if is_dataclass(unpacked_field_type):
-                annotations = get_cached_type_hints(unpacked_field_type)
-                if field_name not in annotations:
-                    raise ValueError(
-                        f"Dataclass '{unpacked_field_type.__name__}' has no field '{field_name}'."
-                    )
+        current_field_path = (
+            f"{current_field_path}.{field_name}" if current_field_path else field_name
+        )
 
-                field_type = annotations[field_name]
-                break
+        possible_types: list[Any] = []
+        for type_ in _unpack_field_type(current_field_type):
+            if is_dataclass(type_) and field_name in _get_cached_field_types(type_):
+                field_types = _get_cached_field_types(type_)
+                if field_name in field_types:
+                    possible_types.append(field_types[field_name])
 
-            if (
-                typing.get_origin(unpacked_field_type) is dict
-                and len(typing.get_args(unpacked_field_type)) == 2
-            ):
-                field_type = typing.get_args(unpacked_field_type)[1]
-                break
+            elif typing.get_origin(type_) is dict and len(typing.get_args(type_)) == 2:
+                possible_types.append(typing.get_args(type_)[1])
 
+        if not possible_types:
+            raise InvalidFieldError(current_field_path, "Unknow field.")
+
+        if len(possible_types) == 1:
+            current_field_type = possible_types[0]
         else:
-            raise ValueError(
-                f"Type '{getattr(field_type, '__name__', field_type)}' has no field '{field_name}'."
+            current_field_type = typing.Union[tuple(possible_types)]
+
+    return current_field_type
+
+
+def resolve_field_value(instance: Any, field_path: str) -> Any:
+    current_field_value = instance
+    current_field_path = ""
+
+    try:
+        for field_name in field_path.split("."):
+            current_field_path = (
+                f"{current_field_path}.{field_name}"
+                if current_field_path
+                else field_name
+            )
+            if isinstance(current_field_value, Mapping):
+                current_field_value = current_field_value[field_name]
+            else:
+                current_field_value = getattr(current_field_value, field_name)
+
+    except (AttributeError, KeyError) as error:
+        raise InvalidFieldError(current_field_path, "Uknow field.") from error
+
+    return current_field_value
+
+
+def _is_parent_field(field_type: Any) -> bool:
+    return any(
+        is_dataclass(type_) or type_ is dict or typing.get_origin(type_) is dict
+        for type_ in _unpack_field_type(field_type)
+    )
+
+
+def parse_field_value(field_path: str, field_type: Any, value: str) -> Any:
+    if _is_parent_field(field_type):
+        raise InvalidFieldError(field_path, "Cannot parse value of parent field.")
+
+    return _parse(field_path, field_type, value)
+
+
+def _parse(field_path: str, field_type: Any, value: str) -> Any:
+    origin_type = typing.get_origin(field_type)
+
+    if origin_type in _UNION_ORIGINS:
+        return _convert_union(field_path, typing.get_args(field_type), value, _parse)
+
+    if origin_type in (list, tuple, set):
+        items = [item.strip() for item in value.split(",") if item.strip()]
+        return _convert_sequence(field_path, field_type, origin_type, items, _parse)
+
+    parser = _PARSERS.get(field_type)
+    if parser is None:
+        raise UnsupportedAnnotationError(
+            f"{field_path}: Unsupported annotation '{field_type}'."
+        )
+
+    try:
+        return parser(value)
+    except ValueError as error:
+        raise InvalidFieldError(field_path, str(error)) from error
+
+
+def _convert_union(
+    field_path: str, union_types: tuple[Any, ...], value: Any, recurse: Callable[[str, Any, Any], Any],
+) -> Any:
+    non_none_types = [
+        union_type for union_type in union_types if union_type is not types.NoneType
+    ]
+
+    if len(non_none_types) == 1 and len(union_types) == 2:
+        try:
+            return recurse(field_path, types.NoneType, value)
+        except InvalidFieldError:
+            return recurse(field_path, non_none_types[0], value)
+
+    reasons: list[str] = []
+    ordered_union_types = sorted(
+        union_types, key=lambda union_type: union_type is not types.NoneType
+    )
+    for union_type in ordered_union_types:
+        try:
+            return recurse(field_path, union_type, value)
+        except InvalidFieldError as error:
+            reasons.append(
+                f"{getattr(union_type, "__name__", union_type)}: {error.reason}"
             )
 
-    return field_type
+    raise InvalidFieldError(field_path, "; ".join(reasons))
 
 
-def resolve_field_value(instance: DataclassInstance, field_path: str) -> Any:
-    field_value = instance
-    for field_name in field_path.split("."):
-        if isinstance(field_value, Mapping):
-            field_value = field_value[field_name]
-        else:
-            field_value = getattr(field_value, field_name)
+def _convert_sequence(
+    field_path: str,
+    field_type: Any,
+    sequence_type: type[list] | type[tuple] | type[set],  # type: ignore[type-arg]
+    items: list[Any],
+    recurse: Callable[[str, Any, Any], Any],
+) -> Any:
+    item_types = typing.get_args(field_type)
+    if not item_types:
+        raise UnsupportedAnnotationError(
+            f"{field_path}: Unsupported annotation '{field_type}'."
+        )
 
-    return field_value
+    if sequence_type is tuple and Ellipsis not in item_types:
+        if len(item_types) != len(items):
+            raise InvalidFieldError(
+                field_path, f"expected {len(item_types)} items, got {len(items)}"
+            )
+
+    else:
+        item_types = (item_types[0],) * len(items)
+
+    return sequence_type(
+        recurse(f"{field_path}[{index}]", item_type, item)
+        for index, (item_type, item) in enumerate(zip(item_types, items))
+    )
 
 
 def _unpack_field_type(field_type: type) -> Generator[type, None, None]:
@@ -516,5 +571,6 @@ def _is_dataclass_class(value: Any) -> bool:
 
 
 @functools.cache
-def get_cached_type_hints(cls: type[DataclassInstance]) -> dict[str, Any]:
-    return typing.get_type_hints(cls)
+def _get_cached_field_types(cls: type[DataclassInstance]) -> dict[str, Any]:
+    annotations = typing.get_type_hints(cls)
+    return {field.name: annotations[field.name] for field in fields(cls) if field.init}

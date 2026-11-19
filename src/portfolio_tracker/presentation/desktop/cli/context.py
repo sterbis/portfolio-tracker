@@ -4,7 +4,7 @@ from portfolio_tracker.application.container import Container
 from portfolio_tracker.application.shared.errors import UserNotLoggedInError, UserAlreadyLoggedOutError
 from portfolio_tracker.presentation.desktop.session import LoginSession, LoginSessionStore
 from portfolio_tracker.settings import Settings
-from portfolio_tracker.shared.settings_utils import SettingsCache, SettingsValidationError
+from portfolio_tracker.shared.settings_utils import SettingsCache, SettingsError
 
 
 ENVIRONMENT_KEY = f"{__name__}.environment"
@@ -32,13 +32,16 @@ class CliContext:
 
     @property
     def settings(self) -> Settings:
-        return self.settings_cache.get(self.current_user_id)
+        return self.settings_cache.get(self.user_id)
 
     @property
     def user_or_default_settings(self) -> Settings:
+        if self.current_user_id is None:
+            return self.settings_cache.default_settings
+    
         try:
             return self.settings_cache.get(self.current_user_id)
-        except SettingsValidationError:
+        except SettingsError:
             return self.settings_cache.default_settings
 
     def log_in(self, user_id: str) -> None:

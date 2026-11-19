@@ -1,21 +1,16 @@
 import re
-import typing
-from dataclasses import is_dataclass
+
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from enum import StrEnum
 from types import NoneType
-from typing import Any, Callable, TypeVar
+from typing import Callable, TypeVar
 
 from portfolio_tracker.application.shared.sort import Sort
 from portfolio_tracker.application.views import MoneyView
 from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.presentation.shared.tables import get_table_spec
-from portfolio_tracker.shared.dataclass_utils import (
-    register_converter,
-    resolve_field_type,
-    structure_field_value,
-)
+from portfolio_tracker.shared.dataclass_utils import register_decoder
 
 TEnum = TypeVar("TEnum", bound=StrEnum)
 
@@ -180,29 +175,7 @@ def sort_column_parser(view_class: type) -> Callable[[str], Sort]:
     return parser
 
 
-register_converter(NoneType, parse_none)
-register_converter(bool, parse_bool)
-register_converter(date, date_parser)
-register_converter(datetime, datetime_parser)
-
-
-def parse_settings_value(settings_class: type, key: str, value: str) -> Any:
-    try:
-        field_type = resolve_field_type(settings_class, key)
-    except ValueError as error:
-        raise KeyError(f"Invalid settings key: '{key}'.") from error
-
-    origin_type = typing.get_origin(field_type)
-    if is_dataclass(field_type) or field_type is dict or origin_type is dict:
-        raise KeyError(
-            f"Invalid settings key: '{key}'. Key points to a section not a value."
-        )
-
-    parsed_value: str | list[str] = value
-    if origin_type in (list, tuple, set) or field_type in (list, tuple, set):
-        parsed_value = [item for item in value.split(",") if item.strip()]
-
-    try:
-        return structure_field_value(parsed_value, field_type)
-    except (TypeError, ValueError) as error:
-        raise ValueError(f"Invalid '{key}' settings value: '{value}'.") from error
+register_decoder(NoneType, parse_none)
+register_decoder(bool, parse_bool)
+register_decoder(date, date_parser)
+register_decoder(datetime, datetime_parser)

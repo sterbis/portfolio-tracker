@@ -7,34 +7,37 @@ import typer
 from portfolio_tracker.presentation.desktop.cli.console import console
 from portfolio_tracker.presentation.desktop.cli.context import CliContext
 from portfolio_tracker.presentation.desktop.cli.guarded_typer import GuardedTyper
-from portfolio_tracker.presentation.desktop.cli.parsers import parse_settings_value
 from portfolio_tracker.presentation.shared.settings import TableDisplaySettings
 from portfolio_tracker.presentation.shared.fromatters import format_settings_values
 from portfolio_tracker.presentation.shared.tables import get_table_spec_by_name
 from portfolio_tracker.presentation.desktop.cli.table import TableRenderer
 from portfolio_tracker.settings import Settings
 from portfolio_tracker.shared.dataclass_utils import (
+    InvalidFieldError,
     replace_dict_values,
+    resolve_field_type,
     resolve_field_value,
+    parse_field_value,
     unstructure,
 )
-from portfolio_tracker.shared.settings_utils import SettingsValidationError
 
 settings_app = GuardedTyper()
 
 
-@settings_app.command(name="list", allow_default_settings=True)
+@settings_app.command(name="list", allow_invalid_settings=True)
 def list_settings(
     ctx: typer.Context,
     key: Annotated[str | None, typer.Argument()] = None,
     as_json: Annotated[bool, typer.Option("--json/--no-json")] = False,
 ) -> None:
     context: CliContext = ctx.obj
+    settings_cache = context.settings_cache
+    user_id = context.user_id
 
-    default_settings = context.settings_cache.default_settings
-    overrides = context.settings_cache.get_overrides(context.user_id)
+    default_settings = settings_cache.default_settings
+    overrides = settings_cache.get_overrides(user_id)
     if key:
-        default_settings = _resolve_settings_value(default_settings, key)
+        default_settings = _get_settings_value(default_settings, key)
         for section_key in key.split("."):
             overrides = overrides.get(section_key, {})
 
@@ -78,7 +81,9 @@ def get_settings_value(
     key: Annotated[str, typer.Argument()],
 ) -> None:
     context: CliContext = ctx.obj
-    value = _resolve_settings_value(context.settings, key)
+    settings = context.settings
+
+    value = _get_settings_value(settings, key)
     if is_dataclass(value) or isinstance(value, dict):
         raise typer.BadParameter(
             f"Invalid settings key: '{key}'. Key points to a section."
@@ -94,17 +99,15 @@ def set_settings_value(
     value: Annotated[str, typer.Argument()],
 ) -> None:
     context: CliContext = ctx.obj
+    settings_cache = context.settings_cache
+    user_id = context.user_id
 
     try:
-        resolved_value = parse_settings_value(Settings, key, value)
+        resolved_value = _parse_settings_value(Settings, key, value)
     except (KeyError, ValueError) as error:
         raise typer.BadParameter(str(error)) from error
 
-    try:
-        context.settings_cache.set_value(context.user_id, key, resolved_value)
-    except SettingsValidationError as error:
-        raise typer.BadParameter(f"Invalid '{key}' settings value: {error}.") from error
-
+    settings_cache.set_value(user_id, key, resolved_value)
     console.print(f"Settings '{key}' value sucessfully updated.")
 
 
@@ -120,11 +123,12 @@ def reset_settings(
         )
 
     context: CliContext = ctx.obj
+    environment = context.environment
     user_id = context.user_id
     settings_cache = context.settings_cache
 
     if all_:
-        if context.environment.is_interactive:
+        if environment.is_interactive:
             reset_all = typer.confirm(
                 "Are you sure you want to reset all settings to defaults?",
                 default=False,
@@ -137,7 +141,7 @@ def reset_settings(
         return
 
     assert key is not None
-    _resolve_settings_value(settings_cache.default_settings, key)
+    _get_settings_value(settings_cache.default_settings, key)
     was_reset = settings_cache.reset_value(user_id, key)
     if was_reset:
         console.print(f"Settings '{key}' value sucessfully reset to default.")
@@ -146,8 +150,20 @@ def reset_settings(
         console.print(f"Settings '{key}' already has default value.")
 
 
-def _resolve_settings_value(settings: Settings, key: str) -> Any:
+def _get_settings_value(settings: Settings, key: str) -> Any:
     try:
         return resolve_field_value(settings, key)
-    except (AttributeError, KeyError) as error:
+    except InvalidFieldError as error:
         raise typer.BadParameter(f"Invalid settings key: '{key}'.") from error
+
+
+def _parse_settings_value(settings_class: type, key: str, value: str) -> Any:
+    try:
+        field_type = resolve_field_type(settings_class, key)
+    except InvalidFieldError as error:
+        raise typer.BadParameter(f"Invalid settings key: '{key}'.") from error
+
+    try:
+        return parse_field_value(key, field_type, value)
+    except InvalidFieldError as error:
+        raise typer.BadParameter(f"Invalid value fo '{key}': '{error.reason}'.") from error

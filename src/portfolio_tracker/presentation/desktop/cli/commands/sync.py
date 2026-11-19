@@ -10,7 +10,7 @@ from portfolio_tracker.presentation.desktop.cli.guarded_typer import GuardedType
 from portfolio_tracker.presentation.desktop.cli.input import resolve_optional_input
 from portfolio_tracker.presentation.desktop.cli.parameters import multi_value_option
 from portfolio_tracker.presentation.desktop.cli.parsers import datetime_parser
-from portfolio_tracker.presentation.desktop.cli.progress import display_sync_progress
+from portfolio_tracker.presentation.desktop.cli.progress import display_progress
 
 sync_app = GuardedTyper()
 
@@ -26,7 +26,12 @@ def sync_portfolio(
     end: Annotated[str | None, typer.Option()] = None,
     restore: Annotated[bool, typer.Option()] = False,
 ) -> None:
+    if restore and (start or end):
+        raise click.UsageError("--restore cannot be combined with --start or --end.")
+    
     context: CliContext = ctx.obj
+    user_id = context.user_id
+    service = context.container.sync_service
 
     resolved_start = resolve_optional_input(
         parameter="--start",
@@ -39,14 +44,17 @@ def sync_portfolio(
         value_parser=datetime_parser,
     )
 
-    if restore and (start or end):
-        raise click.UsageError("--restore cannot be combined with --start or --end.")
-
-    command = SyncCommand(
-        connection_ids=(set(connection_ids) if connection_ids else set()),
-        account_ids=set(account_ids) if account_ids else set(),
-        start=resolved_start,
-        end=resolved_end,
-        restore=restore,
+    asyncio.run(
+        display_progress(
+            service.sync(
+                user_id,
+                command=SyncCommand(
+                    connection_ids=(set(connection_ids) if connection_ids else set()),
+                    account_ids=set(account_ids) if account_ids else set(),
+                    start=resolved_start,
+                    end=resolved_end,
+                    restore=restore,
+                )
+            )
+        )
     )
-    asyncio.run(display_sync_progress(context.container.sync_service.sync, context.user_id, command))

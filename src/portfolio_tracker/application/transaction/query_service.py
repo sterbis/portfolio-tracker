@@ -43,7 +43,7 @@ class TransactionQueryService(QueryService):
     def get_transactions(
         self, user_id: str, query: GetTransactionsQuery
     ) -> list[TransactionView]:
-        split_filter = self._filter_mapper.split(query.filter)
+        split_filter = self._filter_mapper.split(query.options.filter)
 
         with self._unit_of_work(user_id) as uow:
             account_map = uow.accounts.get_user_account_map()
@@ -106,10 +106,4 @@ class TransactionQueryService(QueryService):
                 instruments,
                 converted_transactions,
             )
-            return self._apply_query_options(
-                views,
-                filter_=query.filter,
-                sorts=query.sorts,
-                offset=query.offset,
-                limit=query.limit,
-            )
+            return self._apply_query_options(views, query.options)

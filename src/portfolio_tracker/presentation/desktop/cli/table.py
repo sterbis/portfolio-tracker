@@ -4,7 +4,7 @@ from rich.table import Table
 from rich.text import Text
 
 from portfolio_tracker.presentation.desktop.cli.console import console
-from portfolio_tracker.settings import (
+from portfolio_tracker.presentation.shared.settings import (
     DisplaySettings,
     TableDisplaySettings,
 )

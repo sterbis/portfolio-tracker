@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from portfolio_tracker.shared.settings_utils import SettingsValidationError
+
 from .tables import get_table_spec_by_name
 
 
@@ -31,4 +33,6 @@ class DisplaySettings:
                 if column_name not in table_spec.columns
             ]
             if invalid_column_names:
-                raise ValueError("...")
+                raise SettingsValidationError(
+                    f"Unknown '{table_name}' table columns: {', '.join(invalid_column_names)}"
+                )

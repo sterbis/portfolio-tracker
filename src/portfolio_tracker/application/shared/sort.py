@@ -3,6 +3,7 @@ from typing import Any, Iterable, Sequence, TypeVar
 
 from portfolio_tracker.shared.dataclass_utils import resolve_field_value
 
+
 TItem = TypeVar("TItem")
 
 

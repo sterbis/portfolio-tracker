@@ -1,11 +1,13 @@
 from datetime import date, datetime
 from decimal import Decimal
 from functools import wraps
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from portfolio_tracker.application.views import MoneyView
 from portfolio_tracker.domain.shared import Currency
-from portfolio_tracker.settings import DisplaySettings
+
+if TYPE_CHECKING:
+    from portfolio_tracker.presentation.shared.settings import DisplaySettings
 
 Number = int | float | Decimal
 

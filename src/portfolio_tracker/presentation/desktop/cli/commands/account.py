@@ -5,12 +5,7 @@ import typer
 from portfolio_tracker.application.account import UpdateAssetAccountCommand
 from portfolio_tracker.application.views import AssetAccountView
 from portfolio_tracker.presentation.desktop.cli.console import console
-from portfolio_tracker.presentation.desktop.cli.context import (
-    get_container,
-    get_environment,
-    get_logged_in_user_id,
-    get_settings,
-)
+from portfolio_tracker.presentation.desktop.cli.context import CliContext
 from portfolio_tracker.presentation.desktop.cli.guarded_typer import GuardedTyper
 from portfolio_tracker.presentation.desktop.cli.input import (
     Input,
@@ -28,12 +23,12 @@ account_app = GuardedTyper()
 
 @account_app.command(name="list")
 def list_accounts(ctx: typer.Context) -> None:
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
-    settings = get_settings(ctx)
+    context: CliContext = ctx.obj
+    settings = context.settings
+    user_id = context.user_id
+    query_service = context.container.account_query_service
 
-    accounts = container.account_query_service.get_accounts(user_id)
-
+    accounts = query_service.get_accounts(user_id)
     if not accounts:
         console.print("No accounts found.")
         return
@@ -47,18 +42,20 @@ def edit_account(
     account_id: Annotated[str | None, typer.Option()] = None,
     name: Annotated[str | None, typer.Option()] = None,
 ) -> None:
-    environment = get_environment(ctx)
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
+    context: CliContext = ctx.obj
+    environment = context.environment
+    user_id = context.user_id
+    command_service = context.container.account_command_service
+    query_service = context.container.account_query_service
 
     account_id = resolve_input("--account-id", account_id, environment)
-    account = container.account_query_service.get_account(user_id, account_id)
+    account = query_service.get_account(user_id, account_id)
     inputs: list[Input[Any, Any]] = [
         optional_prompt_str_input("--name", name, default_value=account.name),
     ]
     values = resolve_inputs(environment, inputs)
 
-    container.account_command_service.update_account(
+    command_service.update_account(
         user_id,
         command=UpdateAssetAccountCommand(
             account_id=account_id,
@@ -74,12 +71,14 @@ def activate_account(
     account_id: Annotated[str | None, typer.Option()] = None,
     sync: Annotated[bool | None, typer.Option("--sync/--no-sync")] = None,
 ) -> None:
-    environment = get_environment(ctx)
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
+    context: CliContext = ctx.obj
+    environment = context.environment
+    user_id = context.user_id
+    command_service = context.container.account_command_service
+    query_service = context.container.account_query_service
 
     account_id = resolve_input("--account-id", account_id, environment)
-    account = container.account_query_service.get_account(user_id, account_id)
+    account = query_service.get_account(user_id, account_id)
 
     if environment.is_interactive:
         activate = typer.confirm(
@@ -91,7 +90,7 @@ def activate_account(
             console.print("Operation cancelled.")
             return
 
-    container.account_command_service.activate_account(user_id, account_id)
+    command_service.activate_account(user_id, account_id)
     console.print(f"Account '{account.name}' successfully activated.")
 
     sync = resolve_bool_input(
@@ -118,12 +117,14 @@ def deactivate_account(
     ctx: typer.Context,
     account_id: Annotated[str | None, typer.Option()] = None,
 ) -> None:
-    environment = get_environment(ctx)
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
+    context: CliContext = ctx.obj
+    environment = context.environment
+    user_id = context.user_id
+    command_service = context.container.account_command_service
+    query_service = context.container.account_query_service
 
     account_id = resolve_input("--account-id", account_id, environment)
-    account = container.account_query_service.get_account(user_id, account_id)
+    account = query_service.get_account(user_id, account_id)
 
     if environment.is_interactive:
         deactivate = typer.confirm(
@@ -137,5 +138,5 @@ def deactivate_account(
             console.print("Operation cancelled.")
             return
 
-    container.account_command_service.deactivate_account(user_id, account_id)
+    command_service.deactivate_account(user_id, account_id)
     console.print(f"Account '{account.name}' successfully deactivated.")

@@ -3,6 +3,7 @@ from typing import Annotated, Any
 
 import typer
 
+from portfolio_tracker.application.shared.service import QueryOptions
 from portfolio_tracker.application.transaction import (
     CreateTransactionCommand,
     GetTransactionsQuery,
@@ -18,12 +19,7 @@ from portfolio_tracker.domain.instrument import AssetClass, InstrumentType
 from portfolio_tracker.domain.shared import Currency
 from portfolio_tracker.domain.transaction import TransactionType
 from portfolio_tracker.presentation.desktop.cli.console import console
-from portfolio_tracker.presentation.desktop.cli.context import (
-    get_container,
-    get_environment,
-    get_logged_in_user_id,
-    get_settings,
-)
+from portfolio_tracker.presentation.desktop.cli.context import CliContext
 from portfolio_tracker.presentation.desktop.cli.guarded_typer import GuardedTyper
 from portfolio_tracker.presentation.desktop.cli.input import (
     Input,
@@ -62,7 +58,7 @@ def list_transactions(
         list[str] | None, multi_value_option("--connection-id")
     ] = None,
     account_ids: Annotated[list[str] | None, multi_value_option("--account-id")] = None,
-    currency: Annotated[Currency | None, typer.Option(case_sensitive=False)] = None,
+    reporting_currency: Annotated[Currency | None, typer.Option("--curency", case_sensitive=False)] = None,
     executed_at: Annotated[str | None, typer.Option()] = None,
     type_: Annotated[str | None, typer.Option()] = None,
     quantity: Annotated[str | None, typer.Option()] = None,
@@ -79,11 +75,12 @@ def list_transactions(
     limit: Annotated[int | None, typer.Option()] = None,
     offset: Annotated[int | None, typer.Option()] = None,
 ) -> None:
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
-    settings = get_settings(ctx, user_id)
+    context: CliContext = ctx.obj
+    settings = context.settings
+    user_id = context.user_id
+    query_service = context.container.transaction_query_service
 
-    reporting_currency = currency or settings.application.reporting_currency
+    reporting_currency = reporting_currency or settings.application.reporting_currency
     reporting_currency_money_parser = money_parser(reporting_currency)
 
     filter_inputs = [
@@ -135,21 +132,23 @@ def list_transactions(
     sort_columns = (
         sort_columns or settings.display.cli.tables[table_spec.name].sort_columns
     )
-    sorts = [
+    sorts = tuple(
         parse_sort_column(sort_column, TransactionView) for sort_column in sort_columns
-    ]
-
-    query = GetTransactionsQuery(
-        connection_ids=(set(connection_ids) if connection_ids else set()),
-        account_ids=set(account_ids) if account_ids else set(),
-        reporting_currency=reporting_currency,
-        filter=filter_,
-        sorts=sorts,
-        limit=limit,
-        offset=offset,
     )
-
-    transactions = container.transaction_query_service.get_transactions(user_id, query)
+    transactions = query_service.get_transactions(
+        user_id,
+            query=GetTransactionsQuery(
+            connection_ids=(set(connection_ids) if connection_ids else set()),
+            account_ids=set(account_ids) if account_ids else set(),
+            reporting_currency=reporting_currency,
+            options=QueryOptions(
+                filter=filter_,
+                sorts=sorts,
+                limit=limit,
+                offset=offset,
+            ),
+        ),
+    )
     transaction_total = TransactionTotalView.from_views(
         transactions, reporting_currency
     )
@@ -177,10 +176,11 @@ def add_transaction(
     tax: Annotated[str | None, typer.Option()] = None,
     cash_impact: Annotated[str | None, typer.Option()] = None,
 ) -> None:
-    environment = get_environment(ctx)
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
-    settings = get_settings(ctx, user_id)
+    context: CliContext = ctx.obj
+    environment = context.environment
+    settings = context.settings
+    user_id = context.user_id
+    command_service = context.container.transaction_command_service
 
     reporting_curreny = settings.application.reporting_currency
     zero_money = MoneyView(amount=Decimal("0"), currency=reporting_curreny)
@@ -214,7 +214,7 @@ def add_transaction(
         )
     )
 
-    transaction_id = container.transaction_command_service.create_transaction(
+    transaction_id = command_service.create_transaction(
         user_id, command
     )
     console.print(f"Transaction '{transaction_id}' successfully added.")
@@ -235,16 +235,16 @@ def edit_transaction(
     tax: Annotated[str | None, typer.Option()] = None,
     cash_impact: Annotated[str | None, typer.Option()] = None,
 ) -> None:
-    environment = get_environment(ctx)
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
+    context: CliContext = ctx.obj
+    environment = context.environment
+    user_id = context.user_id
+    command_service = context.container.transaction_command_service
+    query_service = context.container.transaction_query_service
 
     resolved_transaction_id = resolve_input(
         "--transaction-id", transaction_id, environment
     )
-    transaction = container.transaction_query_service.get_transaction(
-        user_id, resolved_transaction_id
-    )
+    transaction = query_service.get_transaction(user_id, resolved_transaction_id)
 
     inputs: list[Input[Any, Any]] = [
         optional_prompt_str_input(
@@ -276,23 +276,24 @@ def edit_transaction(
     ]
     values = resolve_inputs(environment, inputs)
 
-    command = UpdateTransactionCommand(
-        transaction_id=resolved_transaction_id,
-        payload=TransactionPayloadDto(
-            account_id=values["--account-id"],
-            correlation_id=values["--correlation-id"],
-            executed_at=values["--executed-at"],
-            type=values["--type"],
-            instrument_id=values["--instrument-id"],
-            quantity=values["--quantity"],
-            price=values["--price"],
-            fee=values["--fee"],
-            tax=values["--tax"],
-            cash_impact=values["--cash-impact"],
+    command_service.update_transaction(
+        user_id,
+        command=UpdateTransactionCommand(
+            transaction_id=resolved_transaction_id,
+            payload=TransactionPayloadDto(
+                account_id=values["--account-id"],
+                correlation_id=values["--correlation-id"],
+                executed_at=values["--executed-at"],
+                type=values["--type"],
+                instrument_id=values["--instrument-id"],
+                quantity=values["--quantity"],
+                price=values["--price"],
+                fee=values["--fee"],
+                tax=values["--tax"],
+                cash_impact=values["--cash-impact"],
+            ),
         ),
     )
-
-    container.transaction_command_service.update_transaction(user_id, command)
     console.print(f"Transaction '{resolved_transaction_id}' successfully updated.")
 
 
@@ -301,14 +302,16 @@ def remove_transaction(
     ctx: typer.Context,
     transaction_id: Annotated[str | None, typer.Option()] = None,
 ) -> None:
-    environment = get_environment(ctx)
-    container = get_container(ctx)
-    user_id = get_logged_in_user_id(ctx)
+    context: CliContext = ctx.obj
+    environment = context.environment
+    user_id = context.user_id
+    command_service = context.container.transaction_command_service
+    query_service = context.container.transaction_query_service
 
     resolved_transaction_id = resolve_input(
         "--transaction-id", transaction_id, environment
     )
-    transaction = container.transaction_query_service.get_transaction(
+    transaction = query_service.get_transaction(
         user_id, resolved_transaction_id
     )
 
@@ -321,5 +324,5 @@ def remove_transaction(
             console.print("Operation cancelled.")
             return
 
-    container.transaction_command_service.delete_transaction(user_id, transaction.id)
+    command_service.delete_transaction(user_id, transaction.id)
     console.print(f"Transaction ({transaction.id}) successfully removed.")

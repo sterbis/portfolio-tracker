@@ -23,13 +23,15 @@ def register(
     password: Annotated[str | None, typer.Option()] = None,
 ) -> None:
     context: CliContext = ctx.obj
+    environment = context.environment
+    service = context.container.user_service
 
-    resolved_username = resolve_input("--username", username, context.environment)
+    resolved_username = resolve_input("--username", username, environment)
     resolved_password = resolve_input(
-        "--password", password, context.environment, hide_input=True, confirmation_prompt=True
+        "--password", password, environment, hide_input=True, confirmation_prompt=True
     )
 
-    user_id = context.container.user_service.register(
+    user_id = service.register(
         command=RegisterUserCommand(
             username=resolved_username, password=resolved_password
         )
@@ -50,13 +52,15 @@ def login(
     password: Annotated[str | None, typer.Option()] = None,
 ) -> None:
     context: CliContext = ctx.obj
+    environment = context.environment
+    service = context.container.user_service
 
-    resolved_username = resolve_input("--username", username, context.environment)
+    resolved_username = resolve_input("--username", username, environment)
     resolved_password = resolve_input(
-        "--password", password, context.environment, hide_input=True
+        "--password", password, environment, hide_input=True
     )
 
-    user_id = context.container.user_service.authenticate(
+    user_id = service.authenticate(
         command=AuthenticateUserCommand(
             username=resolved_username,
             password=resolved_password,
@@ -69,8 +73,9 @@ def login(
 @user_app.command(name="logout", login_required=False)
 def logout(ctx: typer.Context) -> None:
     context: CliContext = ctx.obj
+    environment = context.environment
 
-    if context.environment.is_interactive:
+    if environment.is_interactive:
         logout_ = typer.confirm("Are you sure you want to log out?", default=False)
         if not logout_:
             console.print("Operation cancelled.")

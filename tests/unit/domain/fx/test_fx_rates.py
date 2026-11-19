@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from types import MappingProxyType
 
 import pytest
 
@@ -28,7 +29,7 @@ def test_fx_rates_missing_currency_raises_value_error() -> None:
     rates = FxRates(
         effective_on=date(2026, 6, 1),
         base_currency=Currency.USD,
-        rates={Currency.EUR: Decimal("0.90")},
+        rates=MappingProxyType({Currency.EUR: Decimal("0.90")}),
     )
 
     with pytest.raises(
